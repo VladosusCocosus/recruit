@@ -1,8 +1,8 @@
-// Static file server for the Recruit setup site.
+// Static file server for the Jobbox site.
 //
-// No dependencies: the site is one HTML file plus five woff2 faces, and a
-// framework to hand back five files would be its own liability. The platform
-// passes PORT in and routes whichever port the process opens.
+// No dependencies: the site is two HTML pages, five woff2 faces and a folder of
+// screenshots, and a framework to hand those back would be its own liability.
+// The platform passes PORT in and routes whichever port the process opens.
 //
 // This directory IS the document root, so server.cjs, package.json and
 // fline.json sit beside the page they publish. They are not reachable: a file
@@ -43,9 +43,12 @@ function resolve(urlPath) {
   const abs = path.join(docRoot, path.normalize(rel));
   // Refuse anything that climbs out of the document root.
   if (abs !== docRoot && !abs.startsWith(docRoot + path.sep)) return null;
+  // A clean URL like /setup names a page, not a file. Give it the .html back
+  // before the allow-list runs, so the allow-list still decides.
+  const file = path.extname(abs) ? abs : abs + '.html';
   // Refuse anything whose type we do not publish.
-  if (!TYPES[path.extname(abs).toLowerCase()]) return null;
-  return abs;
+  if (!TYPES[path.extname(file).toLowerCase()]) return null;
+  return file;
 }
 
 const server = http.createServer((req, res) => {
