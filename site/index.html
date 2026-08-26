@@ -6,96 +6,54 @@
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#1e1e20" media="(prefers-color-scheme: dark)">
-<meta name="description" content="Connect a mailbox to Jobbox: IMAP servers, app passwords and failure modes for Gmail, iCloud, Fastmail and anything else.">
-<title>Jobbox · connecting your mailbox</title>
+<meta name="description" content="Jobbox turns your inbox into a job-application board. It reads your mail, drafts every update, and changes nothing until you accept it.">
+<link rel="icon" href="/img/icon.svg" type="image/svg+xml">
+<title>Jobbox — your job search, kept up to date for you</title>
 
-<link rel="preload" href="/fonts/SpaceGrotesk-Variable.woff2" as="font" type="font/woff2" crossorigin="anonymous">
-<link rel="preload" href="/fonts/InstrumentSerif-400.woff2" as="font" type="font/woff2" crossorigin="anonymous">
-<link rel="preload" href="/fonts/JetBrainsMono-Regular.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Jobbox">
+<meta property="og:title" content="Your inbox already knows. Jobbox writes it down.">
+<meta property="og:description" content="A Mac app that turns your inbox into a job-application board. It reads your mail, drafts every update, and changes nothing until you accept it.">
+<meta property="og:image" content="/img/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="The Jobbox board: applications across Saved, Applied, Screening, Interviewing, Offer and Closed.">
+<meta name="twitter:card" content="summary_large_image">
 
 <style>
-/* Jobbox — connecting your mailbox.
+/* Jobbox — what it is and who does what.
  *
- * Built on the fline design language, and the three rules that travel with it
- * are the rules this page is checked against:
+ * The guide at /setup is the engineering document. This page is the argument,
+ * and it is checked against the same three rules:
  *
- *   1. One accent, and it means one thing. Filament green is a path that
- *      works. Amber is a person being required — it marks the steps you
- *      perform by hand and nothing else, because scarcity is the only reason
- *      it is believed. Blue is the provider's own machinery: hostnames, ports,
- *      the TLS handshake. Grey is a path that does not exist.
- *   2. Serif for the argument, sans for the interface, mono for anything read
- *      as an identifier. A hostname, a port and an error string are mono
- *      because they are things you would type or read back; a sentence is not.
- *   3. No external request. The three families are served from the same
- *      container as the page, so a document about mail that never leaves your
- *      machine does not open two connections to a font CDN to say so.
+ *   1. One accent, and it means one thing. The colours are the app's own, and
+ *      so are their meanings: blue is the one interactive colour and the work
+ *      Jobbox does, amber is a person being required, green is a thing that
+ *      worked, red is a refusal, grey is an absence. The whole claim of this
+ *      page is the ratio of amber to blue, so amber is spent nowhere else.
+ *   2. The system interface face for everything, mono for anything read as an
+ *      identifier — a status key, a shell command, a phrase quoted out of an
+ *      email. A sentence is not an identifier and is never set in mono.
+ *   3. No external request. No webfont is downloaded at all; the screenshots are
+ *      served from the same container as the page.
  *
- * Dark only, on the same near-black ground.
+ * The screenshots are the running app, rendered by video/src/Shots.tsx through
+ * the app's own components. Every company, role, address and person in them is
+ * synthesised by video/scripts/mock.mjs — nothing on this page comes out of a
+ * real mailbox.
  */
-
-/* ------------------------------------------------------------------ fonts - */
-
-@font-face {
-  font-family: 'Space Grotesk';
-  src: url('/fonts/SpaceGrotesk-Variable.woff2') format('woff2');
-  font-weight: 300 700;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Instrument Serif';
-  src: url('/fonts/InstrumentSerif-400.woff2') format('woff2');
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Instrument Serif';
-  src: url('/fonts/InstrumentSerif-400Italic.woff2') format('woff2');
-  font-weight: 400;
-  font-style: italic;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'JetBrains Mono';
-  src: url('/fonts/JetBrainsMono-Regular.woff2') format('woff2');
-  font-weight: 400 500;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'JetBrains Mono';
-  src: url('/fonts/JetBrainsMono-Bold.woff2') format('woff2');
-  font-weight: 600 700;
-  font-style: normal;
-  font-display: swap;
-}
 
 /* ----------------------------------------------------------------- tokens - */
 
 :root {
   /* The app's own tokens, lifted from src/renderer/index.css. Light is the base
-   * because the app's :root is its light palette; dark is the override, and the
-   * data-theme escape hatch beats the media query in both directions exactly as
-   * the app's Settings theme picker does.
-   *
-   * Four meanings, and they are the app's four, not a set invented here: blue is
-   * the one interactive colour, green is a thing that worked, orange is a person
-   * being required, red is a refusal. Grey is an absence — a path with nothing
-   * behind it, which is not the same as a failure and is not coloured like one.
-   */
+   * because the app's :root is its light palette; dark is the override. */
   color-scheme: light dark;
 
   --void: #ffffff;
   --deep: #f2f2f4;
   --panel: #ffffff;
   --panel-2: #f7f7f9;
-  --track: rgba(0, 0, 0, 0.07);
   --topbar: rgba(255, 255, 255, 0.86);
 
   --line: rgba(0, 0, 0, 0.09);
@@ -123,19 +81,14 @@
   --needs-line: rgba(224, 134, 0, 0.36);
   --needs-wash: rgba(224, 134, 0, 0.13);
 
-  --bad: #d70015;
-  --bad-line: rgba(215, 0, 21, 0.32);
-  --bad-wash: rgba(215, 0, 21, 0.10);
+  --shadow: rgba(0, 0, 0, 0.16);
+  --shadow-2: rgba(0, 0, 0, 0.10);
 
-  --plat: #007aff;
-  --plat-line: rgba(0, 122, 255, 0.28);
-  --plat-wash: rgba(0, 122, 255, 0.06);
-  --idle: #b5b5bb;
-
-  --font-display: 'Instrument Serif', Georgia, 'Times New Roman', serif;
-  --font-ui: 'Space Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas,
-    monospace;
+  /* The app's own stacks, from src/renderer/index.css. Nothing is downloaded:
+   * the page is set in whatever the reader's system uses for an interface. */
+  --font-ui: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue',
+    Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
 
   /* The app's radii, not a second set. */
   --r-card: 10px;
@@ -144,7 +97,7 @@
   --r-pill: 999px;
 
   --t: 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
-  --wrap: 1200px;
+  --wrap: 1180px;
   --pad: 28px;
   --measure: 66ch;
 }
@@ -155,7 +108,6 @@
   --deep: #1a1a1c;
   --panel: #262629;
   --panel-2: #232326;
-  --track: rgba(255, 255, 255, 0.09);
   --topbar: rgba(30, 30, 32, 0.86);
 
   --line: rgba(255, 255, 255, 0.09);
@@ -183,14 +135,8 @@
   --needs-line: rgba(255, 159, 10, 0.36);
   --needs-wash: rgba(255, 159, 10, 0.16);
 
-  --bad: #ff453a;
-  --bad-line: rgba(255, 69, 58, 0.34);
-  --bad-wash: rgba(255, 69, 58, 0.16);
-
-  --plat: #0a84ff;
-  --plat-line: rgba(10, 132, 255, 0.30);
-  --plat-wash: rgba(10, 132, 255, 0.10);
-  --idle: #55555e;
+  --shadow: rgba(0, 0, 0, 0.6);
+  --shadow-2: rgba(0, 0, 0, 0.45);
   }
 }
 
@@ -199,7 +145,6 @@
   --deep: #1a1a1c;
   --panel: #262629;
   --panel-2: #232326;
-  --track: rgba(255, 255, 255, 0.09);
   --topbar: rgba(30, 30, 32, 0.86);
 
   --line: rgba(255, 255, 255, 0.09);
@@ -227,14 +172,8 @@
   --needs-line: rgba(255, 159, 10, 0.36);
   --needs-wash: rgba(255, 159, 10, 0.16);
 
-  --bad: #ff453a;
-  --bad-line: rgba(255, 69, 58, 0.34);
-  --bad-wash: rgba(255, 69, 58, 0.16);
-
-  --plat: #0a84ff;
-  --plat-line: rgba(10, 132, 255, 0.30);
-  --plat-wash: rgba(10, 132, 255, 0.10);
-  --idle: #55555e;
+  --shadow: rgba(0, 0, 0, 0.6);
+  --shadow-2: rgba(0, 0, 0, 0.45);
 }
 
 /* ------------------------------------------------------------------ reset - */
@@ -300,29 +239,30 @@ a:hover {
   position: absolute;
   left: -9999px;
   top: 0;
-  z-index: 90;
   background: var(--fil);
   color: var(--fil-ink);
-  font-weight: 600;
   padding: 10px 16px;
   border-radius: 0 0 var(--r-ctrl) 0;
+  font-size: 14px;
+  font-weight: 600;
+  z-index: 100;
 }
 
 .skip:focus {
   left: 0;
-  color: var(--fil-ink);
 }
 
 /* ------------------------------------------------------------------ shell - */
 
 .wrap {
+  width: 100%;
   max-width: var(--wrap);
   margin: 0 auto;
   padding: 0 var(--pad);
 }
 
 .section {
-  padding: 66px 0 72px;
+  padding: 72px 0 78px;
   border-top: 1px solid var(--line);
 }
 
@@ -332,7 +272,6 @@ a:hover {
 
 .eyebrow {
   display: inline-block;
-  font-family: var(--font-mono);
   font-size: 11.5px;
   font-weight: 500;
   letter-spacing: 0.1em;
@@ -340,48 +279,32 @@ a:hover {
   color: var(--fil);
 }
 
-.eyebrow-needs {
-  color: var(--needs);
-}
-
-.eyebrow-plat {
-  color: var(--plat);
-}
-
 .eyebrow-mute {
   color: var(--faint);
 }
 
 h1,
-h2,
-h3.display {
-  font-family: var(--font-display);
-  font-weight: 400;
-  letter-spacing: -0.015em;
+h2 {
+  font-weight: 600;
+  letter-spacing: -0.025em;
 }
 
 h1 {
-  font-size: clamp(46px, 7.4vw, 78px);
-  line-height: 0.96;
-  letter-spacing: -0.02em;
+  font-size: clamp(40px, 5.6vw, 62px);
+  line-height: 1.04;
+  letter-spacing: -0.035em;
   margin: 20px 0 0;
 }
 
-h1 .em {
-  font-style: italic;
+h1 .em,
+h2 .em {
   color: var(--fil);
 }
 
 h2 {
-  font-size: clamp(32px, 4.4vw, 44px);
-  line-height: 1.05;
+  font-size: clamp(28px, 3.6vw, 36px);
+  line-height: 1.12;
   margin: 10px 0 0;
-}
-
-h3.display {
-  font-size: clamp(24px, 3vw, 30px);
-  line-height: 1.1;
-  margin: 0 0 12px;
 }
 
 h3.sub {
@@ -389,15 +312,20 @@ h3.sub {
   font-size: 16px;
   font-weight: 600;
   line-height: 1.3;
-  margin: 34px 0 0;
+  margin: 38px 0 0;
   color: var(--text);
 }
 
 .lede {
-  margin-top: 12px;
+  margin-top: 14px;
   max-width: var(--measure);
-  font-size: 16px;
+  font-size: 16.5px;
   color: var(--dim);
+}
+
+.lede strong {
+  color: var(--text);
+  font-weight: 600;
 }
 
 .prose {
@@ -407,38 +335,21 @@ h3.sub {
   line-height: 1.65;
 }
 
-.prose + .prose {
-  margin-top: 14px;
-}
-
 .prose strong {
   color: var(--text);
   font-weight: 600;
 }
 
-.prose em {
-  font-style: normal;
-  color: var(--text);
-}
-
-/* An identifier — a thing you would type into a field, or read back out of an
- * error. Never a sentence. */
+/* A thing read back out of the app: a status key, a phrase a filter matched. */
 .id {
   font-family: var(--font-mono);
-  font-size: 0.88em;
-  background: var(--track);
-  border: 1px solid var(--line-2);
+  font-size: 0.9em;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
   border-radius: 4px;
   padding: 1px 5px;
-  color: var(--dim);
   white-space: nowrap;
-}
-
-/* A field label in the Jobbox UI. Sans, because it is a thing you read on a
- * screen rather than type. */
-.ui {
-  font-weight: 600;
-  color: var(--text);
 }
 
 /* ----------------------------------------------------------------- topbar - */
@@ -446,10 +357,10 @@ h3.sub {
 .topbar {
   position: sticky;
   top: 0;
-  z-index: 60;
+  z-index: 40;
   background: var(--topbar);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: saturate(180%) blur(14px);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
   border-bottom: 1px solid var(--line);
 }
 
@@ -460,37 +371,37 @@ h3.sub {
   height: 56px;
   display: flex;
   align-items: center;
-  gap: 22px;
+  gap: 20px;
 }
 
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 9px;
+  gap: 8px;
   font-family: var(--font-mono);
-  font-size: 13.5px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   color: var(--text);
   flex: none;
 }
 
 .brand:hover {
-  color: var(--text);
+  color: var(--fil);
 }
 
 .brand-mark {
-  width: 15px;
-  height: 15px;
-  flex: none;
+  width: 19px;
+  height: 19px;
   color: var(--fil);
+  flex: none;
+  border-radius: 4px;
 }
 
 .topbar-nav {
   display: flex;
   align-items: center;
   gap: 18px;
-  flex: 1 1 auto;
-  min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -501,30 +412,20 @@ h3.sub {
 }
 
 .topbar-nav a {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--faint);
+  font-size: 13.5px;
+  color: var(--mute);
   white-space: nowrap;
-  transition: color var(--t);
 }
 
 .topbar-nav a:hover {
   color: var(--text);
 }
 
-.topbar-nav a.dead {
-  color: var(--ghost);
-}
-
-.topbar-nav a.dead:hover {
-  color: var(--mute);
-}
-
 /* ------------------------------------------------------------------- hero - */
 
 .hero {
   position: relative;
-  padding: 62px 0 68px;
+  padding: 66px 0 12px;
   overflow: hidden;
 }
 
@@ -534,18 +435,18 @@ h3.sub {
   background-image: linear-gradient(var(--line) 1px, transparent 1px),
     linear-gradient(90deg, var(--line) 1px, transparent 1px);
   background-size: 44px 44px;
-  mask-image: radial-gradient(ellipse 70% 60% at 30% 40%, #000 0%, transparent 100%);
-  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 30% 40%, #000 0%, transparent 100%);
+  mask-image: radial-gradient(ellipse 80% 55% at 26% 22%, #000 0%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 55% at 26% 22%, #000 0%, transparent 100%);
   opacity: 0.5;
   pointer-events: none;
 }
 
 .hero-in {
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.06fr);
-  gap: 46px;
-  align-items: center;
+}
+
+.hero-copy {
+  max-width: 780px;
 }
 
 .pill {
@@ -555,7 +456,6 @@ h3.sub {
   padding: 5px 11px 5px 8px;
   border: 1px solid var(--fil-edge);
   border-radius: var(--r-pill);
-  font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 500;
   letter-spacing: 0.04em;
@@ -582,14 +482,6 @@ h3.sub {
   }
 }
 
-.hero-note {
-  margin-top: 22px;
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-  color: var(--faint);
-  line-height: 1.7;
-}
-
 .chip-row {
   display: flex;
   flex-wrap: wrap;
@@ -599,11 +491,10 @@ h3.sub {
 
 .chip {
   display: inline-block;
-  font-family: var(--font-mono);
   font-size: 13px;
   font-weight: 500;
   color: var(--mute);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--line-2);
   padding: 7px 11px;
   border-radius: 7px;
 }
@@ -640,7 +531,7 @@ h3.sub {
 
 .btn-ghost {
   color: var(--text);
-  border-color: rgba(255, 255, 255, 0.16);
+  border-color: var(--line-3);
 }
 
 .btn-ghost:hover {
@@ -663,7 +554,7 @@ h3.sub {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  margin-top: 26px;
+  margin-top: 28px;
 }
 
 .topbar-cta {
@@ -671,12 +562,11 @@ h3.sub {
   margin-left: auto;
 }
 
-/* Gatekeeper is a person being required, so it is amber and it is brief. */
+/* A gatekeeper is a person being required, so it is amber and it is brief. */
 .gate {
   margin-top: 16px;
-  max-width: 46ch;
-  font-family: var(--font-mono);
-  font-size: 11.5px;
+  max-width: 56ch;
+  font-size: 12.5px;
   line-height: 1.7;
   color: var(--needs);
 }
@@ -688,200 +578,205 @@ h3.sub {
   padding: 1px 5px;
 }
 
-/* ---------------------------------------------------------------- session - */
+/* ------------------------------------------------------------ screenshots - */
 
-/* The signature. A real IMAP session is the most characteristic artifact in
- * this subject's world, and the read-only claim is easier to believe as an
- * absence in a transcript than as a sentence: the commands that would write are
- * printed struck through, in the grey reserved for a path that does not exist.
- */
+/* The window PNGs carry their own corner radius in the alpha channel, so the
+ * shadow has to be a drop-shadow — a box-shadow would draw a square behind a
+ * rounded window. Two of them: a tight one for the edge, a wide one for depth. */
 
-.term {
-  border: 1px solid var(--line-2);
-  border-radius: var(--r-card);
-  background: var(--panel);
-  overflow: hidden;
+.shot {
+  margin: 0;
 }
 
-.term-bar {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 11px 14px;
-  border-bottom: 1px solid var(--line);
-  background: var(--panel-2);
+.shot img {
+  width: 100%;
+  height: auto;
+  filter: drop-shadow(0 2px 6px var(--shadow-2)) drop-shadow(0 26px 60px var(--shadow));
 }
 
-.term-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--idle);
-  flex: none;
-}
-
-.term-title {
-  margin-left: 6px;
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-  color: var(--faint);
-}
-
-.term-body {
-  padding: 15px 16px 17px;
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-  line-height: 1.85;
-  overflow-x: auto;
-}
-
-.term-line {
-  white-space: pre;
-  color: var(--mute);
-}
-
-.term-line .c {
-  color: var(--fil);
-}
-
-.term-line .s {
-  color: var(--ok);
-}
-
-.term-line .cmt {
-  color: var(--ghost);
-}
-
-/* The commands Jobbox has no code to send. */
-.term-line.never {
-  color: var(--idle);
-  text-decoration: line-through;
-  text-decoration-thickness: 1px;
-}
-
-.term-foot {
-  display: flex;
-  border-top: 1px solid var(--line);
-}
-
-.term-foot span {
-  flex: 1;
-  padding: 10px 6px;
-  text-align: center;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--faint);
-  border-left: 1px solid var(--line);
-}
-
-.term-foot span:first-child {
-  border-left: 0;
-}
-
-.term-foot .on {
-  color: var(--ok);
-}
-
-/* -------------------------------------------------------------- providers - */
-
-.grid-2 {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-  margin-top: 26px;
-}
-
-.card {
-  border: 1px solid var(--line-2);
-  border-radius: var(--r-card);
-  background: var(--panel);
-  padding: 20px;
-  transition: transform var(--t), border-color var(--t);
-}
-
-.card:hover {
-  transform: translateY(-4px);
-  border-color: var(--fil-edge);
-}
-
-.card h3 {
-  margin-top: 10px;
-  font-size: 17px;
-  font-weight: 600;
-  line-height: 1.3;
-}
-
-.card p {
-  margin-top: 8px;
+.shot figcaption {
+  margin-top: 16px;
+  max-width: var(--measure);
   font-size: 13.5px;
-  line-height: 1.5;
   color: var(--faint);
+  line-height: 1.6;
 }
 
-/* --------------------------------------------------------------- sections - */
-
-.head-row {
-  display: flex;
-  align-items: baseline;
-  gap: 14px;
-  flex-wrap: wrap;
+.hero-shot {
+  margin-top: 54px;
 }
 
-/* Who acts. The only place amber is allowed is `you`. */
+.shots-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 30px;
+  align-items: start;
+  margin-top: 24px;
+}
+
+/* -------------------------------------------------------------- who does - */
+
+/* The badge that carries the whole argument. Amber is a person being required;
+ * blue is Jobbox working. Nothing else on this page is allowed to be amber. */
 .who {
-  font-family: var(--font-mono);
+  display: inline-block;
   font-size: 10.5px;
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  border-radius: 4px;
-  padding: 2px 6px;
-  white-space: nowrap;
+  padding: 2px 7px;
+  border-radius: var(--r-pill);
+  vertical-align: 2px;
 }
 
 .who-app {
-  color: var(--ok);
-  border: 1px solid var(--ok-line);
+  color: var(--fil);
+  background: var(--fil-wash);
+  border: 1px solid var(--fil-line);
 }
 
 .who-you {
   color: var(--needs);
-  border: 1px solid var(--needs-line);
   background: var(--needs-wash);
+  border: 1px solid var(--needs-line);
 }
 
-.who-server {
-  color: var(--plat);
-  border: 1px solid var(--plat-line);
-}
+/* ----------------------------------------------------------- the ledger - */
 
-.who-none {
-  color: var(--faint);
+/* The signature. Two columns, the same six jobs, and the only row where they
+ * agree is the last one. Everything else on the page supports this. */
+
+.ledger {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   border: 1px solid var(--line-2);
+  border-radius: var(--r-panel);
+  overflow: hidden;
+  background: var(--panel);
+  margin-top: 26px;
 }
 
-.who-bad {
-  color: var(--bad);
-  border: 1px solid var(--bad-line);
-  background: var(--bad-wash);
+.ledger > * {
+  border-bottom: 1px solid var(--line);
+  padding: 16px 20px;
+}
+
+.ledger > *:nth-child(odd) {
+  border-right: 1px solid var(--line-2);
+}
+
+.ledger > *:nth-last-child(-n + 2) {
+  border-bottom: 0;
+}
+
+.ledger-head {
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--line-2);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.ledger-cell {
+  font-size: 14.5px;
+  line-height: 1.5;
+  color: var(--dim);
+}
+
+.ledger-cell::before {
+  content: attr(data-w);
+  display: none;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-bottom: 4px;
+}
+
+.ledger-cell b {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* The last pair. Two words, and the argument is over. */
+.ledger-final {
+  font-size: clamp(21px, 2.6vw, 27px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--text);
+  padding-top: 24px;
+  padding-bottom: 24px;
+}
+
+.ledger-final em {
+  font-style: normal;
+  color: var(--fil);
+}
+
+.ledger-note {
+  margin-top: 14px;
+  max-width: var(--measure);
+  font-size: 13.5px;
+  color: var(--faint);
+  line-height: 1.6;
+}
+
+/* ------------------------------------------------------------------ cards - */
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 24px;
+}
+
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 24px;
+}
+
+.card {
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--panel);
+  padding: 18px;
+  transition: border-color var(--t);
+}
+
+.card:hover {
+  border-color: var(--line-2);
+}
+
+.card h3 {
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 7px;
+  color: var(--text);
+}
+
+.card p {
+  font-size: 14px;
+  color: var(--dim);
+  line-height: 1.6;
 }
 
 /* ------------------------------------------------------------------ steps - */
 
 .steps {
   margin-top: 26px;
-  border: 1px solid var(--line-2);
-  border-radius: 14px;
-  background: var(--panel-2);
 }
 
 .step {
-  display: grid;
-  grid-template-columns: 34px 1fr;
-  gap: 14px;
-  padding: 16px 20px;
+  display: flex;
+  gap: 18px;
+  padding: 20px 0;
   border-top: 1px solid var(--line);
 }
 
@@ -890,139 +785,54 @@ h3.sub {
 }
 
 .step-n {
-  font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--ghost);
-  padding-top: 2px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--faint);
+  padding-top: 3px;
+  flex: none;
 }
 
 .step-name {
-  font-family: var(--font-mono);
-  font-size: 13.5px;
-  font-weight: 500;
+  font-size: 16px;
+  font-weight: 600;
   color: var(--text);
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
   flex-wrap: wrap;
 }
 
 .step-body {
   margin-top: 6px;
-  font-size: 13.5px;
-  line-height: 1.6;
-  color: var(--faint);
   max-width: var(--measure);
+  font-size: 14.5px;
+  color: var(--dim);
+  line-height: 1.6;
 }
 
 .step-body strong {
-  color: var(--dim);
-  font-weight: 600;
-}
-
-.step-body em {
-  font-style: normal;
-  color: var(--dim);
-  font-weight: 600;
-}
-
-/* ------------------------------------------------------------------ table - */
-
-.tbl-wrap {
-  margin-top: 22px;
-  border: 1px solid var(--line-2);
-  border-radius: 12px;
-  background: var(--panel);
-  overflow-x: auto;
-}
-
-.tbl {
-  width: 100%;
-  border-collapse: collapse;
-  text-align: left;
-}
-
-.tbl th {
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--faint);
-  padding: 11px 16px;
-  border-bottom: 1px solid var(--line-2);
-  white-space: nowrap;
-}
-
-.tbl td {
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-  color: var(--dim);
-  padding: 10px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  vertical-align: top;
-  white-space: nowrap;
-}
-
-.tbl tr:last-child td {
-  border-bottom: 0;
-}
-
-.tbl td:first-child {
   color: var(--text);
-}
-
-.tbl .on {
-  color: var(--ok);
-}
-
-.tbl .off {
-  color: var(--faint);
-}
-
-.tbl .wrap-cell {
-  white-space: normal;
-}
-
-/* ----------------------------------------------------------------- caveat - */
-
-/* As prominent as the instructions above it. A page that lets the reader
- * assume a step is optional has misled them with true sentences. */
-.caveat {
-  margin-top: 22px;
-  border: 1px solid var(--needs-line);
-  border-radius: 14px;
-  background: var(--needs-wash);
-  padding: 20px 22px;
-}
-
-.caveat p {
-  margin-top: 8px;
-  max-width: var(--measure);
-  font-size: 14px;
-  line-height: 1.6;
-  color: var(--dim);
-}
-
-.caveat strong {
-  color: var(--needs);
   font-weight: 600;
 }
+
+/* ------------------------------------------------------------------ notes - */
 
 .note {
-  margin-top: 22px;
-  border: 1px solid var(--line-2);
-  border-radius: 14px;
+  margin-top: 26px;
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--fil-line);
+  border-radius: 0 var(--r-card) var(--r-card) 0;
   background: var(--panel-2);
-  padding: 20px 22px;
+  padding: 16px 20px;
 }
 
 .note p {
-  margin-top: 8px;
   max-width: var(--measure);
-  font-size: 14px;
+  font-size: 14.5px;
+  color: var(--dim);
   line-height: 1.6;
-  color: var(--faint);
+  margin-top: 6px;
 }
 
 .note strong {
@@ -1030,271 +840,140 @@ h3.sub {
   font-weight: 600;
 }
 
-.note em {
-  font-style: normal;
-  color: var(--dim);
-  font-weight: 600;
-}
-
-/* A path that does not exist. Grey, not red — nothing here is an alarm, it is
- * an absence. */
-.note-dead {
-  border-color: var(--line-2);
-  background: transparent;
-}
-
-.note-dead strong {
-  color: var(--mute);
-}
-
-/* ------------------------------------------------------------------ figure */
-
-figure {
-  margin: 26px 0 0;
-}
-
-figcaption {
-  margin-top: 12px;
-  max-width: var(--measure);
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--faint);
-}
-
-.plot {
-  border: 1px solid var(--line-2);
+/* A limit is an absence, not a failure, so it stays grey. */
+.limits {
+  margin-top: 24px;
+  border: 1px solid var(--line);
   border-radius: var(--r-card);
   background: var(--panel);
-  padding: 22px 20px;
-  overflow-x: auto;
-}
-
-/* SVG roles, on the same four meanings as everything else. */
-.svg-box {
-  fill: none;
-  stroke: var(--line-3);
-  stroke-width: 1;
-}
-
-.svg-panel {
-  fill: var(--panel-2);
-  stroke: var(--line-3);
-  stroke-width: 1;
-}
-
-.svg-app {
-  fill: var(--fil-wash);
-  stroke: var(--fil-line);
-  stroke-width: 1;
-}
-
-.svg-ok {
-  fill: var(--ok-wash);
-  stroke: var(--ok-line);
-  stroke-width: 1;
-}
-
-.svg-you {
-  fill: var(--needs-wash);
-  stroke: var(--needs-line);
-  stroke-width: 1;
-}
-
-.svg-server {
-  fill: var(--plat-wash);
-  stroke: var(--plat-line);
-  stroke-width: 1;
-}
-
-.svg-dead {
-  fill: none;
-  stroke: var(--idle);
-  stroke-width: 1;
-  stroke-dasharray: 5 4;
-}
-
-.svg-line {
-  stroke: var(--line-3);
-  stroke-width: 1;
-  fill: none;
-  color: var(--line-3);
-}
-
-.svg-line-app {
-  stroke: var(--fil);
-  color: var(--fil);
-  stroke-width: 1;
-  fill: none;
-}
-
-.svg-line-ok {
-  stroke: var(--ok);
-  color: var(--ok);
-  stroke-width: 1;
-  fill: none;
-}
-
-.svg-line-you {
-  stroke: var(--needs);
-  color: var(--needs);
-  stroke-width: 1;
-  fill: none;
-}
-
-.svg-line-bad {
-  stroke: var(--bad);
-  color: var(--bad);
-  stroke-width: 1;
-  fill: none;
-}
-
-.svg-line-dead {
-  stroke: var(--idle);
-  color: var(--idle);
-  stroke-width: 1;
-  fill: none;
-  stroke-dasharray: 5 4;
-}
-
-.svg-t {
-  font-family: var(--font-ui);
-  font-size: 13px;
-  font-weight: 600;
-  fill: var(--text);
-}
-
-.svg-m {
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-  fill: var(--faint);
-}
-
-.svg-m-app {
-  fill: var(--fil);
-}
-
-.svg-m-you {
-  fill: var(--needs);
-}
-
-.svg-m-ok {
-  fill: var(--ok);
-}
-
-.svg-m-server {
-  fill: var(--plat);
-}
-
-.svg-m-dead {
-  fill: var(--idle);
-}
-
-.svg-m-bad {
-  fill: var(--bad);
-}
-
-.svg-big {
-  font-family: var(--font-mono);
-  font-size: 21px;
-  font-weight: 600;
-  fill: var(--text);
-}
-
-/* -------------------------------------------------------------- diagnostic */
-
-.diag {
-  margin-top: 26px;
-  border: 1px solid var(--line-2);
-  border-radius: 14px;
-  background: var(--panel-2);
   overflow: hidden;
 }
 
-.diag-row {
+.limit {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
-  gap: 22px;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 18px;
   padding: 16px 20px;
   border-top: 1px solid var(--line);
 }
 
-.diag-row:first-child {
+.limit:first-child {
   border-top: 0;
 }
 
-/* The literal string the app prints. Mono, because you read it back. */
-.diag-err {
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-  line-height: 1.6;
-  color: var(--text);
+.limit-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ghost);
 }
 
-.diag-fix {
-  font-size: 13.5px;
-  line-height: 1.6;
-  color: var(--faint);
-}
-
-.diag-fix em {
-  font-style: normal;
+.limit-body {
+  font-size: 14.5px;
   color: var(--dim);
+  line-height: 1.6;
+}
+
+.limit-body strong {
+  color: var(--text);
   font-weight: 600;
 }
 
-/* ------------------------------------------------------------------ footer */
+/* --------------------------------------------------------------- download - */
+
+.get {
+  border-top: 1px solid var(--line);
+  padding: 78px 0 84px;
+  text-align: center;
+}
+
+.get h2 {
+  margin: 12px 0 0;
+}
+
+.get .lede {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.get .hero-cta {
+  justify-content: center;
+}
+
+.get .gate {
+  margin-left: auto;
+  margin-right: auto;
+  text-align: left;
+}
+
+/* ----------------------------------------------------------------- footer - */
 
 .foot {
   border-top: 1px solid var(--line);
-  padding: 30px 0 46px;
+  padding: 26px 0 40px;
 }
 
 .foot p {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--ghost);
-  line-height: 1.7;
+  font-size: 13px;
+  color: var(--faint);
+  line-height: 1.8;
 }
 
 /* ------------------------------------------------------------- responsive - */
 
-@media (max-width: 900px) {
-  .hero-in {
-    grid-template-columns: 1fr;
+@media (max-width: 940px) {
+  .topbar-nav {
+    display: none;
+  }
+  .shots-2 {
+    grid-template-columns: minmax(0, 1fr);
     gap: 34px;
-  }
-
-  .grid-2 {
-    grid-template-columns: 1fr;
-  }
-
-  .diag-row {
-    grid-template-columns: 1fr;
-    gap: 10px;
   }
 }
 
-@media (max-width: 620px) {
+@media (max-width: 760px) {
   :root {
-    --pad: 18px;
+    --pad: 20px;
   }
-
+  .grid-2,
+  .grid-3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ledger {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ledger > *:nth-child(odd) {
+    border-right: 0;
+  }
+  .ledger > *:nth-last-child(-n + 2) {
+    border-bottom: 1px solid var(--line);
+  }
+  .ledger > *:last-child {
+    border-bottom: 0;
+  }
+  .ledger-head {
+    display: none;
+  }
+  .ledger-cell::before {
+    display: block;
+  }
+  .limit {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
   .section {
-    padding: 52px 0 56px;
+    padding: 54px 0 58px;
   }
-
   .hero {
-    padding: 42px 0 50px;
+    padding-top: 48px;
   }
-
+  .hero-shot {
+    margin-top: 36px;
+  }
   .step {
-    grid-template-columns: 26px 1fr;
-    gap: 10px;
-    padding: 14px 16px;
+    gap: 12px;
   }
-
-  .term-body {
-    font-size: 11.5px;
+  .shot img {
+    filter: drop-shadow(0 2px 6px var(--shadow-2)) drop-shadow(0 14px 30px var(--shadow));
   }
 }
 
@@ -1302,17 +981,8 @@ figcaption {
   html {
     scroll-behavior: auto;
   }
-
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.001ms !important;
-  }
-
-  .card:hover {
-    transform: none;
+  .pip {
+    animation: none;
   }
 }
 </style>
@@ -1323,21 +993,26 @@ figcaption {
 <header class="topbar">
   <div class="topbar-in">
     <a class="brand" href="#top">
-      <svg class="brand-mark" viewBox="0 0 16 16" aria-hidden="true">
-        <rect x="1" y="3.5" width="14" height="10" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.4"></rect>
-        <path d="M1.8 5 L8 9.4 L14.2 5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path>
+      <svg class="brand-mark" viewBox="0 0 128 128" aria-hidden="true">
+        <mask id="bb" maskUnits="userSpaceOnUse" x="0" y="0" width="128" height="128">
+          <rect width="128" height="128" fill="#fff"></rect>
+          <g fill="none" stroke="#000" stroke-width="10" stroke-linecap="round">
+            <path d="M29 40 V88"></path><circle cx="44" cy="73" r="15"></circle>
+            <path d="M69 40 V88"></path><circle cx="84" cy="73" r="15"></circle>
+          </g>
+        </mask>
+        <rect width="128" height="128" rx="28" fill="currentColor" mask="url(#bb)"></rect>
       </svg>
       jobbox
     </a>
     <nav class="topbar-nav" aria-label="Sections">
-      <a href="#how">how it connects</a>
-      <a href="#ports">ports &amp; TLS</a>
-      <a href="#gmail">gmail</a>
-      <a href="#icloud">icloud</a>
-      <a href="#fastmail">fastmail</a>
-      <a class="dead" href="#outlook">outlook</a>
-      <a href="#custom">anything else</a>
-      <a href="#trouble">when it fails</a>
+      <a href="#hands">what changes</a>
+      <a href="#how">how it works</a>
+      <a href="#review">review</a>
+      <a href="#track">what it keeps</a>
+      <a href="#needs">what it needs</a>
+      <a href="#limits">limits</a>
+      <a href="/setup">connect a mailbox</a>
     </nav>
     <a class="btn btn-fil topbar-cta" href="https://01a03fba-de27-71c9-8081-7cdda93c00a7-storage.apps.dev.fline.sh/downloads/latest/Recruit-arm64.dmg">Download</a>
   </div>
@@ -1350,18 +1025,19 @@ figcaption {
     <div class="hero-grid" aria-hidden="true"></div>
     <div class="wrap hero-in">
 
-      <div>
-        <span class="pill"><span class="pip" aria-hidden="true"></span>read-only · imap</span>
-        <h1>Sign it in.<br>It only <span class="em">reads</span>.</h1>
-        <p class="lede">Jobbox connects to one INBOX over IMAP. Every provider below needs the
-          same two things from you: an app-specific password, and the right server, port and TLS
-          setting.</p>
+      <div class="hero-copy">
+        <span class="pill"><span class="pip" aria-hidden="true"></span>mac app · free · no account</span>
+        <h1>Your inbox already knows.<br>Jobbox <span class="em">writes it down</span>.</h1>
+        <p class="lede">Every application you send leaves a trail in your mail — the confirmation,
+          the recruiter's reply, the invite, the no. Jobbox reads that trail and keeps a board in
+          step with it. It drafts each change; you accept it. You never type the same company name
+          twice.</p>
 
         <div class="chip-row">
-          <span class="chip">one INBOX</span>
-          <span class="chip">90 days</span>
-          <span class="chip">no OAuth</span>
-          <span class="chip">no sending</span>
+          <span class="chip">reads your mail</span>
+          <span class="chip">drafts the updates</span>
+          <span class="chip">you approve each one</span>
+          <span class="chip">stays on your Mac</span>
         </div>
 
         <div class="hero-cta">
@@ -1375,590 +1051,332 @@ figcaption {
 
         <p class="gate">Unsigned build — macOS blocks it on first open.<br>
           Right-click the app → Open, or run <code>xattr -dr com.apple.quarantine /Applications/Recruit.app</code></p>
-
-        <p class="hero-note">passwords → macOS Keychain<br>messages → local SQLite<br>neither
-          leaves the machine</p>
       </div>
 
-      <figure class="term" aria-label="An IMAP session: Jobbox connects, authenticates with an app password, selects INBOX, searches the last ninety days and fetches message bodies with BODY.PEEK, which does not set the seen flag. The STORE, EXPUNGE and APPEND commands that would change the mailbox are struck through, because Jobbox has no code that sends them.">
-        <div class="term-bar" aria-hidden="true">
-          <span class="term-dot"></span>
-          <span class="term-dot"></span>
-          <span class="term-dot"></span>
-          <span class="term-title">jobbox · imap session</span>
-        </div>
-        <div class="term-body">
-<div class="term-line"><span class="cmt">$</span> connect <span class="s">imap.gmail.com:993</span> <span class="cmt">tls</span></div>
-<div class="term-line"><span class="s">*</span> OK Gmail ready.</div>
-<div class="term-line">&nbsp;</div>
-<div class="term-line"><span class="c">a1</span> LOGIN you@gmail.com ••••••••••••••••</div>
-<div class="term-line"><span class="c">a1</span> OK LOGIN completed</div>
-<div class="term-line"><span class="c">a2</span> SELECT INBOX</div>
-<div class="term-line"><span class="s">*</span> 2841 EXISTS</div>
-<div class="term-line"><span class="c">a3</span> SEARCH SINCE 28-May-2026</div>
-<div class="term-line"><span class="s">*</span> SEARCH 2751 2752 2753 …</div>
-<div class="term-line"><span class="c">a4</span> FETCH 2751:* (BODY.PEEK[])</div>
-<div class="term-line"><span class="cmt">  ↑ PEEK — does not set \Seen</span></div>
-<div class="term-line">&nbsp;</div>
-<div class="term-line"><span class="cmt"># no code path sends these:</span></div>
-<div class="term-line never">a5 STORE 2751 +FLAGS (\Seen)</div>
-<div class="term-line never">a6 EXPUNGE</div>
-<div class="term-line never">a7 APPEND "Sent" {…}</div>
-        </div>
-        <div class="term-foot" aria-hidden="true">
-          <span>connect</span>
-          <span>login</span>
-          <span>select</span>
-          <span class="on">peek</span>
-        </div>
+      <figure class="shot hero-shot">
+        <picture>
+          <source srcset="/img/board-dark.webp" media="(prefers-color-scheme: dark)" width="1800" height="1054">
+          <img src="/img/board-light.webp" width="1800" height="1054" fetchpriority="high"
+            alt="The Jobbox board: fourteen applications across six columns — Saved, Applied, Screening, Interviewing, Offer and Closed — each card showing the company, the role, its status and how many emails are linked to it.">
+        </picture>
       </figure>
 
     </div>
   </section>
 
-  <!-- ── HOW IT CONNECTS ──────────────────────────────────── -->
+  <!-- ── THE LEDGER ───────────────────────────────────────── -->
+  <section class="section" id="hands">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">What changes</span>
+        <h2>The same board, without the data entry.</h2>
+        <p class="lede">None of this is work you weren't already doing. It's work you were doing
+          from memory, at half past eleven, in a spreadsheet with three tabs and one column nobody
+          has touched since June.</p>
+      </div>
+
+      <div class="ledger">
+        <div class="ledger-head"><span class="who who-you">you</span> by hand</div>
+        <div class="ledger-head"><span class="who who-app">jobbox</span> instead</div>
+
+        <div class="ledger-cell" data-w="you by hand">Read three thousand messages and notice the
+          forty that are about your search.</div>
+        <div class="ledger-cell" data-w="jobbox instead">Scores every message, flags the forty, and
+          shows you <b>the phrase that flagged each one</b>.</div>
+
+        <div class="ledger-cell" data-w="you by hand">Work out which application this mail belongs
+          to. Scroll. Find it. Or start a new row.</div>
+        <div class="ledger-cell" data-w="jobbox instead">Matches the mail to the application, or
+          proposes a new one when there isn't one yet.</div>
+
+        <div class="ledger-cell" data-w="you by hand">Type the company, the role, where you found
+          it, the date you applied.</div>
+        <div class="ledger-cell" data-w="jobbox instead">Fills in all four, out of the message that
+          already said them.</div>
+
+        <div class="ledger-cell" data-w="you by hand">Drag the card to Screening. Try to remember
+          what made you move it.</div>
+        <div class="ledger-cell" data-w="jobbox instead">Proposes the move with the line that
+          justifies it attached.</div>
+
+        <div class="ledger-cell" data-w="you by hand">Put the interview in your calendar. Again when
+          it moves. Chase the one that went quiet.</div>
+        <div class="ledger-cell" data-w="jobbox instead">Puts it in <b>Up next</b> with the time, the
+          length and the link.</div>
+
+        <div class="ledger-cell ledger-final" data-w="you by hand">Decide.</div>
+        <div class="ledger-cell ledger-final" data-w="jobbox instead"><em>Not its call.</em></div>
+      </div>
+
+      <p class="ledger-note">Amber on this page means a person is required. It shows up in exactly
+        two places: the left column, and the Accept button.</p>
+    </div>
+  </section>
+
+  <!-- ── HOW IT WORKS ─────────────────────────────────────── -->
   <section class="section" id="how">
     <div class="wrap">
       <div class="section-head">
-        <span class="eyebrow">How it connects</span>
-        <h2>What it does with the account</h2>
-        <p class="lede">Worth knowing before you hand it a password. Jobbox signs in as a mail
-          client, pulls the last 90 days of your INBOX, and never sends a command back that
-          changes anything on the server.</p>
+        <span class="eyebrow">How it works</span>
+        <h2>Four steps. You're needed for two.</h2>
+        <p class="lede">Setup happens once. After that the loop is sync, run, review — and review
+          is the only one that changes anything.</p>
       </div>
 
-      <figure>
-        <div class="plot">
-          <svg viewBox="0 0 860 300" role="img" aria-label="Jobbox authenticates to the provider's IMAP server with an app password, receives messages, stores them in a local SQLite database and stores the password in the macOS Keychain. The path that would write flags, delete messages or send mail is dashed and crossed out.">
-            <defs>
-              <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
-                <path d="M 0 1 L 9 5 L 0 9 z" fill="currentColor"></path>
-              </marker>
-            </defs>
-
-            <!-- the path never opened -->
-            <line class="svg-line-dead" x1="330" y1="44" x2="222" y2="44" marker-end="url(#a)"></line>
-            <line class="svg-line-dead" x1="264" y1="37" x2="278" y2="51" stroke-dasharray="0"></line>
-            <line class="svg-line-dead" x1="278" y1="37" x2="264" y2="51" stroke-dasharray="0"></line>
-            <text class="svg-m svg-m-dead" x="276" y="26" text-anchor="middle">STORE · EXPUNGE · APPEND</text>
-
-            <rect class="svg-server" x="22" y="72" width="200" height="112" rx="10"></rect>
-            <text class="svg-t" x="122" y="120" text-anchor="middle">Provider IMAP</text>
-            <text class="svg-m svg-m-server" x="122" y="143" text-anchor="middle">imap.example.com:993</text>
-
-            <rect class="svg-app" x="330" y="72" width="200" height="112" rx="10"></rect>
-            <text class="svg-t" x="430" y="112" text-anchor="middle">Jobbox</text>
-            <text class="svg-m svg-m-app" x="430" y="134" text-anchor="middle">sync + prefilter</text>
-            <text class="svg-m" x="430" y="154" text-anchor="middle">INBOX · 90 days</text>
-
-            <rect class="svg-panel" x="638" y="72" width="200" height="112" rx="10"></rect>
-            <text class="svg-t" x="738" y="120" text-anchor="middle">jobbox.db</text>
-            <text class="svg-m" x="738" y="143" text-anchor="middle">messages + scores</text>
-
-            <rect class="svg-you" x="330" y="236" width="200" height="54" rx="10"></rect>
-            <text class="svg-t" x="430" y="269" text-anchor="middle">macOS Keychain</text>
-
-            <line class="svg-line-you" x1="330" y1="108" x2="222" y2="108" marker-end="url(#a)"></line>
-            <text class="svg-m svg-m-you" x="276" y="100" text-anchor="middle">app password</text>
-
-            <line class="svg-line" x1="216" y1="150" x2="324" y2="150" marker-end="url(#a)"></line>
-            <text class="svg-m" x="270" y="170" text-anchor="middle">messages</text>
-
-            <line class="svg-line" x1="530" y1="128" x2="632" y2="128" marker-end="url(#a)"></line>
-            <text class="svg-m" x="581" y="120" text-anchor="middle">store</text>
-
-            <line class="svg-line-you" x1="430" y1="184" x2="430" y2="230" marker-end="url(#a)"></line>
-            <text class="svg-m svg-m-you" x="440" y="212">password</text>
-          </svg>
-        </div>
-        <figcaption>The password takes one path — into the Keychain — and only SQLite ever grows.
-          The dashed edge is the one Jobbox never opens: v1 has no code that writes an IMAP flag,
-          moves a message or sends mail.</figcaption>
-      </figure>
-
-      <h3 class="sub">What you do in the app</h3>
       <ol class="steps">
         <li class="step">
           <span class="step-n">01</span>
           <div>
-            <div class="step-name">Settings → Account <span class="who who-you">you</span></div>
-            <p class="step-body">Choose your provider from <em>Provider</em>. The servers, ports
-              and TLS toggles fill themselves in.</p>
+            <div class="step-name">Connect a mailbox <span class="who who-you">you</span></div>
+            <p class="step-body">Five minutes, once. Pick your provider, paste an app-specific
+              password, test the connection. Gmail, iCloud, Fastmail and anything else that speaks
+              IMAP. <a href="/setup">The setup guide</a> has the servers, the ports, and the one
+              switch that causes most first-run failures.</p>
           </div>
         </li>
         <li class="step">
           <span class="step-n">02</span>
           <div>
-            <div class="step-name">Email address <span class="who who-app">autofills</span></div>
-            <p class="step-body">Typing it copies the address into both <em>Username</em> fields.
-              Override them only if your provider says otherwise — iCloud sometimes does.</p>
+            <div class="step-name">Sync <span class="who who-app">jobbox</span></div>
+            <p class="step-body">Pulls the last 90 days of your inbox and scores every message
+              against a local filter — no model, no network, just the words. Anything that looks
+              like your job search becomes a <strong>candidate</strong>, and each one keeps the
+              reason it was picked.</p>
           </div>
         </li>
         <li class="step">
           <span class="step-n">03</span>
           <div>
-            <div class="step-name">Password <span class="who who-you">you</span></div>
-            <p class="step-body">The app-specific password from the section for your provider
-              below. Not your account password.</p>
+            <div class="step-name">Run <span class="who who-app">jobbox</span></div>
+            <p class="step-body">The agent reads the candidates and writes out what it thinks
+              changed: a new application, a status move, an interview, a message filed against the
+              right company. Every one of them names the mail it came from. A run takes a minute or
+              two, and you can stop it mid-flight.</p>
           </div>
         </li>
         <li class="step">
           <span class="step-n">04</span>
           <div>
-            <div class="step-name">Test IMAP connection <span class="who who-server">server</span></div>
-            <p class="step-body">A real sign-in, before anything is saved. Wait for the green
-              result — a saved account with a bad password just fails later, at sync.</p>
-          </div>
-        </li>
-        <li class="step">
-          <span class="step-n">05</span>
-          <div>
-            <div class="step-name">Save, then Sync <span class="who who-app">jobbox</span></div>
-            <p class="step-body">Messages scoring 0.5 or higher in the prefilter become candidates
-              for the agent to triage.</p>
+            <div class="step-name">Review <span class="who who-you">you</span></div>
+            <p class="step-body">Accept or reject, one keystroke each. <strong>Accept is the only
+              thing in the app that writes to your tracker.</strong> Everything before it is a
+              draft.</p>
           </div>
         </li>
       </ol>
 
-      <div class="note">
-        <span class="eyebrow eyebrow-mute">Optional</span>
-        <p><strong>SMTP does nothing in this version.</strong> Jobbox stores and
-          connection-tests the outgoing half so sending can land later, but nothing sends today.
-          Leave it blank and everything still works.</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── PORTS ────────────────────────────────────────────── -->
-  <section class="section" id="ports">
-    <div class="wrap">
-      <div class="section-head">
-        <span class="eyebrow eyebrow-plat">Ports &amp; TLS</span>
-        <h2>One switch causes most first-run failures</h2>
-        <p class="lede"><em>Use TLS</em> means <strong>this port is encrypted from the first
-          byte</strong>. It is not a "should this be secure?" question. Turn it off on 143 and 587
-          and the connection still gets encrypted — by STARTTLS, a step later.</p>
-      </div>
-
-      <figure>
-        <div class="plot">
-          <svg viewBox="0 0 780 250" role="img" aria-label="Port to TLS mapping. IMAP 993 with Use TLS on, IMAP 143 with Use TLS off using STARTTLS, SMTP 465 with Use TLS on, SMTP 587 with Use TLS off using STARTTLS.">
-            <text class="svg-m svg-m-server" x="24" y="30">INCOMING · IMAP</text>
-
-            <rect class="svg-panel" x="24" y="44" width="348" height="72" rx="10"></rect>
-            <text class="svg-big" x="48" y="90">993</text>
-            <rect x="132" y="68" width="40" height="22" rx="11" fill="var(--ok)"></rect>
-            <circle cx="161" cy="79" r="7.5" fill="#ffffff"></circle>
-            <text class="svg-m svg-m-ok" x="186" y="84">Use TLS · on</text>
-
-            <rect class="svg-panel" x="404" y="44" width="348" height="72" rx="10"></rect>
-            <text class="svg-big" x="428" y="90">143</text>
-            <rect x="512" y="68" width="40" height="22" rx="11" fill="none" stroke="var(--line-3)"></rect>
-            <circle cx="523" cy="79" r="7.5" fill="var(--idle)"></circle>
-            <text class="svg-m" x="566" y="84">off → STARTTLS</text>
-
-            <text class="svg-m svg-m-server" x="24" y="156">OUTGOING · SMTP</text>
-
-            <rect class="svg-panel" x="24" y="170" width="348" height="72" rx="10"></rect>
-            <text class="svg-big" x="48" y="216">465</text>
-            <rect x="132" y="194" width="40" height="22" rx="11" fill="var(--ok)"></rect>
-            <circle cx="161" cy="205" r="7.5" fill="#ffffff"></circle>
-            <text class="svg-m svg-m-ok" x="186" y="210">Use TLS · on</text>
-
-            <rect class="svg-panel" x="404" y="170" width="348" height="72" rx="10"></rect>
-            <text class="svg-big" x="428" y="216">587</text>
-            <rect x="512" y="194" width="40" height="22" rx="11" fill="none" stroke="var(--line-3)"></rect>
-            <circle cx="523" cy="205" r="7.5" fill="var(--idle)"></circle>
-            <text class="svg-m" x="566" y="210">off → STARTTLS</text>
-          </svg>
-        </div>
-        <figcaption>Match the toggle to the port, not to your instincts about security. Mismatch it
-          and the test fails during the handshake, not at authentication — which is why Jobbox
-          reports those two failures with different words.</figcaption>
-      </figure>
-    </div>
-  </section>
-
-  <!-- ── GMAIL ────────────────────────────────────────────── -->
-  <section class="section" id="gmail">
-    <div class="wrap">
-      <div class="section-head">
-        <span class="eyebrow eyebrow-mute">Provider</span>
-        <div class="head-row">
-          <h2>Gmail</h2>
-          <span class="who who-app">works</span>
-        </div>
-        <p class="lede">IMAP has been on by default for every Google account since January 2025 —
-          there is no setting to enable. What you need is an app password, and app passwords only
-          exist once 2-Step Verification is on.</p>
-      </div>
-
-      <ol class="steps">
-        <li class="step">
-          <span class="step-n">01</span>
-          <div>
-            <div class="step-name">Turn on 2-Step Verification <span class="who who-you">you</span></div>
-            <p class="step-body">At <span class="id">myaccount.google.com/security</span>, if it
-              isn't already. Without it the app-passwords page does not exist.</p>
-          </div>
-        </li>
-        <li class="step">
-          <span class="step-n">02</span>
-          <div>
-            <div class="step-name">Create the app password <span class="who who-you">you</span></div>
-            <p class="step-body">Go to <span class="id">myaccount.google.com/apppasswords</span>,
-              name it <strong>Jobbox</strong>, and create it.</p>
-          </div>
-        </li>
-        <li class="step">
-          <span class="step-n">03</span>
-          <div>
-            <div class="step-name">Paste it without the spaces <span class="who who-you">you</span></div>
-            <p class="step-body">Google prints it in four groups for readability and the groups
-              are not part of it: <span class="id">abcd efgh ijkl mnop</span> goes in as
-              <span class="id">abcdefghijklmnop</span>. Sixteen characters. The same password
-              works for IMAP and SMTP.</p>
-          </div>
-        </li>
-      </ol>
-
-      <div class="tbl-wrap">
-        <table class="tbl">
-          <thead>
-            <tr><th>Role</th><th>Server</th><th>Port</th><th>Use TLS</th><th>Username</th></tr>
-          </thead>
-          <tbody>
-            <tr><td>IMAP</td><td>imap.gmail.com</td><td>993</td><td class="on">on</td><td>full address</td></tr>
-            <tr><td>SMTP</td><td>smtp.gmail.com</td><td>465</td><td class="on">on</td><td>full address</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div class="caveat">
-        <span class="eyebrow eyebrow-needs">No app-passwords page?</span>
-        <p>Three causes, in order of likelihood: <strong>2-Step Verification is off</strong>; the
-          account is enrolled in Advanced Protection, which removes app passwords entirely; or it
-          is a Workspace account whose admin has disabled them. Only the first is yours to fix.</p>
-      </div>
-
-      <div class="note">
-        <span class="eyebrow eyebrow-mute">Scope</span>
-        <p><strong>Jobbox only reads INBOX.</strong> A Gmail filter that archives or labels
-          recruiter mail on arrival takes it out of INBOX, and Jobbox will never see it.
-          Promotions and Updates are still INBOX, so those do get picked up.</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── ICLOUD ───────────────────────────────────────────── -->
-  <section class="section" id="icloud">
-    <div class="wrap">
-      <div class="section-head">
-        <span class="eyebrow eyebrow-mute">Provider</span>
-        <div class="head-row">
-          <h2>iCloud Mail</h2>
-          <span class="who who-app">works</span>
-          <span class="who who-none">username quirk</span>
-        </div>
-        <p class="lede">Apple requires two-factor authentication on the Apple Account before it
-          will issue an app-specific password. The quirk is the username: Apple documents the
-          <em>name part</em> of your address for incoming mail, and the full address for
-          outgoing.</p>
-      </div>
-
-      <ol class="steps">
-        <li class="step">
-          <span class="step-n">01</span>
-          <div>
-            <div class="step-name">Generate the password <span class="who who-you">you</span></div>
-            <p class="step-body">Sign in at <span class="id">account.apple.com</span> →
-              <strong>Sign-In and Security</strong> → <strong>App-Specific Passwords</strong>.
-              Label it <strong>Jobbox</strong> and copy it. Apple shows it once.</p>
-          </div>
-        </li>
-        <li class="step">
-          <span class="step-n">02</span>
-          <div>
-            <div class="step-name">Pick the iCloud preset, paste, test <span class="who who-server">server</span></div>
-            <p class="step-body">If it authenticates, you're done. If it doesn't, the username is
-              the thing to change — see below.</p>
-          </div>
-        </li>
-      </ol>
-
-      <figure>
-        <div class="plot">
-          <svg viewBox="0 0 790 270" role="img" aria-label="If the full iCloud address fails to authenticate over IMAP, retry with only the part of the address before the at sign.">
-            <defs>
-              <marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
-                <path d="M 0 1 L 9 5 L 0 9 z" fill="currentColor"></path>
-              </marker>
-            </defs>
-
-            <rect class="svg-panel" x="20" y="52" width="210" height="66" rx="10"></rect>
-            <text class="svg-m" x="125" y="78" text-anchor="middle">IMAP username</text>
-            <text class="svg-m" x="125" y="100" text-anchor="middle" fill="var(--text)">you@icloud.com</text>
-
-            <line class="svg-line" x1="230" y1="85" x2="322" y2="85" marker-end="url(#b)"></line>
-            <text class="svg-m" x="276" y="77" text-anchor="middle">test</text>
-
-            <polygon class="svg-server" points="328,85 400,46 472,85 400,124"></polygon>
-            <text class="svg-m svg-m-server" x="400" y="89" text-anchor="middle">signs in?</text>
-
-            <line class="svg-line-ok" x1="472" y1="85" x2="564" y2="85" marker-end="url(#b)"></line>
-            <text class="svg-m svg-m-ok" x="518" y="77" text-anchor="middle">yes</text>
-            <rect class="svg-ok" x="570" y="52" width="200" height="66" rx="10"></rect>
-            <text class="svg-t" x="670" y="92" text-anchor="middle">Done — save it</text>
-
-            <line class="svg-line-you" x1="400" y1="124" x2="400" y2="170" marker-end="url(#b)"></line>
-            <text class="svg-m svg-m-you" x="412" y="152">no</text>
-
-            <rect class="svg-you" x="280" y="176" width="240" height="66" rx="10"></rect>
-            <text class="svg-m svg-m-you" x="400" y="202" text-anchor="middle">retry with the prefix</text>
-            <text class="svg-m" x="400" y="224" text-anchor="middle" fill="var(--text)">you</text>
-          </svg>
-        </div>
-        <figcaption>The password is unchanged between the two attempts — only the username field
-          moves. If the prefix works, leave <em>Email address</em> as the full address; it is a
-          separate field from <em>Username</em>.</figcaption>
+      <figure class="shot" style="margin-top:34px">
+        <picture>
+          <source srcset="/img/mail-dark.webp" media="(prefers-color-scheme: dark)" width="1800" height="1054">
+          <img src="/img/mail-light.webp" width="1800" height="1054" loading="lazy"
+            alt="A message open in Jobbox. It is tagged Candidate, and a row of chips under the header says why it was flagged: ATS sender, known company, linked thread, subject match on “thanks for applying”, body match on the same phrase — with the prefilter score beside them.">
+        </picture>
+        <figcaption>Step 02, seen from the inside. The chips under the header are the whole reason
+          this message is on the pile, and they are there before any model has read a word of
+          it.</figcaption>
       </figure>
 
-      <div class="tbl-wrap">
-        <table class="tbl">
-          <thead>
-            <tr><th>Role</th><th>Server</th><th>Port</th><th>Use TLS</th><th>Username</th></tr>
-          </thead>
-          <tbody>
-            <tr><td>IMAP</td><td>imap.mail.me.com</td><td>993</td><td class="on">on</td><td class="wrap-cell">full address, else prefix</td></tr>
-            <tr><td>SMTP</td><td>smtp.mail.me.com</td><td>587</td><td class="off">off</td><td>full address</td></tr>
-          </tbody>
-        </table>
-      </div>
-
       <div class="note">
-        <span class="eyebrow eyebrow-mute">Aliases</span>
-        <p><strong>@me.com and @mac.com aliases</strong> use the same servers and the same
-          app-specific password — sign in with whichever address the mailbox actually answers
-          to.</p>
+        <span class="eyebrow eyebrow-mute">Between 03 and 04</span>
+        <p>Your tracker is untouched. Every tool the agent has appends a proposal and answers with
+          the same sentence — <strong>nothing has changed in the tracker yet</strong> — because that
+          is all those tools can do. The code that writes an application, a status or an event is
+          reachable from one button, and you press it.</p>
       </div>
     </div>
   </section>
 
-  <!-- ── FASTMAIL ─────────────────────────────────────────── -->
-  <section class="section" id="fastmail">
+  <!-- ── REVIEW ───────────────────────────────────────────── -->
+  <section class="section" id="review">
     <div class="wrap">
       <div class="section-head">
-        <span class="eyebrow eyebrow-mute">Provider</span>
-        <div class="head-row">
-          <h2>Fastmail</h2>
-          <span class="who who-app">works</span>
-        </div>
-        <p class="lede">Fastmail refuses your normal password on IMAP outright, so an app password
-          is not a 2FA workaround here — it is the only way in. The one thing to get right is the
-          scope.</p>
+        <span class="eyebrow">Review</span>
+        <h2>It proposes. <span class="em">You decide.</span></h2>
+        <p class="lede">Automation you have to double-check is worse than no automation. So the
+          rule isn't "trust it" — it's that everything it does arrives as a change you can read in
+          a few seconds and throw out with one key.</p>
       </div>
 
-      <ol class="steps">
-        <li class="step">
-          <span class="step-n">01</span>
-          <div>
-            <div class="step-name">Settings → Privacy &amp; Security → Connected apps <span class="who who-you">you</span></div>
-            <p class="step-body">Then <strong>New app password</strong>.</p>
-          </div>
-        </li>
-        <li class="step">
-          <span class="step-n">02</span>
-          <div>
-            <div class="step-name">Give it a scope that includes Mail <span class="who who-you">you</span></div>
-            <p class="step-body">Either scope that includes Mail is fine. A Contacts- or
-              Calendars-only token authenticates against CardDAV and CalDAV and is rejected on
-              port 993.</p>
-          </div>
-        </li>
-      </ol>
-
-      <div class="tbl-wrap">
-        <table class="tbl">
-          <thead>
-            <tr><th>Role</th><th>Server</th><th>Port</th><th>Use TLS</th><th>Username</th></tr>
-          </thead>
-          <tbody>
-            <tr><td>IMAP</td><td>imap.fastmail.com</td><td>993</td><td class="on">on</td><td>full address</td></tr>
-            <tr><td>SMTP</td><td>smtp.fastmail.com</td><td>465</td><td class="on">on</td><td>full address</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div class="note">
-        <span class="eyebrow eyebrow-mute">Aliases</span>
-        <p><strong>Using a Fastmail alias or your own domain?</strong> Sign in with the account's
-          primary address, not the alias — the alias delivers to the same mailbox but is not a
-          login.</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── OUTLOOK ──────────────────────────────────────────── -->
-  <section class="section" id="outlook">
-    <div class="wrap">
-      <div class="section-head">
-        <span class="eyebrow eyebrow-mute">Provider</span>
-        <div class="head-row">
-          <h2>Outlook &amp; Microsoft 365</h2>
-          <span class="who who-bad">no way in</span>
-        </div>
-        <p class="lede">Jobbox ships an Outlook preset and it will not authenticate. Microsoft has
-          removed password-based sign-in from IMAP and SMTP: personal Outlook.com accounts lost it
-          on 16 September 2024, Exchange Online mailboxes earlier, and the last SMTP holdout closed
-          on 30 April 2026. The only remaining door is OAuth, which Jobbox has no client for.</p>
-      </div>
-
-      <figure>
-        <div class="plot">
-          <svg viewBox="0 0 830 240" role="img" aria-label="Jobbox sends an app password over basic auth and Microsoft refuses it. The OAuth path Microsoft accepts is not implemented in Jobbox.">
-            <defs>
-              <marker id="c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
-                <path d="M 0 1 L 9 5 L 0 9 z" fill="currentColor"></path>
-              </marker>
-            </defs>
-
-            <rect class="svg-app" x="20" y="42" width="190" height="64" rx="10"></rect>
-            <text class="svg-t" x="115" y="70" text-anchor="middle">Jobbox</text>
-            <text class="svg-m svg-m-app" x="115" y="90" text-anchor="middle">app password</text>
-
-            <line class="svg-line-bad" x1="210" y1="74" x2="588" y2="74" marker-end="url(#c)"></line>
-            <line class="svg-line-bad" x1="392" y1="67" x2="406" y2="81" stroke-dasharray="0"></line>
-            <line class="svg-line-bad" x1="406" y1="67" x2="392" y2="81" stroke-dasharray="0"></line>
-            <text class="svg-m svg-m-bad" x="399" y="56" text-anchor="middle">basic auth — refused</text>
-
-            <rect class="svg-dead" x="20" y="140" width="190" height="64" rx="10"></rect>
-            <text class="svg-t" x="115" y="168" text-anchor="middle" fill="var(--ghost)">OAuth client</text>
-            <text class="svg-m svg-m-dead" x="115" y="188" text-anchor="middle">not built</text>
-
-            <line class="svg-line-dead" x1="210" y1="172" x2="588" y2="172" marker-end="url(#c)"></line>
-            <text class="svg-m svg-m-dead" x="399" y="162" text-anchor="middle">the path Microsoft accepts</text>
-
-            <rect class="svg-server" x="594" y="34" width="212" height="176" rx="10"></rect>
-            <text class="svg-t" x="700" y="116" text-anchor="middle">Exchange Online</text>
-            <text class="svg-m svg-m-server" x="700" y="138" text-anchor="middle">outlook.office365.com</text>
-          </svg>
-        </div>
-        <figcaption>Nothing you can set in Jobbox or in your Microsoft account bridges the gap —
-          app passwords for Microsoft accounts were themselves a basic-auth mechanism, and went
-          with it.</figcaption>
+      <figure class="shot">
+        <picture>
+          <source srcset="/img/review-dark.webp" media="(prefers-color-scheme: dark)" width="1800" height="1054">
+          <img src="/img/review-light.webp" width="1800" height="1054" loading="lazy"
+            alt="The review queue. One triage run has produced three grouped proposals. The open one would create an application at Fernpath for a Full-Stack AI Engineer role and link two emails to it; each change shows a confidence and a WHY line quoting the message, the two source emails are listed with their prefilter scores, and the card ends in Accept and Reject buttons.">
+        </picture>
+        <figcaption>One run, three proposals, grouped so that changes describing the same
+          application are accepted together. Every line has a <em>why</em> under it, and the mail
+          that produced it is listed at the bottom of the card.</figcaption>
       </figure>
-
-      <div class="caveat">
-        <span class="eyebrow eyebrow-needs">The way around it</span>
-        <p><strong>If your job mail lives in Outlook,</strong> the practical route today is a
-          forwarding rule from Outlook into a mailbox Jobbox can read, and pointing Jobbox at
-          that one instead. Set the rule up in Outlook yourself — Jobbox cannot create it.</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── CUSTOM ───────────────────────────────────────────── -->
-  <section class="section" id="custom">
-    <div class="wrap">
-      <div class="section-head">
-        <span class="eyebrow eyebrow-mute">Provider</span>
-        <div class="head-row">
-          <h2>Anything else</h2>
-          <span class="who who-none">custom…</span>
-        </div>
-        <p class="lede">Pick <em>Custom…</em> and fill the four IMAP fields by hand. Providers
-          publish these under "IMAP settings" or "mail client setup"; the pattern is nearly always
-          the same.</p>
-      </div>
 
       <div class="grid-2">
         <div class="card">
-          <span class="eyebrow eyebrow-plat">Server</span>
-          <h3>imap.yourdomain.com</h3>
-          <p>Usually that, or <span class="id">mail.yourdomain.com</span>. Your webmail's hostname
-            is not always the IMAP one.</p>
+          <h3>Every proposal shows its source</h3>
+          <p>The messages that caused it, with senders, dates and the score that flagged them. If
+            the reasoning doesn't hold up, you can see that without leaving the card.</p>
         </div>
         <div class="card">
-          <span class="eyebrow eyebrow-plat">Port &amp; TLS</span>
-          <h3>993 with TLS on</h3>
-          <p>Unless the provider says 143 — in which case turn <em>Use TLS</em> off and let
-            STARTTLS do it.</p>
+          <h3>Rejecting costs nothing</h3>
+          <p>The application stays exactly as it was. There's nothing to undo, because nothing was
+            done — the proposal is marked rejected and the queue moves on.</p>
         </div>
         <div class="card">
-          <span class="eyebrow eyebrow-plat">Username</span>
-          <h3>The full address, usually</h3>
-          <p>Some shared hosting uses a cPanel-style <span class="id">user@domain</span> that
-            differs from your display address.</p>
+          <h3>The agent can't reach your tracker</h3>
+          <p>It has no tool that writes one. Not a restricted one, not a careful one — none. The
+            only path into your data runs through Accept.</p>
         </div>
         <div class="card">
-          <span class="eyebrow eyebrow-needs">Password</span>
-          <h3>An app password, if offered</h3>
-          <p>If the account has 2FA and the provider has no app-password feature, IMAP will not
-            work at all.</p>
+          <h3>It can't touch your mailbox</h3>
+          <p>No sending, no replying, no deleting, no marking things read. Jobbox opens your mailbox
+            to read it and closes it again. Marking a message handled is local to your Mac.</p>
         </div>
-      </div>
-
-      <div class="note note-dead">
-        <span class="eyebrow eyebrow-mute">No plain IMAP endpoint</span>
-        <p><strong>Proton and Tutanota</strong> encrypt mailboxes in a way that has no plain IMAP
-          endpoint. Proton exposes IMAP only through Proton Mail Bridge running locally, so Jobbox
-          would point at <span class="id">127.0.0.1</span> with the Bridge's own generated
-          password. Tutanota has no IMAP at all.</p>
       </div>
     </div>
   </section>
 
-  <!-- ── TROUBLESHOOTING ──────────────────────────────────── -->
-  <section class="section" id="trouble">
+  <!-- ── WHAT IT KEEPS ────────────────────────────────────── -->
+  <section class="section" id="track">
     <div class="wrap">
       <div class="section-head">
-        <span class="eyebrow eyebrow-plat">When it fails</span>
-        <h2>Read the message before changing anything</h2>
-        <p class="lede">Jobbox distinguishes the failure modes deliberately, so the message tells
-          you which layer broke.</p>
+        <span class="eyebrow">What it keeps</span>
+        <h2>One place where the search is actually true.</h2>
+        <p class="lede">Six columns in the order a search moves. Open a card and you get the whole
+          history of that application — what was sent, what came back, what got scheduled — and the
+          calls it owes you are on their own screen.</p>
       </div>
 
-      <div class="diag">
-        <div class="diag-row">
-          <div class="diag-err">Authentication failed — check the username and password.</div>
-          <div class="diag-fix">You reached the server and it said no. Almost always a normal
-            password where an app password belongs, or spaces left in a pasted one. Also check the
-            app password wasn't revoked — changing your main account password kills every app
-            password with it.</div>
+      <div class="shots-2">
+        <figure class="shot">
+          <picture>
+            <source srcset="/img/item-dark.webp" media="(prefers-color-scheme: dark)" width="1800" height="1054">
+            <img src="/img/item-light.webp" width="1800" height="1054" loading="lazy"
+              alt="An application open beside the board. The detail pane shows Quillstone, Founding Engineer, Remote, currently Interviewing, with a timeline holding the scheduled interview and its meeting link, a note about when the process resumes, and the three emails linked to this application.">
+          </picture>
+          <figcaption>A timeline per application: mail, status moves, meetings and your own notes on
+            one thread, so "where did we leave it" takes a glance.</figcaption>
+        </figure>
+
+        <figure class="shot">
+          <picture>
+            <source srcset="/img/upnext-dark.webp" media="(prefers-color-scheme: dark)" width="1800" height="720">
+            <img src="/img/upnext-light.webp" width="1800" height="720" loading="lazy"
+              alt="The Up next screen: two interviews, one today at 3pm and one tomorrow at 1pm, each showing the company, the role, the application's current status and a Join button for the video call.">
+          </picture>
+          <figcaption>Up next: everything scheduled, in time order, with a Join button on the calls
+            that have a link. The one screen to open on a Monday.</figcaption>
+        </figure>
+      </div>
+
+      <h3 class="sub">And the mail is still mail</h3>
+      <p class="prose" style="margin-top:8px">Jobbox is a mail client too. Every card links back to
+        the actual message, unedited, the way it arrived — including the ones you disagree with the
+        filter about. When a proposal looks wrong, the disagreement usually started at a phrase like
+        <span class="id">"thanks for applying"</span> or <span class="id">"schedule a call"</span>,
+        and that phrase is on the card.</p>
+    </div>
+  </section>
+
+  <!-- ── WHAT IT NEEDS ────────────────────────────────────── -->
+  <section class="section" id="needs">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow">What it needs</span>
+        <h2>Runs on your machine, under your login.</h2>
+        <p class="lede">There is no Jobbox account, no Jobbox server, and nothing of yours on
+          anyone's disk but your own.</p>
+      </div>
+
+      <div class="grid-3">
+        <div class="card">
+          <h3>A Mac</h3>
+          <p>Apple Silicon or Intel. The database is one file in your application-support folder;
+            delete it and Jobbox is gone.</p>
         </div>
-        <div class="diag-row">
-          <div class="diag-err">The connection failed during the handshake — the TLS setting probably does not match the port.</div>
-          <div class="diag-fix">The credentials were never tried. <em>Use TLS</em> disagrees with
-            the port: on for 993 and 465, off for 143 and 587.</div>
+        <div class="card">
+          <h3>A mailbox that speaks IMAP</h3>
+          <p>An app-specific password, not your account password. Jobbox keeps it in the macOS
+            Keychain and stores only a reference to it.</p>
         </div>
-        <div class="diag-row">
-          <div class="diag-err">Host not found: imap.example.com</div>
-          <div class="diag-fix">A typo in the server name, or you're offline. Compare against the
-            table in your provider's section.</div>
-        </div>
-        <div class="diag-row">
-          <div class="diag-err">Timed out connecting — wrong port, or a firewall is in the way.</div>
-          <div class="diag-fix">Corporate networks and some VPNs block 993 outright. Try the same
-            account off the network to tell the two apart.</div>
-        </div>
-        <div class="diag-row">
-          <div class="diag-err">Connection refused — nothing is listening on that port.</div>
-          <div class="diag-fix">Right host, wrong port. Check for a transposed 993/143.</div>
-        </div>
-        <div class="diag-row">
-          <div class="diag-err">TLS certificate rejected for imap.example.com</div>
-          <div class="diag-fix">The certificate doesn't match the hostname or has expired. On a
-            self-hosted server that's a real misconfiguration; on a public provider, suspect a
-            network appliance intercepting the connection.</div>
+        <div class="card">
+          <h3>Claude Code, signed in</h3>
+          <p>The agent is the <span class="id">claude</span> CLI on your own machine, running under
+            your own login. Your mail is read locally, by a tool you already have.</p>
         </div>
       </div>
 
       <div class="note">
-        <span class="eyebrow eyebrow-mute">Not an auth problem</span>
-        <p><strong>Connection fine, but no mail appears?</strong> Jobbox syncs INBOX only, and
-          only the last 90 days — mail that a server-side filter moved to a folder or label never
-          appears.</p>
+        <span class="eyebrow eyebrow-mute">Worth saying plainly</span>
+        <p>Reading your mail with a model means the model sees the mail it reads. That's the deal,
+          and no privacy page changes it. What Jobbox controls is everything else: <strong>a run
+          only ever sees the messages on its own list</strong>, written before the run starts, and
+          it has no file access, no shell and no browser. When it finishes, its access is
+          revoked.</p>
       </div>
+    </div>
+  </section>
+
+  <!-- ── LIMITS ───────────────────────────────────────────── -->
+  <section class="section" id="limits">
+    <div class="wrap">
+      <div class="section-head">
+        <span class="eyebrow eyebrow-mute">Limits</span>
+        <h2>What this version doesn't do.</h2>
+        <p class="lede">v1 is deliberately narrow. Better you read this here than find it out on a
+          Tuesday.</p>
+      </div>
+
+      <div class="limits">
+        <div class="limit">
+          <div class="limit-name">no sending</div>
+          <div class="limit-body">Jobbox reads. There's no compose, no reply, no follow-up sent for
+            you. Outgoing mail is stored and connection-tested so it can land later; nothing sends
+            today.</div>
+        </div>
+        <div class="limit">
+          <div class="limit-name">one mailbox</div>
+          <div class="limit-body">The app drives a single account. If your search runs across a
+            personal address and a forwarding one, pick the one the mail actually lands in.</div>
+        </div>
+        <div class="limit">
+          <div class="limit-name">no outlook</div>
+          <div class="limit-body"><strong>Microsoft 365 and Outlook.com can't connect.</strong>
+            Microsoft removed password sign-in from IMAP and Jobbox has no OAuth client yet. The
+            preset is still in the form, with the warning on it, so you don't spend an evening
+            wondering.</div>
+        </div>
+        <div class="limit">
+          <div class="limit-name">unsigned build</div>
+          <div class="limit-body">No Apple Developer certificate yet, so macOS blocks the first open
+            and updates don't install themselves — the app tells you a new version exists and opens
+            the download.</div>
+        </div>
+        <div class="limit">
+          <div class="limit-name">rescheduled interviews</div>
+          <div class="limit-body">A moved interview currently lands as a second event instead of
+            replacing the first. Known, and the fix is in the calendar path.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── GET IT ───────────────────────────────────────────── -->
+  <section class="get" id="get">
+    <div class="wrap">
+      <span class="eyebrow">Download</span>
+      <h2>Stop updating the spreadsheet.</h2>
+      <p class="lede">Connect a mailbox, run it once, and see what it finds in the last ninety days.
+        If the proposals are wrong, reject them — nothing moves either way.</p>
+
+      <div class="hero-cta">
+        <a class="btn btn-fil btn-lg" href="https://01a03fba-de27-71c9-8081-7cdda93c00a7-storage.apps.dev.fline.sh/downloads/latest/Recruit-arm64.dmg">
+          Download for Mac<span class="btn-sub">apple silicon · .dmg</span>
+        </a>
+        <a class="btn btn-ghost btn-lg" href="https://01a03fba-de27-71c9-8081-7cdda93c00a7-storage.apps.dev.fline.sh/downloads/latest/Recruit-x64.dmg">
+          Intel Mac<span class="btn-sub">x64 · .dmg</span>
+        </a>
+      </div>
+
+      <p class="gate">Unsigned build — macOS blocks it on first open.<br>
+        Right-click the app → Open, or run <code>xattr -dr com.apple.quarantine /Applications/Recruit.app</code></p>
     </div>
   </section>
 
@@ -1966,7 +1384,10 @@ figcaption {
 
 <footer class="foot">
   <div class="wrap">
-    <p>Jobbox v1 · read-only IMAP · passwords in the macOS Keychain, never in the database</p>
+    <p>Jobbox v1 · reads one mailbox, writes nothing back · proposals until you accept them ·
+      passwords in the macOS Keychain, never in the database<br>
+      Every company, role and address in the screenshots is invented.
+      <a href="/setup">Connecting your mailbox →</a></p>
   </div>
 </footer>
 
