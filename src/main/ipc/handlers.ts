@@ -278,7 +278,14 @@ export function registerIpcHandlers(services: AppServices): void {
       throw new Error('Nothing to triage — no messages are flagged as candidates.')
     }
 
-    const messageIds = requested.slice(0, cap)
+    // Truncating without saying so is how a 70-message inbox quietly becomes 40.
+    if (requested.length > cap) {
+      throw new Error(
+        `${requested.length} candidates exceeds the per-run limit of ${cap}. ` +
+          'Raise "Max candidates per run" in Settings, or select a subset of messages.'
+      )
+    }
+    const messageIds = requested
     const started = await runner.spawnTriageRun(messageIds, { model: input.model })
     watchRun(started, messageIds)
     return runSummary(started.runId)

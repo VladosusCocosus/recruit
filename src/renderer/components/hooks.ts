@@ -376,6 +376,8 @@ export function useRun(): RunState {
       elapsedMs: 0,
       currentTool: null,
       toolCalls: 0,
+      messagesTotal: input?.messageIds?.length ?? 0,
+      messagesRead: 0,
       proposalCount: 0,
       errorKind: null,
       errorText: null

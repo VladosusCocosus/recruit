@@ -531,6 +531,10 @@ export interface AgentRunUpdate {
   currentTool: string | null
   toolCalls: number
   proposalCount: number
+  /** Messages in this run's allowlist — the denominator of the progress bar. */
+  messagesTotal: number
+  /** DISTINCT messages the agent has actually opened. Re-reads do not double count. */
+  messagesRead: number
   errorKind: AgentErrorKind | null
   errorText: string | null
 }
@@ -725,7 +729,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   enrichmentEnabled: false,
   blockRemoteImages: true,
   syncIntervalMinutes: 10,
-  maxCandidatesPerRun: 40,
+  maxCandidatesPerRun: 250,
   theme: 'system',
   setupDismissed: false
 }

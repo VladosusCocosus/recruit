@@ -121,7 +121,7 @@ export function normalizeSettings(raw: unknown): MainSettings {
     enrichmentEnabled: bool(r['enrichmentEnabled'], d.enrichmentEnabled),
     blockRemoteImages: bool(r['blockRemoteImages'], d.blockRemoteImages),
     syncIntervalMinutes: num(r['syncIntervalMinutes'], d.syncIntervalMinutes, 0, 1440),
-    maxCandidatesPerRun: num(r['maxCandidatesPerRun'], d.maxCandidatesPerRun, 1, 500),
+    maxCandidatesPerRun: num(r['maxCandidatesPerRun'], d.maxCandidatesPerRun, 1, 1000),
     theme: THEMES.includes(r['theme'] as ThemePreference) ? (r['theme'] as ThemePreference) : d.theme,
     setupDismissed: bool(r['setupDismissed'], d.setupDismissed),
     claudeBinaryPath: str(r['claudeBinaryPath'], d.claudeBinaryPath),

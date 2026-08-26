@@ -37,7 +37,16 @@ import { TRACKER_ALLOWED_TOOLS } from './schemas'
 /** spawn() with stdio ['ignore','pipe','pipe'] — stdin is null by construction. */
 type AgentChild = ChildProcessByStdio<null, Readable, Readable>
 
-const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000
+/**
+ * No wall-clock limit by default.
+ *
+ * This used to be five minutes, which quietly killed any real triage run: reading 70
+ * messages and reasoning about them takes far longer than that, and the run died
+ * mid-flight with its work discarded. A triage run is bounded by its allowlist, reports
+ * progress continuously, and can be stopped from the UI at any time — a timer adds
+ * nothing except a deadline to lose against. Set RunOptions.timeoutMs to re-arm one.
+ */
+const DEFAULT_TIMEOUT_MS = 0
 const DEFAULT_MODEL = 'sonnet'
 const KILL_GRACE_MS = 3000
 const TICK_MS = 1000
@@ -280,6 +289,8 @@ export function classifyAgentError(
 
 interface ActiveRun {
   update: AgentRunUpdate
+  /** Distinct message ids opened via get_message. A Set so re-reads don't inflate it. */
+  readMessages: Set<number>
   child: AgentChild | null
   timer: NodeJS.Timeout | null
   ticker: NodeJS.Timeout | null
@@ -318,8 +329,12 @@ export function createAgentRunner(deps: AgentDeps): AgentRunner {
     if (event.phase === 'start') {
       run.update.toolCalls += 1
       run.update.currentTool = event.tool
-    } else if (event.phase === 'ok' && event.proposalId != null) {
-      run.update.proposalCount += 1
+    } else if (event.phase === 'ok') {
+      if (event.proposalId != null) run.update.proposalCount += 1
+      if (event.tool === 'get_message' && event.messageId != null) {
+        run.readMessages.add(event.messageId)
+        run.update.messagesRead = run.readMessages.size
+      }
     }
     publish(run)
   }
@@ -347,9 +362,12 @@ export function createAgentRunner(deps: AgentDeps): AgentRunner {
         currentTool: null,
         toolCalls: 0,
         proposalCount: 0,
+        messagesTotal: messageIds.length,
+        messagesRead: 0,
         errorKind: null,
         errorText: null
       },
+      readMessages: new Set<number>(),
       child: null,
       timer: null,
       ticker: null,
@@ -449,10 +467,13 @@ export function createAgentRunner(deps: AgentDeps): AgentRunner {
         stderr += d
       })
 
-      run.timer = setTimeout(() => {
-        run.timedOut = true
-        kill(run)
-      }, timeoutMs)
+      // Only arm a deadline if one was explicitly asked for. See DEFAULT_TIMEOUT_MS.
+      if (timeoutMs > 0) {
+        run.timer = setTimeout(() => {
+          run.timedOut = true
+          kill(run)
+        }, timeoutMs)
+      }
 
       let settled = false
       const done = (code: number | null, spawnError: Error | null): void => {

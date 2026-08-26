@@ -118,6 +118,8 @@ export interface AgentToolCallEvent {
   detail: string | null
   /** Set on phase 'ok' for a propose_* call. */
   proposalId?: number
+  /** Set for get_message, so progress can count DISTINCT messages read. */
+  messageId?: number
   error?: string
   at: string
 }

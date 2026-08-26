@@ -633,6 +633,31 @@ a {
   padding-left: 8px;
 }
 
+/* The progress fill lives inside the active control, pinned to its bottom edge.
+   position/overflow are set here rather than on .run-control so the idle button
+   keeps its plain box. */
+.run-control.is-active {
+  position: relative;
+  overflow: hidden;
+}
+
+.run-progress {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--accent);
+  /* Progress only ever advances, so a slow ease reads as motion rather than jitter. */
+  transition: width 240ms ease-out;
+  pointer-events: none;
+}
+
+.run-progress-count {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+
 .run-control.is-error {
   border-color: var(--danger);
   background: var(--danger-tint);

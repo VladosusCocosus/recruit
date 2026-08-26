@@ -7,7 +7,13 @@ import { formatElapsed, formatToolName } from './format'
  * THE RUN BUTTON — the signature control of the app.
  *
  * Idle:    [▶ Run · 7]      26px tall, 12px text, outline, play glyph, count pill.
- * Active:  [◌ 12s  list_messages ✕]   the SAME element, morphed in place.
+ * Active:  [◌ 12s · get_message · 18/70 ✕]  the SAME element, morphed in place,
+ *          with a hairline progress fill along its bottom edge.
+ *
+ * Progress is DISTINCT messages opened over the size of the run's allowlist. It is
+ * deliberately not a time estimate: runs have no deadline (see DEFAULT_TIMEOUT_MS in
+ * the runner) and a message can take anywhere from a second to a minute, so counting
+ * work actually completed is the only honest signal available.
  *
  * How "no layout shift" is achieved: the outer .run-control is the last flex item
  * in the toolbar and carries `margin-left:auto`, so its RIGHT edge is pinned to the
@@ -60,12 +66,37 @@ export function RunButton({
           <span className="run-tool" title={active.currentTool ?? label}>
             {label}
           </span>
+          {active.messagesTotal > 0 ? (
+            <>
+              <span className="run-sep">·</span>
+              <span
+                className="run-progress-count tabular"
+                title={`${active.messagesRead} of ${active.messagesTotal} messages read`}
+              >
+                {active.messagesRead}/{active.messagesTotal}
+              </span>
+            </>
+          ) : null}
           {active.proposalCount > 0 ? (
             <Badge tone="accent-soft" title={`${active.proposalCount} proposals so far`}>
               {active.proposalCount}
             </Badge>
           ) : null}
         </span>
+        {active.messagesTotal > 0 ? (
+          <span
+            className="run-progress"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={active.messagesTotal}
+            aria-valuenow={active.messagesRead}
+            aria-label="Messages read"
+            style={{
+              // clamped: a re-read can never push the fill past the end
+              width: `${Math.min(100, (active.messagesRead / active.messagesTotal) * 100)}%`
+            }}
+          />
+        ) : null}
         <button
           type="button"
           className="run-stop"
