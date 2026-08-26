@@ -6,18 +6,15 @@ Intel — open it and drag Jobbox to Applications.
 ### First launch
 
 These builds are **not signed with an Apple Developer certificate**, so macOS blocks them
-on first launch. Clear the quarantine flag:
+on first launch. Clearing the quarantine flag is required — run this after dragging Jobbox
+to Applications:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/Jobbox.app
 ```
 
-Then open the app normally.
-
-On macOS 14 and earlier you could instead right-click the app and choose **Open**. Apple
-removed that shortcut for unsigned apps in macOS 15, so on current systems the command
-above is the reliable route. The alternative is **System Settings → Privacy & Security**,
-where an "Open Anyway" button appears after a blocked launch attempt.
+Then open the app normally. There is no other route: Apple removed the right-click → Open
+shortcut for unsigned apps in macOS 15, so the command above is the one required step.
 
 ### Requirements
 
