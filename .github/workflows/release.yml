@@ -79,10 +79,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" \
-            --title "Recruit ${GITHUB_REF_NAME}" \
-            --notes-file .github/RELEASE_NOTES.md \
-            artifacts/*
+          # Idempotent: a rerun of a partly-failed release must not die here.
+          # `create` is attempted first; if the release is already there, its
+          # assets are overwritten instead.
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release upload "${GITHUB_REF_NAME}" artifacts/* --clobber
+          else
+            gh release create "${GITHUB_REF_NAME}" \
+              --title "Jobbox ${GITHUB_REF_NAME}" \
+              --notes-file .github/RELEASE_NOTES.md \
+              artifacts/*
+          fi
 
       # GitHub Releases stay the record of a release, but the repository is private
       # so their assets 404 for everyone without access. This is the public
