@@ -18,6 +18,26 @@
       "depends_on": [],
       "env_names": [],
       "volumes": []
+    },
+    {
+      "name": "storage",
+      "context": "",
+      "image": "minio/minio:RELEASE.2025-09-07T16-13-09Z",
+      "language": "",
+      "evidence": "",
+      "base_image": "",
+      "runtime_image": "",
+      "build_commands": [],
+      "run_command": ["minio", "server", "/data"],
+      "public": true,
+      "ingress_label": "storage",
+      "depends_on": [],
+      "env_names": [
+        { "name": "MINIO_ROOT_USER", "value": "recruit" },
+        { "name": "MINIO_ROOT_PASSWORD", "value": "" },
+        { "name": "MINIO_BROWSER", "value": "off" }
+      ],
+      "volumes": [{ "path": "/data" }]
     }
   ]
 }
