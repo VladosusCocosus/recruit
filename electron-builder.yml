@@ -1,0 +1,50 @@
+appId: com.recruit.app
+productName: Recruit
+copyright: Copyright © 2026 Recruit contributors
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - out/**/*
+  - package.json
+
+# Native modules must live outside the asar archive or dlopen() cannot load them.
+# better-sqlite3 ships prebuildify binaries; keytar ships N-API prebuilds.
+asarUnpack:
+  - "**/*.node"
+  - node_modules/better-sqlite3/**
+  - node_modules/keytar/**
+
+mac:
+  category: public.app-category.productivity
+  darkModeSupport: true
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+    - target: zip
+      arch: [arm64, x64]
+  # Unsigned build: no Apple Developer certificate is configured.
+  # Setting identity to null stops electron-builder from attempting ad-hoc signing,
+  # which produces a bundle Gatekeeper rejects more confusingly than an unsigned one.
+  identity: null
+  notarize: false
+
+dmg:
+  title: Recruit ${version}
+  contents:
+    - x: 140
+      y: 180
+      type: file
+    - x: 400
+      y: 180
+      type: link
+      path: /Applications
+
+publish:
+  provider: generic
+  # Update feed served by the Go backend. Overridden at build time via
+  # electron-builder's -c.publish.url when the Fly hostname differs.
+  url: https://recruit-updates.fly.dev/updates/darwin/${arch}
+  channel: latest

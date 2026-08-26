@@ -1,0 +1,30 @@
+app = "recruit-updates"
+primary_region = "fra"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8080"
+  GITHUB_REPO = "VladosusCocosus/recruit"
+  PUBLIC_BASE_URL = "https://recruit-updates.fly.dev"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  # Scale to zero: this serves a handful of requests a day and cold start is ~200ms
+  # for a static Go binary. Costs nothing while idle.
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    grace_period = "5s"
+    interval = "30s"
+    method = "GET"
+    path = "/healthz"
+    timeout = "5s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

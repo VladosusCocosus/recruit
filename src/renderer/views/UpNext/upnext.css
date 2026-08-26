@@ -1,0 +1,161 @@
+/* Up next — every future event across every application, grouped by day.
+   Structure only; the shared components own .badge/.status-badge/.btn. Prefix: .un- */
+
+/* The pane is owned by <Pane>/<PaneBody>, so tint the scroll area by what it contains
+   rather than by adding a root class we don't control. */
+.pane-body:has(> .un-days) {
+  background: var(--bg-subtle);
+}
+
+.un-days {
+  max-width: 720px;
+}
+
+/* ── day group ─────────────────────────────────────────────────────────── */
+
+.un-day + .un-day {
+  margin-top: 22px;
+}
+
+.un-day-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 7px;
+  padding: 0 2px 6px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+  border-bottom: var(--hairline) solid var(--border);
+  position: sticky;
+  top: -16px; /* cancels .pane-body.is-padded's top padding */
+  background: var(--bg-subtle);
+  z-index: 1;
+}
+
+.un-day-label .badge {
+  font-weight: 600;
+}
+
+.un-day-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* ── row ───────────────────────────────────────────────────────────────── */
+
+.un-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+
+.un-row.is-soon {
+  border-color: var(--accent);
+  background: var(--accent-tint);
+}
+
+.un-time {
+  flex: 0 0 92px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-top: 1px;
+}
+
+.un-time-main {
+  font-size: var(--fs-md);
+  font-weight: 600;
+}
+
+.un-countdown {
+  font-size: var(--fs-xs);
+  color: var(--text-tertiary);
+}
+
+.un-countdown.is-now {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.un-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.un-row-main.is-clickable:hover .un-title {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.un-kind {
+  flex: 0 0 auto;
+  display: flex;
+  padding-top: 2px;
+  color: var(--text-tertiary);
+}
+
+.un-row.is-soon .un-kind {
+  color: var(--accent);
+}
+
+.un-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.un-title {
+  font-size: var(--fs-md);
+  font-weight: 500;
+}
+
+.un-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+}
+
+.un-item .status-badge {
+  flex: 0 0 auto;
+}
+
+.un-where {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+  font-size: var(--fs-xs);
+  color: var(--text-tertiary);
+}
+
+.un-location {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.un-join {
+  flex: 0 0 auto;
+  align-self: center;
+}

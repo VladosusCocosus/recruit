@@ -1,0 +1,21 @@
+BEGIN:VCALENDAR
+PRODID:-//Google Inc//Google Calendar 70.9054//EN
+VERSION:2.0
+CALSCALE:GREGORIAN
+METHOD:REQUEST
+BEGIN:VEVENT
+DTSTART:20260904T190000Z
+DTEND:20260904T194500Z
+DTSTAMP:20260828T090000Z
+ORGANIZER;CN=Dana Reyes:mailto:dana.reyes@northwind.example
+UID:04d9k2m1c8vhq7@google.com
+ATTENDEE;CN=Pavel;PARTSTAT=ACCEPTED:mailto:razin36986@gmail.com
+ATTENDEE;CN=Sam Ito;PARTSTAT=NEEDS-ACTION:mailto:sam.ito@northwind.example
+DESCRIPTION:Sorry for the shuffle — moved to Friday.
+LOCATION:https://northwind.zoom.us/j/98765432101?pwd=Zm9vYmFyYmF6
+LAST-MODIFIED:20260828T085900Z
+SEQUENCE:2
+STATUS:CONFIRMED
+SUMMARY:Rescheduled: Phone Screen — Senior Engineer @ Northwind
+END:VEVENT
+END:VCALENDAR

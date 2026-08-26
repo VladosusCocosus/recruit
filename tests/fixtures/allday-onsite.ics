@@ -1,0 +1,19 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Apple Inc.//macOS 15.2//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+BEGIN:VEVENT
+UID:onsite-day-2026-09-10@northwind.example
+DTSTAMP:20260901T120000Z
+DTSTART;VALUE=DATE:20260910
+DTEND;VALUE=DATE:20260911
+SUMMARY:Onsite Interview Day — Northwind HQ
+LOCATION:Northwind HQ\, 500 Market St\, San Francisco\, CA
+DESCRIPTION:Full day onsite. Bring ID. Ask for Dana at reception.
+ORGANIZER;CN=Northwind Recruiting:mailto:recruiting@northwind.example
+SEQUENCE:0
+STATUS:CONFIRMED
+TRANSP:TRANSPARENT
+END:VEVENT
+END:VCALENDAR

@@ -1,0 +1,12 @@
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Recruit</title>
+<!--
+  No CSP meta tag on purpose: vite's dev server injects an inline react-refresh
+  preamble that a strict script-src would block. TODO(security): set CSP from the
+  main process via session.defaultSession.webRequest.onHeadersReceived for the
+  packaged build. Remote-image blocking is enforced by the HTML sanitizer in main,
+  not by CSP, so the "load images" bar can work.
+-->
+<div id="root"></div>
+<script type="module" src="./main.tsx"></script>

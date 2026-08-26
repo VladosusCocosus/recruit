@@ -1,0 +1,405 @@
+/* Mail views. Layers on top of the shared classes in src/renderer/index.css — every rule
+   here is Mail-specific and namespaced .mail-*, except the .blocked-remote-image styling,
+   whose class name is fixed by the main-process sanitizer. Tokens only, no raw palette. */
+
+.mail-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ── list pane ───────────────────────────────────────────────────────────── */
+
+.mail-list-header {
+  gap: 6px;
+}
+
+/* Pushes the trailing control of a header row to the right edge. */
+.mail-head-spacer {
+  flex: 1;
+  min-width: 0;
+}
+
+.mail-search {
+  position: relative;
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  border-bottom: var(--hairline) solid var(--border);
+}
+
+.mail-search-icon {
+  position: absolute;
+  left: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+
+.mail-search-input {
+  padding-left: 24px;
+}
+.mail-search-input::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+.mail-list-body {
+  background: var(--bg-subtle);
+}
+
+/* ── row ─────────────────────────────────────────────────────────────────── */
+
+.mail-row {
+  position: relative;
+  cursor: default;
+}
+
+.mail-row.is-dismissed .list-row-title,
+.mail-row.is-dismissed .list-row-subtitle {
+  color: var(--text-tertiary);
+}
+
+/* Inline "Run on this message". Hidden until the row is hovered or keyboard-focused;
+   pinned visible while that row's run is in flight so the spinner cannot vanish. */
+.mail-row-actions {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 90ms ease-out;
+}
+
+/* Candidate rows always reserve the gutter, hovered or not — reserving it on hover would
+   re-truncate the subject line under the pointer every time the cursor crossed a row. */
+.mail-row.has-run-action .list-row-main {
+  padding-right: 58px;
+}
+.mail-row:hover .mail-row-actions,
+.mail-row:focus-within .mail-row-actions,
+.mail-row-actions.is-busy {
+  opacity: 1;
+  pointer-events: auto;
+}
+.mail-row-actions .btn {
+  background: var(--bg-elevated);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mail-row-actions {
+    transition: none;
+  }
+}
+
+/* ── why flagged ─────────────────────────────────────────────────────────── */
+
+.mail-why {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  margin-top: 3px;
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+}
+
+/* The reasons text is the only part allowed to shrink; the bolt and score stay whole. */
+.mail-why .truncate {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.mail-why-bolt {
+  flex: 0 0 auto;
+  color: var(--warning);
+}
+
+.mail-why-score {
+  margin-left: auto;
+  padding-left: 6px;
+  color: var(--text-tertiary);
+}
+
+.mail-why-reader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: var(--hairline) solid var(--border);
+}
+
+.mail-why-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.mail-reason.is-negative {
+  background: var(--danger-tint);
+  color: var(--danger);
+}
+
+.mail-reason-detail {
+  color: var(--text-tertiary);
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── paging footer ───────────────────────────────────────────────────────── */
+
+.mail-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 12px;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+}
+.mail-more-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+/* ── reader ──────────────────────────────────────────────────────────────── */
+
+.mail-reader {
+  background: var(--bg);
+}
+
+.mail-reader-head {
+  flex: 0 0 auto;
+  padding: 14px 20px 12px;
+  border-bottom: var(--hairline) solid var(--border);
+}
+
+.mail-subject {
+  margin: 0 0 8px;
+  font-size: var(--fs-xl);
+  font-weight: 600;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.mail-from-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  font-size: var(--fs-md);
+}
+
+.mail-from {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mail-date {
+  flex: 0 0 auto;
+  font-size: var(--fs-sm);
+}
+
+.mail-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 9px;
+}
+
+.mail-details-toggle {
+  padding-left: 6px;
+}
+
+.mail-chevron {
+  transition: transform 110ms ease-out;
+}
+.mail-chevron.is-open {
+  transform: rotate(90deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .mail-chevron {
+    transition: none;
+  }
+}
+
+.mail-triage.is-candidate {
+  background: var(--warning-tint);
+  color: var(--warning);
+}
+.mail-triage.is-linked {
+  background: var(--success-tint);
+  color: var(--success);
+}
+.mail-triage.is-processed {
+  background: var(--accent-tint);
+  color: var(--accent);
+}
+.mail-triage.is-dismissed {
+  opacity: 0.7;
+}
+
+.mail-linked {
+  gap: 3px;
+  border: 0;
+  cursor: default;
+}
+.mail-linked:disabled {
+  opacity: 1;
+}
+
+.mail-details {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--bg-subtle);
+  border: var(--hairline) solid var(--border);
+}
+.mail-details .kv {
+  grid-template-columns: 118px 1fr;
+}
+
+.mail-image-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── attachments ─────────────────────────────────────────────────────────── */
+
+.mail-attachments {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.mail-attach {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 260px;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: var(--radius-pill);
+  border: var(--hairline) solid var(--border);
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+  font-size: var(--fs-xs);
+}
+
+/* A calendar part is both a prefilter signal and a future timeline event — make it read
+   as a different kind of thing at a glance, not just another file. */
+.mail-attach.is-calendar {
+  border-color: transparent;
+  background: var(--accent-tint);
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.mail-attach-name {
+  min-width: 0;
+}
+
+.mail-attach-size {
+  color: var(--text-tertiary);
+}
+.mail-attach.is-calendar .mail-attach-size {
+  color: inherit;
+  opacity: 0.75;
+}
+
+/* ── body ────────────────────────────────────────────────────────────────── */
+
+.mail-reader-body {
+  padding: 0;
+}
+
+.mail-body {
+  padding: 18px 20px 40px;
+  font-size: var(--fs-md);
+  line-height: 1.5;
+  overflow-x: auto;
+  overflow-wrap: break-word;
+}
+
+.mail-body img {
+  max-width: 100%;
+  height: auto;
+}
+
+.mail-body table {
+  max-width: 100%;
+}
+
+.mail-body a {
+  cursor: pointer;
+}
+
+.mail-body pre,
+.mail-body code {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  overflow-x: auto;
+}
+
+.mail-body blockquote {
+  margin: 8px 0 8px 2px;
+  padding-left: 12px;
+  border-left: 2px solid var(--border-strong);
+  color: var(--text-secondary);
+}
+
+/* HTML mail ships hardcoded colors (#000 text, #fff table cells). Rendering it directly on
+   a dark app background produces black-on-black, so in dark mode HTML bodies get their own
+   light sheet. Plaintext keeps the app palette. */
+.mail-body.is-html {
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .mail-body.is-html {
+    margin: 12px 14px 20px;
+    padding: 16px 18px;
+    border-radius: var(--radius-lg);
+    background: #ffffff;
+    color: #1c1c1e;
+  }
+}
+
+:root[data-theme='dark'] .mail-body.is-html {
+  margin: 12px 14px 20px;
+  padding: 16px 18px;
+  border-radius: var(--radius-lg);
+  background: #ffffff;
+  color: #1c1c1e;
+}
+
+/* Blocked remote images. The class is set by main's sanitizer (BLOCKED_IMAGE_CLASS); the
+   real URL sits on data-blocked-src and only comes back if the user asks for it. Clicking
+   the placeholder is the same gesture as the bar above the body. */
+.mail-body img.blocked-remote-image {
+  display: inline-block;
+  min-width: 20px;
+  min-height: 20px;
+  max-width: 100%;
+  border: var(--hairline) dashed var(--border-strong);
+  border-radius: 4px;
+  background: var(--neutral-tint);
+  cursor: pointer;
+}
