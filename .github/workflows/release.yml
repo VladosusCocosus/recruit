@@ -52,6 +52,22 @@ jobs:
       - name: Inventory
         run: ls -lh artifacts/
 
+      # Each feed must describe its OWN architecture. An arch array in
+      # electron-builder.yml silently outranks the --arm64/--x64 flags, and the
+      # symptom is invisible until an Intel user's update 404s, so assert it here
+      # rather than discover it in the wild.
+      - name: Verify the update feeds are per-architecture
+        run: |
+          set -euo pipefail
+          arm_url=$(grep -m1 'url:' artifacts/latest-mac-arm64.yml | awk '{print $3}')
+          x64_url=$(grep -m1 'url:' artifacts/latest-mac-x64.yml   | awk '{print $3}')
+          echo "arm64 feed -> $arm_url"
+          echo "x64   feed -> $x64_url"
+          case "$arm_url" in *arm64*) ;; *) echo "::error::arm64 feed names $arm_url"; exit 1 ;; esac
+          case "$x64_url" in *arm64*) echo "::error::x64 feed names the arm64 archive ($x64_url)"; exit 1 ;; esac
+          test -f "artifacts/$arm_url" || { echo "::error::missing artifacts/$arm_url"; exit 1; }
+          test -f "artifacts/$x64_url" || { echo "::error::missing artifacts/$x64_url"; exit 1; }
+
       - uses: actions/upload-artifact@v4
         with:
           name: recruit-macos

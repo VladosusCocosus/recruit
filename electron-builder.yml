@@ -20,11 +20,14 @@ asarUnpack:
 mac:
   category: public.app-category.productivity
   darkModeSupport: true
+  # No arch list here on purpose. An arch array in this file WINS over the
+  # --arm64 / --x64 CLI flags, so every invocation built both architectures and
+  # whichever finished last overwrote latest-mac.yml — which is exactly how the
+  # x64 feed ended up describing the arm64 archive. The release workflow passes
+  # the architecture per invocation instead.
   target:
     - target: dmg
-      arch: [arm64, x64]
     - target: zip
-      arch: [arm64, x64]
   # Unsigned build: no Apple Developer certificate is configured.
   # Setting identity to null stops electron-builder from attempting ad-hoc signing,
   # which produces a bundle Gatekeeper rejects more confusingly than an unsigned one.
