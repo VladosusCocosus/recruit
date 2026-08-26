@@ -67,3 +67,53 @@ jobs:
             --title "Recruit ${GITHUB_REF_NAME}" \
             --notes-file .github/RELEASE_NOTES.md \
             artifacts/*
+
+      # GitHub Releases stay the record of a release, but the repository is private
+      # so their assets 404 for everyone without access. This is the public
+      # distribution surface the website actually links at.
+      - name: Publish to object storage
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.MINIO_ROOT_USER }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.MINIO_ROOT_PASSWORD }}
+          AWS_DEFAULT_REGION: us-east-1
+          AWS_EC2_METADATA_DISABLED: 'true'
+          ENDPOINT: https://01a03fba-de27-71c9-8081-7cdda93c00a7-storage.apps.dev.fline.sh
+          BUCKET: downloads
+        run: |
+          set -euo pipefail
+          s3() { aws --endpoint-url "$ENDPOINT" "$@"; }
+
+          # Idempotent: created on the first release, re-asserted on every one after.
+          s3 s3api head-bucket --bucket "$BUCKET" 2>/dev/null || s3 s3 mb "s3://$BUCKET"
+          s3 s3api put-bucket-policy --bucket "$BUCKET" --policy "{
+            \"Version\": \"2012-10-17\",
+            \"Statement\": [{
+              \"Effect\": \"Allow\",
+              \"Principal\": \"*\",
+              \"Action\": \"s3:GetObject\",
+              \"Resource\": \"arn:aws:s3:::$BUCKET/*\"
+            }]
+          }"
+
+          arm_dmg=$(ls artifacts/*arm64.dmg)
+          x64_dmg=$(ls artifacts/*.dmg | grep -v arm64)
+          arm_zip=$(ls artifacts/*arm64-mac.zip)
+          x64_zip=$(ls artifacts/*mac.zip | grep -v arm64)
+
+          # The permanent record of this version.
+          s3 s3 cp artifacts/ "s3://$BUCKET/$GITHUB_REF_NAME/" --recursive
+
+          # Stable aliases. The website links at these forever, so shipping a
+          # release makes the site current without the site being touched.
+          s3 s3 cp "$arm_dmg" "s3://$BUCKET/latest/Recruit-arm64.dmg"
+          s3 s3 cp "$x64_dmg" "s3://$BUCKET/latest/Recruit-x64.dmg"
+
+          # electron-updater feeds. A manifest names its files relative to itself,
+          # so each architecture's archive sits beside its own manifest.
+          s3 s3 cp artifacts/latest-mac-arm64.yml "s3://$BUCKET/updates/darwin/arm64/latest-mac.yml"
+          s3 s3 cp artifacts/latest-mac-x64.yml   "s3://$BUCKET/updates/darwin/x64/latest-mac.yml"
+          s3 s3 cp "$arm_zip" "s3://$BUCKET/updates/darwin/arm64/$(basename "$arm_zip")"
+          s3 s3 cp "$x64_zip" "s3://$BUCKET/updates/darwin/x64/$(basename "$x64_zip")"
+
+          echo "published $GITHUB_REF_NAME to $ENDPOINT/$BUCKET"

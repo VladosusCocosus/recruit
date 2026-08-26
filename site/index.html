@@ -382,6 +382,8 @@ h3.sub {
   display: flex;
   align-items: center;
   gap: 18px;
+  flex: 1 1 auto;
+  min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -497,6 +499,86 @@ h3.sub {
   border: 1px solid rgba(255, 255, 255, 0.1);
   padding: 7px 11px;
   border-radius: 7px;
+}
+
+/* --------------------------------------------------------------- controls - */
+
+.btn {
+  display: inline-block;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 13.5px;
+  padding: 8px 15px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background var(--t), border-color var(--t), color var(--t);
+}
+
+.btn-lg {
+  font-size: 15px;
+  padding: 12px 20px;
+  border-radius: var(--r-ctrl);
+}
+
+.btn-fil {
+  background: var(--fil);
+  color: var(--fil-ink);
+}
+
+.btn-fil:hover {
+  background: var(--fil-lit);
+  color: var(--fil-ink);
+}
+
+.btn-ghost {
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.btn-ghost:hover {
+  color: var(--text);
+  border-color: rgba(0, 224, 138, 0.5);
+}
+
+/* The architecture, under the verb. Mono because arm64 and x64 are identifiers. */
+.btn-sub {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  opacity: 0.72;
+  margin-top: 1px;
+}
+
+.hero-cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 26px;
+}
+
+.topbar-cta {
+  flex: none;
+  margin-left: auto;
+}
+
+/* Gatekeeper is a person being required, so it is amber and it is brief. */
+.gate {
+  margin-top: 16px;
+  max-width: 46ch;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--needs);
+}
+
+.gate code {
+  background: var(--needs-wash);
+  border: 1px solid var(--needs-line);
+  border-radius: 4px;
+  padding: 1px 5px;
 }
 
 /* ---------------------------------------------------------------- session - */
@@ -1116,6 +1198,7 @@ figcaption {
       <a href="#custom">anything else</a>
       <a href="#trouble">when it fails</a>
     </nav>
+    <a class="btn btn-fil topbar-cta" href="https://01a03fba-de27-71c9-8081-7cdda93c00a7-storage.apps.dev.fline.sh/downloads/latest/Recruit-arm64.dmg">Download</a>
   </div>
 </header>
 
@@ -1139,6 +1222,18 @@ figcaption {
           <span class="chip">no OAuth</span>
           <span class="chip">no sending</span>
         </div>
+
+        <div class="hero-cta">
+          <a class="btn btn-fil btn-lg" href="https://01a03fba-de27-71c9-8081-7cdda93c00a7-storage.apps.dev.fline.sh/downloads/latest/Recruit-arm64.dmg">
+            Download for Mac<span class="btn-sub">apple silicon · .dmg</span>
+          </a>
+          <a class="btn btn-ghost btn-lg" href="https://01a03fba-de27-71c9-8081-7cdda93c00a7-storage.apps.dev.fline.sh/downloads/latest/Recruit-x64.dmg">
+            Intel Mac<span class="btn-sub">x64 · .dmg</span>
+          </a>
+        </div>
+
+        <p class="gate">Unsigned build — macOS blocks it on first open.<br>
+          Right-click the app → Open, or run <code>xattr -dr com.apple.quarantine /Applications/Recruit.app</code></p>
 
         <p class="hero-note">passwords → macOS Keychain<br>messages → local SQLite<br>neither
           leaves the machine</p>
