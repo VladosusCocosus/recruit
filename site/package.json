@@ -1,0 +1,13 @@
+{
+  "name": "recruit-site",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Static site for Recruit mailbox setup",
+  "main": "server.cjs",
+  "scripts": {
+    "start": "node server.cjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "project": { "id": "01a03fba-de27-71c9-8081-7cdda93c00a7" },
+  "stack_paths": ["package.json"],
+  "services": [
+    {
+      "name": "recruit-site",
+      "context": ".",
+      "image": "",
+      "language": "node",
+      "evidence": "package.json",
+      "base_image": "docker.io/library/node:20.10.0",
+      "runtime_image": "docker.io/library/node:20.10.0",
+      "build_commands": [],
+      "run_command": ["node", "server.cjs"],
+      "public": true,
+      "ingress_label": "",
+      "depends_on": [],
+      "env_names": [],
+      "volumes": []
+    }
+  ]
+}
