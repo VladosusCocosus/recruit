@@ -1154,6 +1154,25 @@ a {
   line-height: 1.45;
 }
 
+/* The banner is normally pinned full-bleed under a toolbar; dropped into a form it needs
+   its own frame and has to stop where the fields stop. */
+.form-banner .banner {
+  max-width: 620px;
+  margin-bottom: 14px;
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius);
+}
+
+.form-help {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  max-width: 620px;
+  margin-bottom: 4px;
+  font-size: var(--fs-sm);
+}
+
 .field {
   display: flex;
   flex-direction: column;

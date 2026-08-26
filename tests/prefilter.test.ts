@@ -30,13 +30,14 @@ const codes = (result: { reasons: Array<{ code: string }> }): string[] =>
 
 describe('prefilter — ATS senders', () => {
   it('flags a Greenhouse notification on the domain alone', () => {
-    // "applying" does NOT match the keyword pattern (it looks for "applicat"), so this
-    // message clears the bar on the ATS domain by itself — which is the point of the +0.5.
+    // A subject with no hiring vocabulary at all, so the ATS domain is carrying the
+    // message by itself — which is the point of the +0.5. ("Thanks for applying" used to
+    // sit here and was neutral; the broadened subject pattern now matches it.)
     const result = score(
       message({
         fromAddr: 'no-reply@greenhouse.io',
         fromDomain: 'greenhouse.io',
-        subject: 'Thanks for applying to Northwind',
+        subject: 'Northwind',
         threadKey: 'mid:gh-1@greenhouse.io'
       }),
       context()
@@ -230,8 +231,9 @@ describe('prefilter — newsletters', () => {
       context()
     )
     expect(codes(result)).toEqual(['subject_keyword', 'newsletter_penalty'])
-    // 0.3 keyword - 0.4 penalty
-    expect(result.score).toBeCloseTo(-0.1, 5)
+    // 0.3 keyword - 0.15 penalty. Below the 0.35 threshold, which is the assertion
+    // that actually matters; the penalty nudges rather than vetoes.
+    expect(result.score).toBeCloseTo(0.15, 5)
     expect(result.isCandidate).toBe(false)
   })
 
@@ -252,8 +254,11 @@ describe('prefilter — newsletters', () => {
     expect(result.isCandidate).toBe(true)
   })
 
-  it('does not let two weak signals rescue a newsletter', () => {
-    // subject (0.3) + meeting (0.3) are both < 0.5, so the penalty still applies.
+  it('lets two weak signals carry a newsletter through, by design', () => {
+    // subject (0.3) + meeting (0.3) are both < 0.5, so the penalty still applies — but
+    // 0.45 clears the 0.35 threshold anyway. This USED to be excluded. The filter is
+    // tuned for recall: a webinar invite that talks about hiring and carries a Zoom link
+    // is cheap for the agent to read and dismiss, and expensive to have wrongly hidden.
     const result = score(
       message({
         fromDomain: 'jobsweekly.example',
@@ -265,8 +270,8 @@ describe('prefilter — newsletters', () => {
       context()
     )
     expect(codes(result)).toContain('newsletter_penalty')
-    expect(result.score).toBeCloseTo(0.2, 5)
-    expect(result.isCandidate).toBe(false)
+    expect(result.score).toBeCloseTo(0.45, 5)
+    expect(result.isCandidate).toBe(true)
   })
 
   it('ignores a blank List-Unsubscribe header', () => {
@@ -299,8 +304,14 @@ describe('prefilter — plain personal email', () => {
 
 describe('prefilter — thresholds and arithmetic', () => {
   it('treats a score exactly at the threshold as a candidate', () => {
+    // careers_sender alone is 0.35 — exactly the threshold.
     const result = score(
-      message({ fromDomain: 'lever.co', subject: null, threadKey: 'mid:t-1' }),
+      message({
+        fromAddr: 'careers@northwind.example',
+        fromDomain: 'northwind.example',
+        subject: null,
+        threadKey: 'mid:t-1'
+      }),
       context()
     )
     expect(result.score).toBe(PREFILTER_THRESHOLD_DEFAULT)
@@ -349,5 +360,70 @@ describe('prefilter — thresholds and arithmetic', () => {
     const msg = message({ fromDomain: 'greenhouse.io', subject: 'Interview', threadKey: 'mid:pure' })
     const ctx = context()
     expect(score(msg, ctx)).toEqual(score(msg, ctx))
+  })
+})
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * regression: the Datadog miss
+ *
+ * A real application confirmation that scored 0 and was never shown to the agent.
+ * It has no ATS sender (Datadog mails from its own domain), a subject with no
+ * hiring vocabulary in it, and List-Unsubscribe dragging it negative. Every piece
+ * of evidence lives in the body — which the scorer did not read at all.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+const DATADOG_BODY = `Hi Vladislav,
+
+Thank you for your interest in Datadog! We wanted to confirm that we have received your application for the Staff Engineer, Compute job.
+
+Our recruiting team manually reviews every single candidate's profile, and we receive a high volume of applications, so it may be a couple of weeks before we can get in touch with you regarding the next steps.
+
+While you wait for an update, you can learn more about Datadog by visiting our Careers page and joining our Talent Community.
+
+Kind regards,
+
+The Datadog Recruiting Team`
+
+function datadog(patch: Partial<PrefilterMessage> = {}): PrefilterMessage {
+  return message({
+    fromAddr: 'no-reply@datadoghq.com',
+    fromDomain: 'datadoghq.com',
+    subject: 'Thank you for your interest in Datadog',
+    bodyText: DATADOG_BODY,
+    listUnsubscribe: '<https://datadoghq.com/unsubscribe>',
+    ...patch
+  })
+}
+
+describe('regression: Datadog application confirmation', () => {
+  it('is a candidate despite own-domain sender and a bland subject', () => {
+    const result = score(datadog(), context())
+    expect(result.isCandidate).toBe(true)
+    expect(result.reasons.map((r) => r.code)).toContain('body_keyword')
+  })
+
+  it('passes on the body alone, with no subject at all', () => {
+    expect(score(datadog({ subject: null }), context()).isCandidate).toBe(true)
+  })
+
+  it('survives HTML-only bodies, where phrases split across tags', () => {
+    const html =
+      '<p>Thank you for your interest!</p><p>We have received <span>your</span> <b>application</b> for the Staff Engineer role.</p>'
+    const result = score(datadog({ bodyText: null, bodyHtml: html }), context())
+    expect(result.isCandidate).toBe(true)
+  })
+
+  it('still leaves an ordinary newsletter below the line', () => {
+    const result = score(
+      message({
+        fromAddr: 'news@techcrunch.com',
+        fromDomain: 'techcrunch.com',
+        subject: 'Your Tuesday briefing',
+        bodyText: 'The biggest stories in tech today, plus a look at the markets.',
+        listUnsubscribe: '<https://techcrunch.com/unsub>'
+      }),
+      context()
+    )
+    expect(result.isCandidate).toBe(false)
   })
 })

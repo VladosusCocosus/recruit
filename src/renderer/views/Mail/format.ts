@@ -87,6 +87,8 @@ const REASON_LABELS: Record<PrefilterReasonCode, string> = {
   known_company_domain: 'Known company',
   thread_linked: 'Linked thread',
   subject_keyword: 'Subject match',
+  body_keyword: 'Body match',
+  careers_sender: 'Careers address',
   meeting_signal: 'Meeting signal',
   newsletter_penalty: 'Newsletter'
 }

@@ -10,6 +10,8 @@
 
 import {
   ATS_DOMAINS,
+  BODY_SIGNAL_PATTERN,
+  CAREERS_SENDER_PATTERN,
   MEETING_URL_HOSTS,
   PREFILTER_THRESHOLD_DEFAULT,
   PREFILTER_WEIGHTS,
@@ -24,6 +26,9 @@ import {
 
 /** Signals at or above this weight are "strong" — they suppress the newsletter penalty. */
 const STRONG_SIGNAL_WEIGHT = 0.5
+
+/** Enough body to catch the signal without scanning a megabyte of quoted history. */
+const BODY_SCAN_CHARS = 20_000
 
 /** Score is rounded to this many decimals so 0.6 + 0.3 is 0.9, not 0.8999999999999999. */
 const SCORE_PRECISION = 3
@@ -98,6 +103,33 @@ function findMeetingHost(message: PrefilterMessage): string | null {
   return null
 }
 
+/**
+ * Plain text for phrase matching. Prefers bodyText; falls back to bodyHtml with tags
+ * crudely stripped, because a phrase like "your application" is routinely split across
+ * <span> boundaries in ATS templates and would never match the raw markup.
+ */
+function scannableBody(message: PrefilterMessage): string {
+  const text = message.bodyText?.trim()
+  if (text) return text.slice(0, BODY_SCAN_CHARS)
+  const html = message.bodyHtml
+  if (!html) return ''
+  return html
+    .replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .slice(0, BODY_SCAN_CHARS)
+}
+
+/** Local part of the sender address, lowercased. */
+function localPartOf(address: string | null | undefined): string | null {
+  if (!address) return null
+  const cleaned = address.replace(/^.*<|>.*$/g, '').trim()
+  const at = cleaned.lastIndexOf('@')
+  if (at <= 0) return null
+  return cleaned.slice(0, at).toLowerCase()
+}
+
 function reason(code: PrefilterReasonCode, detail?: string): PrefilterReason {
   const weight = PREFILTER_WEIGHTS[code]
   return detail === undefined ? { code, weight } : { code, weight, detail }
@@ -111,17 +143,19 @@ function reason(code: PrefilterReasonCode, detail?: string): PrefilterReason {
  * Score one message. Returns the score, the reasons that produced it (so the UI can answer
  * "why was this flagged?" on every proposal), and whether it clears the threshold.
  *
- * Signals, per the spec:
- *   +0.5  sender domain is a known ATS
- *   +0.6  sender domain matches an existing item's company_domain
+ * Signals:
  *   +0.9  thread_key already linked to an item   (strongest — it's a live conversation)
+ *   +0.6  sender domain matches an existing item's company_domain
+ *   +0.5  sender domain is a known ATS
+ *   +0.5  hiring vocabulary in the BODY
+ *   +0.35 sender local-part is a careers pipeline address
  *   +0.3  subject matches the hiring-vocabulary pattern
  *   +0.3  .ics attachment, or a meeting URL in the body
- *   -0.4  List-Unsubscribe present AND no single positive signal was >= 0.5
+ *   -0.15 List-Unsubscribe present AND no single positive signal was >= 0.5
  *
- * The penalty's guard is what keeps it useful: bulk mail that merely mentions "opportunity"
- * gets knocked below the line, while a Greenhouse rejection (which also carries
- * List-Unsubscribe) keeps its 0.5 and still surfaces.
+ * Tuned for recall against a 0.35 threshold: any ONE of the body, ATS, domain or thread
+ * signals is enough on its own. The newsletter penalty nudges rather than vetoes, because
+ * genuine ATS mail is bulk mail and carries List-Unsubscribe too.
  */
 export const score: PrefilterFn = (
   message: PrefilterMessage,
@@ -154,6 +188,20 @@ export const score: PrefilterFn = (
   if (message.subject) {
     const match = SUBJECT_SIGNAL_PATTERN.exec(message.subject)
     if (match) reasons.push(reason('subject_keyword', match[0].toLowerCase()))
+  }
+
+  // +0.5 — hiring vocabulary in the BODY. The workhorse signal: most application
+  // confirmations have an unremarkable subject and an unmistakable body.
+  const body = scannableBody(message)
+  if (body) {
+    const bodyMatch = BODY_SIGNAL_PATTERN.exec(body)
+    if (bodyMatch) reasons.push(reason('body_keyword', bodyMatch[0].toLowerCase().trim()))
+  }
+
+  // +0.35 — sent from a careers pipeline address
+  const localPart = localPartOf(message.fromAddr)
+  if (localPart && CAREERS_SENDER_PATTERN.test(localPart)) {
+    reasons.push(reason('careers_sender', localPart))
   }
 
   // +0.3 — a calendar invite or a meeting link

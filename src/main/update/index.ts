@@ -29,6 +29,14 @@ export function feedBase(): string {
   return (process.env.RECRUIT_UPDATE_FEED || DEFAULT_FEED).replace(/\/+$/, '')
 }
 
+/**
+ * The account-setup guide, served by the same service as the update feed. Anchors match
+ * the provider keys in the account form: #gmail, #icloud, #fastmail, #outlook, #custom.
+ */
+export function setupGuideUrl(): string {
+  return `${feedBase()}/setup`
+}
+
 export function getUpdateStatus(): UpdateStatus {
   return status
 }

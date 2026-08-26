@@ -6,6 +6,7 @@ import type {
   ConnectionTestResult
 } from '@shared/types'
 import {
+  Banner,
   Button,
   ButtonGroup,
   Field,
@@ -16,7 +17,8 @@ import {
   Select,
   TextInput,
   Toggle,
-  errorMessage
+  errorMessage,
+  useAppInfo
 } from '@renderer/components'
 
 /* ── provider presets ────────────────────────────────────────────────────── */
@@ -30,6 +32,12 @@ interface Preset {
   smtpPort: number
   smtpSecure: boolean
   note?: string
+  /**
+   * Set when the provider no longer accepts a password on IMAP at all. The preset stays
+   * in the list — deleting it would just make people re-type the same dead settings by
+   * hand — but the form says so before they spend a password on it.
+   */
+  unsupported?: string
 }
 
 const PRESETS: Record<string, Preset | null> = {
@@ -64,14 +72,32 @@ const PRESETS: Record<string, Preset | null> = {
     smtpSecure: true
   },
   outlook: {
-    label: 'Outlook / Microsoft 365',
+    label: 'Outlook / Microsoft 365 (cannot connect)',
     imapHost: 'outlook.office365.com',
     imapPort: 993,
     imapSecure: true,
     smtpHost: 'smtp.office365.com',
     smtpPort: 587,
-    smtpSecure: false
+    smtpSecure: false,
+    unsupported:
+      'Microsoft has removed password sign-in from IMAP and SMTP — Outlook.com in September ' +
+      '2024, Exchange Online mailboxes before that, and SMTP AUTH on 30 April 2026. OAuth is ' +
+      'the only way in, and Recruit has no OAuth client, so this account will fail to ' +
+      'authenticate. Forward the mail to a mailbox Recruit can read instead.'
   }
+}
+
+/**
+ * Google and Apple display app passwords in four-character groups, and that is how they
+ * get pasted — but the groups are presentation, and an IMAP server is handed the literal
+ * string. Strip the spaces only for that exact shape: a self-hosted server's passphrase
+ * may legitimately contain one. Surrounding whitespace from a copy is always noise.
+ */
+const APP_PASSWORD_GROUPS = /^[a-z0-9]{4}(?:\s[a-z0-9]{4}){3}$/i
+
+function normalizePassword(raw: string): string {
+  const trimmed = raw.trim()
+  return APP_PASSWORD_GROUPS.test(trimmed) ? trimmed.replace(/\s+/g, '') : trimmed
 }
 
 const PRESET_OPTIONS = [
@@ -154,6 +180,7 @@ export function AccountForm({
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const appInfo = useAppInfo()
   // Validation stays quiet until the first save attempt — an untouched "add
   // account" form covered in red is not a helpful first impression.
   const [submitted, setSubmitted] = useState(false)
@@ -215,7 +242,9 @@ export function AccountForm({
       const port = protocol === 'imap' ? form.imapPort : form.smtpPort
       const secure = protocol === 'imap' ? form.imapSecure : form.smtpSecure
       const user = protocol === 'imap' ? form.imapUser : form.smtpUser
-      const password = protocol === 'imap' ? form.imapPassword : form.smtpPassword
+      const password = normalizePassword(
+        protocol === 'imap' ? form.imapPassword : form.smtpPassword
+      )
       if (!host || !port || !user || !password) return
       setTests((t) => ({ ...t, [protocol]: 'busy' }))
       try {
@@ -263,9 +292,13 @@ export function AccountForm({
       smtpSecure: form.smtpHost.trim() ? form.smtpSecure : null,
       smtpUser: form.smtpUser.trim() || null
     }
-    // Write-only: an untouched password field leaves the stored secret alone.
-    if (form.imapPassword) input.imapPassword = form.imapPassword
-    if (form.smtpPassword) input.smtpPassword = form.smtpPassword
+    // Write-only: an untouched password field leaves the stored secret alone. Normalized
+    // the same way the connection test normalizes it, so a test that passed cannot be
+    // followed by a save that stores something subtly different.
+    const imapPassword = normalizePassword(form.imapPassword)
+    const smtpPassword = normalizePassword(form.smtpPassword)
+    if (imapPassword) input.imapPassword = imapPassword
+    if (smtpPassword) input.smtpPassword = smtpPassword
     try {
       const saved = await window.recruit.saveAccount(input)
       setForm((f) => ({ ...f, imapPassword: '', smtpPassword: '' }))
@@ -292,6 +325,32 @@ export function AccountForm({
   }, [account, onDeleted])
 
   const presetNote = PRESETS[preset]?.note
+
+  // Keyed off the host rather than the dropdown, so an account saved months ago still
+  // gets its own section of the guide — `preset` only means something on a fresh form.
+  const provider = useMemo(() => {
+    // Suffix matches, not substrings: `mail.acme.com` ends in "me.com", and an on-premise
+    // `outlook.example.com` is an Exchange server that may still take a password.
+    const host = form.imapHost.trim().toLowerCase().replace(/\.$/, '')
+    const at = (...domains: string[]): boolean =>
+      domains.some((d) => host === d || host.endsWith(`.${d}`))
+    if (at('gmail.com', 'googlemail.com')) return 'gmail'
+    if (at('mail.me.com', 'icloud.com')) return 'icloud'
+    if (at('fastmail.com', 'messagingengine.com')) return 'fastmail'
+    if (at('office365.com', 'outlook.com', 'hotmail.com', 'live.com')) return 'outlook'
+    return null
+  }, [form.imapHost])
+
+  const unsupported = provider ? PRESETS[provider]?.unsupported ?? null : null
+
+  const openGuide = useCallback(
+    (anchor: string | null) => {
+      const base = appInfo.data?.setupGuideUrl
+      if (!base) return
+      void window.recruit.openExternal(anchor ? `${base}#${anchor}` : base).catch(() => undefined)
+    },
+    [appInfo.data]
+  )
 
   return (
     <>
@@ -326,6 +385,31 @@ export function AccountForm({
             />
           </Field>
         </FieldRow>
+
+        {unsupported ? (
+          <div className="form-banner">
+            <Banner
+              tone="warning"
+              title="Recruit cannot sign in to this provider"
+              actions={
+                <Button size="sm" icon="external" onClick={() => openGuide(provider)}>
+                  Why
+                </Button>
+              }
+            >
+              {unsupported}
+            </Banner>
+          </div>
+        ) : null}
+
+        <div className="form-help">
+          <Button size="sm" variant="subtle" icon="external" onClick={() => openGuide(provider)}>
+            Setup help
+          </Button>
+          <span className="tertiary">
+            Servers, app passwords, and what each connection error means.
+          </span>
+        </div>
       </FormSection>
 
       <FormSection title="Incoming mail (IMAP)">

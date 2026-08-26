@@ -113,7 +113,6 @@ func main() {
 func (s *server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
-
 // handleLatest backs the download landing page and the app's update check.
 func (s *server) handleLatest(w http.ResponseWriter, r *http.Request) {
 	rel, err := s.latest(r.Context())

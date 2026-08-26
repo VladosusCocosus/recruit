@@ -55,6 +55,12 @@ First launch shows a setup checklist: **add account → sync → first scan → 
    flagged the message, so you can see why Claude was looking at it.
 
 Gmail and other 2FA providers need an app-specific password, not your account password.
+**Outlook and Microsoft 365 cannot connect at all** — Microsoft removed password sign-in from
+IMAP and SMTP, and Recruit has no OAuth client. The preset is kept, with a warning in the form.
+
+The per-provider guide lives at [server/setup.html](server/setup.html), served by the update
+service at `/setup`; the **Setup help** button in the account form opens it at the anchor for
+whatever provider is configured.
 
 ## How the agent is sandboxed
 

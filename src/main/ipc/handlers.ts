@@ -55,7 +55,8 @@ export function registerIpcHandlers(services: AppServices): void {
     platform: process.platform,
     userDataPath: app.getPath('userData'),
     dbPath: db.getDbPath() ?? '',
-    claudeCliAvailable: runner.isClaudeAvailable()
+    claudeCliAvailable: runner.isClaudeAvailable(),
+    setupGuideUrl: updates.setupGuideUrl()
   }))
 
   // MainSettings extends AppSettings (it adds claudeBinaryPath / syncBackfillDays /

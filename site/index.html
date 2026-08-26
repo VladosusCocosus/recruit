@@ -1,0 +1,913 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="Connect a mailbox to Recruit: IMAP servers, app passwords and failure modes for Gmail, iCloud, Fastmail and anything else.">
+<title>Recruit Mailbox Setup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=Spline+Sans+Mono:wght@400;600&display=swap">
+
+<style>
+  :root {
+    --paper: #EDEFEE;
+    --surface: #FFFFFF;
+    --sunk: #E4E8E6;
+    --ink: #141A19;
+    --muted: #5B6664;
+    --rule: #D0D6D4;
+    --rule-strong: #B3BDBA;
+    --accent: #2440C8;
+    --accent-soft: #E2E6FA;
+    --ok: #12664C;
+    --warn: #8A5A00;
+    --bad: #A3241C;
+    --bad-soft: #F7E5E3;
+
+    --display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+    --body: "Source Serif 4", Georgia, "Times New Roman", serif;
+    --mono: "Spline Sans Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #0F1413;
+      --surface: #171D1C;
+      --sunk: #1E2624;
+      --ink: #E6EAE8;
+      --muted: #93A09D;
+      --rule: #2B3432;
+      --rule-strong: #3D4947;
+      --accent: #93A6FF;
+      --accent-soft: #21294D;
+      --ok: #57C89E;
+      --warn: #E0A64B;
+      --bad: #F0938A;
+      --bad-soft: #38201E;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper: #0F1413;
+    --surface: #171D1C;
+    --sunk: #1E2624;
+    --ink: #E6EAE8;
+    --muted: #93A09D;
+    --rule: #2B3432;
+    --rule-strong: #3D4947;
+    --accent: #93A6FF;
+    --accent-soft: #21294D;
+    --ok: #57C89E;
+    --warn: #E0A64B;
+    --bad: #F0938A;
+    --bad-soft: #38201E;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 17px;
+    line-height: 1.62;
+    margin: 0;
+    padding: 0 20px 96px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    display: grid;
+    gap: 48px;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  @media (min-width: 1060px) {
+    .wrap { grid-template-columns: 190px minmax(0, 1fr); align-items: start; }
+    .toc { position: sticky; top: 32px; }
+  }
+
+  /* ── masthead ─────────────────────────────────────────── */
+
+  .masthead {
+    grid-column: 1 / -1;
+    border-bottom: 2px solid var(--ink);
+    padding: 56px 0 20px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 20px 32px;
+  }
+
+  .masthead h1 {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: clamp(38px, 6vw, 60px);
+    line-height: 0.98;
+    letter-spacing: -0.02em;
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .masthead p {
+    margin: 0;
+    max-width: 42ch;
+    color: var(--muted);
+    font-size: 16px;
+    line-height: 1.5;
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: block;
+    margin-bottom: 14px;
+  }
+
+  /* ── table of contents ────────────────────────────────── */
+
+  .toc ol {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+
+  .toc a {
+    display: block;
+    padding: 6px 8px;
+    color: var(--muted);
+    text-decoration: none;
+    border-left: 2px solid var(--rule);
+  }
+
+  .toc a:hover, .toc a:focus-visible {
+    color: var(--ink);
+    border-left-color: var(--accent);
+    background: var(--surface);
+  }
+
+  .toc .dead a { color: var(--bad); }
+
+  /* ── content column ───────────────────────────────────── */
+
+  .col { display: flex; flex-direction: column; gap: 40px; min-width: 0; }
+
+  section { scroll-margin-top: 24px; }
+
+  h2 {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 30px;
+    letter-spacing: -0.015em;
+    line-height: 1.1;
+    margin: 0 0 6px;
+    text-wrap: balance;
+  }
+
+  h3 {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 18px;
+    letter-spacing: -0.005em;
+    margin: 28px 0 8px;
+  }
+
+  p { margin: 0 0 14px; max-width: 66ch; }
+  p:last-child { margin-bottom: 0; }
+
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.86em;
+    background: var(--sunk);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  .lede { font-size: 19px; max-width: 62ch; }
+
+  /* ── provider card ────────────────────────────────────── */
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 28px 30px 30px;
+  }
+
+  .card-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 4px;
+  }
+
+  .card-head h2 { margin: 0; }
+
+  .tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+
+  .tag-ok { color: var(--ok); border: 1px solid currentColor; }
+  .tag-bad { color: var(--bad); background: var(--bad-soft); }
+  .tag-note { color: var(--muted); border: 1px solid var(--rule-strong); }
+
+  /* ── spec plate ───────────────────────────────────────── */
+
+  .plate {
+    border: 1px solid var(--rule-strong);
+    border-radius: 3px;
+    overflow-x: auto;
+    margin: 20px 0;
+    background: var(--sunk);
+  }
+
+  table { border-collapse: collapse; width: 100%; font-family: var(--mono); font-size: 13px; }
+
+  .plate th {
+    text-align: left;
+    font-weight: 600;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--rule-strong);
+    white-space: nowrap;
+  }
+
+  .plate td {
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .plate tr:last-child td { border-bottom: 0; }
+  .plate .k { color: var(--muted); white-space: nowrap; }
+
+  /* ── steps ────────────────────────────────────────────── */
+
+  ol.steps {
+    counter-reset: step;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  ol.steps > li {
+    counter-increment: step;
+    position: relative;
+    padding-left: 38px;
+    max-width: 64ch;
+  }
+
+  ol.steps > li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: 2px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--surface);
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) ol.steps > li::before { color: #0F1413; }
+  }
+
+  :root[data-theme="dark"] ol.steps > li::before { color: #0F1413; }
+
+  ul.plain { margin: 0; padding-left: 20px; }
+  ul.plain li { margin-bottom: 8px; max-width: 64ch; }
+
+  /* ── callouts ─────────────────────────────────────────── */
+
+  .note {
+    border-left: 3px solid var(--rule-strong);
+    padding: 4px 0 4px 16px;
+    margin: 20px 0;
+    font-size: 16px;
+    color: var(--muted);
+    max-width: 64ch;
+  }
+
+  .note strong { color: var(--ink); font-weight: 600; }
+  .note.warn { border-left-color: var(--warn); }
+  .note.stop { border-left-color: var(--bad); }
+
+  /* ── figures ──────────────────────────────────────────── */
+
+  figure {
+    margin: 24px 0;
+    padding: 0;
+  }
+
+  figure svg {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+  }
+
+  section > figure svg { background: var(--surface); }
+  .card figure svg { background: var(--paper); }
+
+  figcaption {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--muted);
+    margin-top: 10px;
+    max-width: 72ch;
+  }
+
+  .svg-label { font-family: "Archivo", sans-serif; font-size: 13px; font-weight: 600; fill: currentColor; }
+  .svg-sub { font-family: "Spline Sans Mono", monospace; font-size: 11px; fill: currentColor; opacity: 0.6; }
+  .svg-edge { font-family: "Spline Sans Mono", monospace; font-size: 11px; fill: currentColor; opacity: 0.75; }
+  .svg-box { fill: none; stroke: currentColor; stroke-width: 1.4; }
+  .svg-fill { fill: var(--sunk); stroke: currentColor; stroke-width: 1.4; }
+  .svg-line { stroke: currentColor; stroke-width: 1.4; fill: none; }
+  .svg-dash { stroke: currentColor; stroke-width: 1.4; fill: none; stroke-dasharray: 5 4; opacity: 0.5; }
+  .svg-accent { stroke: var(--accent); }
+  .svg-accent-fill { fill: var(--accent); }
+  .svg-bad { stroke: var(--bad); }
+  .svg-bad-text { fill: var(--bad); font-family: "Spline Sans Mono", monospace; font-size: 11px; }
+  .svg-ok-text { fill: var(--ok); font-family: "Spline Sans Mono", monospace; font-size: 11px; }
+  .svg-faint { opacity: 0.45; }
+
+  /* ── troubleshooting ──────────────────────────────────── */
+
+  .diag { display: flex; flex-direction: column; gap: 0; }
+
+  .diag-row {
+    display: grid;
+    gap: 4px 24px;
+    padding: 18px 0;
+    border-top: 1px solid var(--rule);
+  }
+
+  @media (min-width: 760px) {
+    .diag-row { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); }
+  }
+
+  .diag-row:last-child { border-bottom: 1px solid var(--rule); }
+
+  .diag-err {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--bad);
+  }
+
+  .diag-fix { font-size: 16px; }
+  .diag-fix p { margin: 0; }
+
+  footer {
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--rule);
+    padding-top: 20px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.02em;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <div>
+      <span class="eyebrow">Recruit · account setup</span>
+      <h1>Connecting<br>your mailbox</h1>
+    </div>
+    <p>Recruit reads one INBOX over IMAP. Every provider below needs the same two things: an
+      app-specific password, and the right server, port and TLS setting.</p>
+  </header>
+
+  <nav class="toc" aria-label="Providers">
+    <ol>
+      <li><a href="#how">How it connects</a></li>
+      <li><a href="#ports">Ports &amp; TLS</a></li>
+      <li><a href="#gmail">Gmail</a></li>
+      <li><a href="#icloud">iCloud</a></li>
+      <li><a href="#fastmail">Fastmail</a></li>
+      <li class="dead"><a href="#outlook">Outlook / 365</a></li>
+      <li><a href="#custom">Anything else</a></li>
+      <li><a href="#trouble">When it fails</a></li>
+    </ol>
+  </nav>
+
+  <div class="col">
+
+    <!-- ── HOW IT CONNECTS ──────────────────────────────── -->
+    <section id="how">
+      <h2>How Recruit uses the account</h2>
+      <p class="lede">Worth knowing before you hand it a password: Recruit signs in as a mail
+        client, pulls the last 90 days of your INBOX, and never sends a single command back that
+        changes anything on the server.</p>
+
+      <figure>
+        <svg viewBox="0 0 840 300" role="img" aria-label="Recruit authenticates to the provider's IMAP server with an app password, receives messages, stores them in a local SQLite database and the password in the macOS Keychain, and never writes flags, deletes or sends.">
+          <defs>
+            <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 1 L 9 5 L 0 9 z" fill="currentColor"></path>
+            </marker>
+          </defs>
+
+          <!-- crossed-out write path -->
+          <line class="svg-dash svg-bad" x1="325" y1="46" x2="216" y2="46" marker-end="url(#ar)"></line>
+          <line class="svg-bad" x1="261" y1="39" x2="275" y2="53" stroke-width="1.6"></line>
+          <line class="svg-bad" x1="275" y1="39" x2="261" y2="53" stroke-width="1.6"></line>
+          <text class="svg-bad-text" x="268" y="26" text-anchor="middle">flags · deletes · sends</text>
+
+          <!-- boxes -->
+          <rect class="svg-box" x="20" y="70" width="190" height="110" rx="4"></rect>
+          <text class="svg-label" x="115" y="118" text-anchor="middle">Provider IMAP</text>
+          <text class="svg-sub" x="115" y="140" text-anchor="middle">imap.example.com:993</text>
+
+          <rect class="svg-fill" x="325" y="70" width="190" height="110" rx="4"></rect>
+          <text class="svg-label" x="420" y="112" text-anchor="middle">Recruit</text>
+          <text class="svg-sub" x="420" y="133" text-anchor="middle">sync + prefilter</text>
+          <text class="svg-sub" x="420" y="152" text-anchor="middle">INBOX · 90 days</text>
+
+          <rect class="svg-box" x="630" y="70" width="190" height="110" rx="4"></rect>
+          <text class="svg-label" x="725" y="118" text-anchor="middle">recruit.db</text>
+          <text class="svg-sub" x="725" y="140" text-anchor="middle">messages + scores</text>
+
+          <rect class="svg-box" x="325" y="238" width="190" height="52" rx="4"></rect>
+          <text class="svg-label" x="420" y="270" text-anchor="middle">macOS Keychain</text>
+
+          <!-- edges -->
+          <line class="svg-line svg-accent" x1="325" y1="108" x2="216" y2="108" marker-end="url(#ar)"></line>
+          <text class="svg-edge" x="268" y="100" text-anchor="middle">app password</text>
+
+          <line class="svg-line" x1="210" y1="150" x2="319" y2="150" marker-end="url(#ar)"></line>
+          <text class="svg-edge" x="268" y="170" text-anchor="middle">messages</text>
+
+          <line class="svg-line" x1="515" y1="125" x2="624" y2="125" marker-end="url(#ar)"></line>
+          <text class="svg-edge" x="570" y="117" text-anchor="middle">store</text>
+
+          <line class="svg-line svg-accent" x1="420" y1="180" x2="420" y2="232" marker-end="url(#ar)"></line>
+          <text class="svg-edge" x="430" y="212">password</text>
+        </svg>
+        <figcaption>The password takes one path — into the Keychain — and only SQLite ever grows.
+          The dashed edge is the one Recruit never opens: v1 has no code that writes an IMAP flag,
+          moves a message or sends mail.</figcaption>
+      </figure>
+
+      <h3>What you do in the app</h3>
+      <ol class="steps">
+        <li><strong>Settings → Account.</strong> Choose your provider from <em>Provider</em>; the
+          servers, ports and TLS toggles fill themselves in.</li>
+        <li><strong>Email address.</strong> Typing it copies the address into both
+          <em>Username</em> fields — override them only if your provider says otherwise (iCloud
+          sometimes does).</li>
+        <li><strong>Password.</strong> The app-specific password from the section for your
+          provider below. Not your account password.</li>
+        <li><strong>Test IMAP connection.</strong> A real sign-in, before anything is saved. Wait
+          for the green result — a saved account with a bad password just fails later, at sync.</li>
+        <li><strong>Save,</strong> then <strong>Sync</strong>. Messages scoring ≥ 0.5 in the
+          prefilter become candidates for the agent to triage.</li>
+      </ol>
+
+      <div class="note">
+        <strong>SMTP is optional in this version.</strong> Recruit stores and connection-tests the
+        outgoing half so sending can land later, but nothing sends today. Leave it blank and
+        everything still works.
+      </div>
+    </section>
+
+    <!-- ── PORTS ────────────────────────────────────────── -->
+    <section id="ports">
+      <h2>Ports and the TLS toggle</h2>
+      <p>One switch causes most first-run failures. <em>Use TLS</em> means <em>this port is
+        encrypted from the first byte</em> — it is not a "should this be secure?" question. Turn it
+        off on 143 and 587 and the connection still gets encrypted, by STARTTLS, a step later.</p>
+
+      <figure>
+        <svg viewBox="0 0 760 250" role="img" aria-label="Port to TLS toggle mapping: IMAP 993 TLS on, IMAP 143 TLS off with STARTTLS, SMTP 465 TLS on, SMTP 587 TLS off with STARTTLS.">
+          <text class="svg-sub" x="24" y="34">INCOMING · IMAP</text>
+          <rect class="svg-box" x="24" y="46" width="340" height="70" rx="4"></rect>
+          <text class="svg-label" x="48" y="90" style="font-family:'Spline Sans Mono',monospace;font-size:21px">993</text>
+          <rect class="svg-accent-fill" x="120" y="70" width="38" height="21" rx="10.5"></rect>
+          <circle cx="147.5" cy="80.5" r="7" fill="var(--surface)"></circle>
+          <text class="svg-edge" x="172" y="85">Use TLS · on</text>
+
+          <rect class="svg-box" x="396" y="46" width="340" height="70" rx="4"></rect>
+          <text class="svg-label" x="420" y="90" style="font-family:'Spline Sans Mono',monospace;font-size:21px">143</text>
+          <rect class="svg-box" x="492" y="70" width="38" height="21" rx="10.5"></rect>
+          <circle cx="502.5" cy="80.5" r="7" fill="currentColor" opacity="0.35"></circle>
+          <text class="svg-edge" x="544" y="85">off → STARTTLS</text>
+
+          <text class="svg-sub" x="24" y="158">OUTGOING · SMTP</text>
+          <rect class="svg-box" x="24" y="170" width="340" height="70" rx="4"></rect>
+          <text class="svg-label" x="48" y="214" style="font-family:'Spline Sans Mono',monospace;font-size:21px">465</text>
+          <rect class="svg-accent-fill" x="120" y="194" width="38" height="21" rx="10.5"></rect>
+          <circle cx="147.5" cy="204.5" r="7" fill="var(--surface)"></circle>
+          <text class="svg-edge" x="172" y="209">Use TLS · on</text>
+
+          <rect class="svg-box" x="396" y="170" width="340" height="70" rx="4"></rect>
+          <text class="svg-label" x="420" y="214" style="font-family:'Spline Sans Mono',monospace;font-size:21px">587</text>
+          <rect class="svg-box" x="492" y="194" width="38" height="21" rx="10.5"></rect>
+          <circle cx="502.5" cy="204.5" r="7" fill="currentColor" opacity="0.35"></circle>
+          <text class="svg-edge" x="544" y="209">off → STARTTLS</text>
+        </svg>
+        <figcaption>Match the toggle to the port, not to your instincts about security. Mismatch it
+          and the test fails during the handshake, not at authentication — which is why Recruit
+          reports those two failures with different words.</figcaption>
+      </figure>
+    </section>
+
+    <!-- ── GMAIL ────────────────────────────────────────── -->
+    <section id="gmail" class="card">
+      <div class="card-head">
+        <h2>Gmail</h2>
+        <span class="tag tag-ok">Works</span>
+      </div>
+      <p>IMAP has been on by default for every Google account since January 2025 — there is no
+        setting to enable. What you need is an app password, and app passwords only exist once
+        2-Step Verification is on.</p>
+
+      <figure>
+        <svg viewBox="0 0 840 300" role="img" aria-label="Gmail app password path: 2-Step Verification must be on, otherwise the app passwords page does not exist; then name the app password and create it; then copy the sixteen character code without spaces.">
+          <defs>
+            <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+              <path d="M 0 1 L 9 5 L 0 9 z" fill="currentColor"></path>
+            </marker>
+          </defs>
+
+          <!-- panel 1 -->
+          <rect class="svg-box" x="20" y="60" width="240" height="130" rx="4"></rect>
+          <line class="svg-line svg-faint" x1="20" y1="92" x2="260" y2="92"></line>
+          <text class="svg-sub" x="36" y="83">Google Account · Security</text>
+          <text class="svg-label" x="36" y="126">2-Step Verification</text>
+          <rect class="svg-box svg-accent" x="36" y="140" width="52" height="22" rx="11"></rect>
+          <text class="svg-edge" x="62" y="155" text-anchor="middle" fill="var(--accent)">On</text>
+          <text class="svg-bad-text" x="20" y="212">off → the app-passwords page 404s</text>
+
+          <!-- panel 2 -->
+          <rect class="svg-box" x="300" y="60" width="240" height="130" rx="4"></rect>
+          <line class="svg-line svg-faint" x1="300" y1="92" x2="540" y2="92"></line>
+          <text class="svg-sub" x="316" y="83">App passwords</text>
+          <rect class="svg-box svg-faint" x="316" y="112" width="150" height="26" rx="3"></rect>
+          <text class="svg-edge" x="326" y="130">Recruit</text>
+          <rect class="svg-fill" x="316" y="150" width="74" height="26" rx="3"></rect>
+          <text class="svg-edge" x="353" y="168" text-anchor="middle">Create</text>
+
+          <!-- panel 3 -->
+          <rect class="svg-box" x="580" y="60" width="240" height="130" rx="4"></rect>
+          <line class="svg-line svg-faint" x1="580" y1="92" x2="820" y2="92"></line>
+          <text class="svg-sub" x="596" y="83">Generated · shown once</text>
+          <text class="svg-label" x="700" y="132" text-anchor="middle" style="font-family:'Spline Sans Mono',monospace;font-size:15px">abcd efgh ijkl mnop</text>
+          <text class="svg-edge" x="700" y="160" text-anchor="middle" fill="var(--accent)">paste as abcdefghijklmnop</text>
+
+          <line class="svg-line" x1="264" y1="125" x2="294" y2="125" marker-end="url(#ar2)"></line>
+          <line class="svg-line" x1="544" y1="125" x2="574" y2="125" marker-end="url(#ar2)"></line>
+        </svg>
+        <figcaption>Google prints the password in four groups for readability; the groups are not
+          part of it. Sixteen characters, no spaces, is what goes in the field.</figcaption>
+      </figure>
+
+      <ol class="steps">
+        <li>Turn on 2-Step Verification at
+          <code>myaccount.google.com/security</code> if it isn't already.</li>
+        <li>Go to <code>myaccount.google.com/apppasswords</code>, name it "Recruit", and create it.</li>
+        <li>Copy the 16 characters, drop the spaces, and paste them into <em>Password</em> in
+          Recruit — the IMAP one, and the SMTP one if you fill that in. The same password works
+          for both.</li>
+      </ol>
+
+      <div class="plate">
+        <table>
+          <tr><th>Role</th><th>Server</th><th>Port</th><th>Use TLS</th><th>Username</th></tr>
+          <tr><td class="k">IMAP</td><td>imap.gmail.com</td><td>993</td><td>on</td><td>full address</td></tr>
+          <tr><td class="k">SMTP</td><td>smtp.gmail.com</td><td>465</td><td>on</td><td>full address</td></tr>
+        </table>
+      </div>
+
+      <div class="note warn">
+        <strong>No app-passwords page?</strong> Three causes, in order of likelihood: 2-Step
+        Verification is off; the account is enrolled in Advanced Protection, which removes app
+        passwords entirely; or it is a Workspace account whose admin has disabled them. Only the
+        first is yours to fix.
+      </div>
+
+      <div class="note">
+        <strong>Recruit only reads INBOX.</strong> A Gmail filter that archives or labels
+        recruiter mail on arrival takes it out of INBOX, and Recruit will never see it. Promotions
+        and Updates are still INBOX, so those do get picked up.
+      </div>
+    </section>
+
+    <!-- ── ICLOUD ───────────────────────────────────────── -->
+    <section id="icloud" class="card">
+      <div class="card-head">
+        <h2>iCloud Mail</h2>
+        <span class="tag tag-ok">Works</span>
+        <span class="tag tag-note">Username quirk</span>
+      </div>
+      <p>Apple requires two-factor authentication on the Apple Account before it will issue an
+        app-specific password. The quirk is the username: Apple documents the <em>name part</em> of
+        your address for incoming mail, and the full address for outgoing.</p>
+
+      <ol class="steps">
+        <li>Sign in at <code>account.apple.com</code> → <strong>Sign-In and Security</strong> →
+          <strong>App-Specific Passwords</strong>.</li>
+        <li>Generate one, label it "Recruit", and copy it. Apple shows it once.</li>
+        <li>Pick the <strong>iCloud</strong> preset in Recruit, paste the password, and test.</li>
+      </ol>
+
+      <figure>
+        <svg viewBox="0 0 780 280" role="img" aria-label="If the full iCloud address fails to authenticate over IMAP, retry with only the part of the address before the at sign.">
+          <defs>
+            <marker id="ar3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+              <path d="M 0 1 L 9 5 L 0 9 z" fill="currentColor"></path>
+            </marker>
+          </defs>
+
+          <rect class="svg-box" x="20" y="58" width="200" height="64" rx="4"></rect>
+          <text class="svg-sub" x="120" y="82" text-anchor="middle">IMAP username</text>
+          <text class="svg-label" x="120" y="104" text-anchor="middle" style="font-family:'Spline Sans Mono',monospace;font-size:12px">you@icloud.com</text>
+
+          <line class="svg-line" x1="220" y1="90" x2="314" y2="90" marker-end="url(#ar3)"></line>
+          <text class="svg-edge" x="267" y="82" text-anchor="middle">test</text>
+
+          <polygon class="svg-fill" points="320,90 390,52 460,90 390,128"></polygon>
+          <text class="svg-edge" x="390" y="94" text-anchor="middle">signs in?</text>
+
+          <line class="svg-line" x1="460" y1="90" x2="554" y2="90" marker-end="url(#ar3)"></line>
+          <text class="svg-ok-text" x="507" y="82" text-anchor="middle">yes</text>
+          <rect class="svg-box" x="560" y="58" width="200" height="64" rx="4"></rect>
+          <text class="svg-label" x="660" y="96" text-anchor="middle">Done — save it</text>
+
+          <line class="svg-line" x1="390" y1="128" x2="390" y2="172" marker-end="url(#ar3)"></line>
+          <text class="svg-bad-text" x="400" y="152">no</text>
+          <rect class="svg-box svg-accent" x="270" y="178" width="240" height="64" rx="4"></rect>
+          <text class="svg-sub" x="390" y="202" text-anchor="middle">retry with the prefix</text>
+          <text class="svg-label" x="390" y="224" text-anchor="middle" style="font-family:'Spline Sans Mono',monospace;font-size:12px">you</text>
+        </svg>
+        <figcaption>The password is unchanged between the two attempts — only the username field
+          moves. If the prefix works, leave <em>Email address</em> as the full address; it is a
+          separate field from <em>Username</em>.</figcaption>
+      </figure>
+
+      <div class="plate">
+        <table>
+          <tr><th>Role</th><th>Server</th><th>Port</th><th>Use TLS</th><th>Username</th></tr>
+          <tr><td class="k">IMAP</td><td>imap.mail.me.com</td><td>993</td><td>on</td><td>full address, else prefix</td></tr>
+          <tr><td class="k">SMTP</td><td>smtp.mail.me.com</td><td>587</td><td>off</td><td>full address</td></tr>
+        </table>
+      </div>
+
+      <div class="note">
+        <strong>@me.com and @mac.com aliases</strong> use the same servers and the same app-specific
+        password — sign in with whichever address the mailbox actually answers to.
+      </div>
+    </section>
+
+    <!-- ── FASTMAIL ─────────────────────────────────────── -->
+    <section id="fastmail" class="card">
+      <div class="card-head">
+        <h2>Fastmail</h2>
+        <span class="tag tag-ok">Works</span>
+      </div>
+      <p>Fastmail refuses your normal password on IMAP outright, so an app password is not a 2FA
+        workaround here — it is the only way in. The one thing to get right is the scope.</p>
+
+      <figure>
+        <svg viewBox="0 0 800 220" role="img" aria-label="Fastmail path: Settings, then Privacy and Security, then Connected apps and API tokens, then New app password, with a scope that must include Mail.">
+          <defs>
+            <marker id="ar4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+              <path d="M 0 1 L 9 5 L 0 9 z" fill="currentColor"></path>
+            </marker>
+          </defs>
+
+          <rect class="svg-box" x="20" y="34" width="92" height="34" rx="3"></rect>
+          <text class="svg-edge" x="66" y="56" text-anchor="middle">Settings</text>
+          <line class="svg-line" x1="114" y1="51" x2="130" y2="51" marker-end="url(#ar4)"></line>
+
+          <rect class="svg-box" x="136" y="34" width="156" height="34" rx="3"></rect>
+          <text class="svg-edge" x="214" y="56" text-anchor="middle">Privacy &amp; Security</text>
+          <line class="svg-line" x1="294" y1="51" x2="310" y2="51" marker-end="url(#ar4)"></line>
+
+          <rect class="svg-box" x="316" y="34" width="230" height="34" rx="3"></rect>
+          <text class="svg-edge" x="431" y="56" text-anchor="middle">Connected apps &amp; API tokens</text>
+          <line class="svg-line" x1="548" y1="51" x2="564" y2="51" marker-end="url(#ar4)"></line>
+
+          <rect class="svg-fill" x="570" y="34" width="180" height="34" rx="3"></rect>
+          <text class="svg-edge" x="660" y="56" text-anchor="middle">New app password</text>
+
+          <line class="svg-line svg-faint" x1="660" y1="68" x2="660" y2="100" ></line>
+          <line class="svg-line svg-faint" x1="660" y1="100" x2="470" y2="100"></line>
+          <line class="svg-line" x1="470" y1="100" x2="470" y2="116" marker-end="url(#ar4)"></line>
+
+          <rect class="svg-box" x="200" y="122" width="400" height="76" rx="4"></rect>
+          <circle class="svg-accent" cx="226" cy="148" r="7" fill="none"></circle>
+          <circle class="svg-accent-fill" cx="226" cy="148" r="3.5"></circle>
+          <text class="svg-edge" x="244" y="152">Mail, Contacts &amp; Calendars</text>
+          <circle class="svg-line" cx="226" cy="176" r="7" fill="none" opacity="0.5"></circle>
+          <text class="svg-edge" x="244" y="180" opacity="0.6">Contacts only — no IMAP</text>
+        </svg>
+        <figcaption>Either scope that includes Mail is fine; a Contacts- or Calendars-only token
+          authenticates against CardDAV and CalDAV and is rejected on port 993.</figcaption>
+      </figure>
+
+      <div class="plate">
+        <table>
+          <tr><th>Role</th><th>Server</th><th>Port</th><th>Use TLS</th><th>Username</th></tr>
+          <tr><td class="k">IMAP</td><td>imap.fastmail.com</td><td>993</td><td>on</td><td>full address</td></tr>
+          <tr><td class="k">SMTP</td><td>smtp.fastmail.com</td><td>465</td><td>on</td><td>full address</td></tr>
+        </table>
+      </div>
+
+      <div class="note">
+        <strong>Using a Fastmail alias or your own domain?</strong> Sign in with the account's
+        primary address, not the alias — the alias delivers to the same mailbox but is not a
+        login.
+      </div>
+    </section>
+
+    <!-- ── OUTLOOK ──────────────────────────────────────── -->
+    <section id="outlook" class="card">
+      <div class="card-head">
+        <h2>Outlook &amp; Microsoft 365</h2>
+        <span class="tag tag-bad">Cannot connect</span>
+      </div>
+      <p>Recruit ships an Outlook preset, and it will not authenticate. Microsoft has removed
+        password-based sign-in from IMAP and SMTP: personal Outlook.com accounts lost it on
+        16 September 2024, Exchange Online mailboxes earlier, and the last SMTP holdout closed on
+        30 April 2026. The only remaining door is OAuth, which Recruit has no client for.</p>
+
+      <figure>
+        <svg viewBox="0 0 820 250" role="img" aria-label="Recruit sends a password over basic auth and Microsoft rejects it; the OAuth path Microsoft accepts is not implemented in Recruit.">
+          <defs>
+            <marker id="ar5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+              <path d="M 0 1 L 9 5 L 0 9 z" fill="currentColor"></path>
+            </marker>
+          </defs>
+
+          <rect class="svg-box" x="20" y="48" width="180" height="62" rx="4"></rect>
+          <text class="svg-label" x="110" y="74" text-anchor="middle">Recruit</text>
+          <text class="svg-sub" x="110" y="94" text-anchor="middle">app password</text>
+
+          <line class="svg-line svg-bad" x1="200" y1="79" x2="584" y2="79" marker-end="url(#ar5)"></line>
+          <line class="svg-bad" x1="383" y1="72" x2="397" y2="86" stroke-width="1.6"></line>
+          <line class="svg-bad" x1="397" y1="72" x2="383" y2="86" stroke-width="1.6"></line>
+          <text class="svg-bad-text" x="390" y="62" text-anchor="middle">basic auth — refused</text>
+
+          <rect class="svg-box svg-faint" x="20" y="146" width="180" height="62" rx="4" stroke-dasharray="5 4"></rect>
+          <text class="svg-label svg-faint" x="110" y="172" text-anchor="middle">OAuth client</text>
+          <text class="svg-sub" x="110" y="192" text-anchor="middle">not built</text>
+
+          <line class="svg-dash" x1="200" y1="177" x2="584" y2="177" marker-end="url(#ar5)"></line>
+          <text class="svg-edge svg-faint" x="390" y="167" text-anchor="middle">the path Microsoft accepts</text>
+
+          <rect class="svg-box" x="590" y="40" width="210" height="176" rx="4"></rect>
+          <text class="svg-label" x="695" y="120" text-anchor="middle">Exchange Online</text>
+          <text class="svg-sub" x="695" y="142" text-anchor="middle">outlook.office365.com</text>
+        </svg>
+        <figcaption>Nothing you can set in Recruit or in your Microsoft account bridges the gap —
+          app passwords for Microsoft accounts were themselves a basic-auth mechanism and went with
+          it.</figcaption>
+      </figure>
+
+      <div class="note stop">
+        <strong>If your job mail lives in Outlook,</strong> the practical route today is a
+        forwarding rule from Outlook into a mailbox Recruit can read, and pointing Recruit at that
+        one instead. Set the rule up in Outlook yourself — Recruit cannot create it.
+      </div>
+    </section>
+
+    <!-- ── CUSTOM ───────────────────────────────────────── -->
+    <section id="custom" class="card">
+      <div class="card-head">
+        <h2>Anything else</h2>
+        <span class="tag tag-note">Custom…</span>
+      </div>
+      <p>Pick <em>Custom…</em> and fill the four IMAP fields by hand. Providers publish these under
+        "IMAP settings" or "mail client setup"; the pattern is nearly always the same.</p>
+
+      <ul class="plain">
+        <li><strong>Server</strong> — usually <code>imap.yourdomain.com</code> or
+          <code>mail.yourdomain.com</code>. Your webmail's hostname is not always the IMAP one.</li>
+        <li><strong>Port &amp; TLS</strong> — 993 with <em>Use TLS</em> on, unless the provider
+          says 143, in which case turn it off.</li>
+        <li><strong>Username</strong> — the full address for most hosts; some shared hosting uses a
+          cPanel-style <code>user@domain</code> that differs from your display address.</li>
+        <li><strong>Password</strong> — if the provider offers app passwords or has 2FA on the
+          account, you need one. If you have 2FA and no app-password feature, IMAP will not work
+          at all.</li>
+      </ul>
+
+      <p>Proton and Tutanota deserve a specific warning: both encrypt mailboxes in a way that has
+        no plain IMAP endpoint. Proton exposes IMAP only through Proton Mail Bridge running
+        locally, so Recruit would point at <code>127.0.0.1</code> with the Bridge's own generated
+        password. Tutanota has no IMAP at all.</p>
+    </section>
+
+    <!-- ── TROUBLESHOOTING ──────────────────────────────── -->
+    <section id="trouble">
+      <h2>When the test fails</h2>
+      <p>Recruit distinguishes the failure modes deliberately, so the message tells you which layer
+        broke. Read it before changing anything.</p>
+
+      <div class="diag">
+        <div class="diag-row">
+          <div class="diag-err">Authentication failed — check the username and password.</div>
+          <div class="diag-fix">
+            <p>You reached the server and it said no. Almost always a normal password where an app
+              password belongs, or spaces left in a pasted one. Also check the app password wasn't
+              revoked — changing your main account password kills every app password with it.</p>
+          </div>
+        </div>
+        <div class="diag-row">
+          <div class="diag-err">The connection failed during the handshake — the TLS setting probably does not match the port.</div>
+          <div class="diag-fix">
+            <p>The credentials were never tried. <em>Use TLS</em> disagrees with the port: on for
+              993 and 465, off for 143 and 587.</p>
+          </div>
+        </div>
+        <div class="diag-row">
+          <div class="diag-err">Host not found: imap.example.com</div>
+          <div class="diag-fix">
+            <p>A typo in the server name, or you're offline. Compare against the plate in your
+              provider's section.</p>
+          </div>
+        </div>
+        <div class="diag-row">
+          <div class="diag-err">Timed out connecting — wrong port, or a firewall is in the way.</div>
+          <div class="diag-fix">
+            <p>Corporate networks and some VPNs block 993 outright. Try the same account off the
+              network to tell the two apart.</p>
+          </div>
+        </div>
+        <div class="diag-row">
+          <div class="diag-err">Connection refused — nothing is listening on that port.</div>
+          <div class="diag-fix">
+            <p>Right host, wrong port. Check for a transposed 993/143.</p>
+          </div>
+        </div>
+        <div class="diag-row">
+          <div class="diag-err">TLS certificate rejected for imap.example.com</div>
+          <div class="diag-fix">
+            <p>The certificate doesn't match the hostname or has expired. On a self-hosted server
+              that's a real misconfiguration; on a public provider, suspect a network appliance
+              intercepting the connection.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="note">
+        <strong>Connection fine, but no mail appears?</strong> That isn't an auth problem. Recruit
+        syncs INBOX only, and only the last 90 days — mail that a server-side filter moved to a
+        folder or label never appears.
+      </div>
+    </section>
+
+  </div>
+
+  <footer>Recruit v1 · read-only IMAP · passwords in the macOS Keychain, never in the database</footer>
+
+</div>
+</body>
+</html>

@@ -371,6 +371,8 @@ export type PrefilterReasonCode =
   | 'known_company_domain'
   | 'thread_linked'
   | 'subject_keyword'
+  | 'body_keyword'
+  | 'careers_sender'
   | 'meeting_signal'
   | 'newsletter_penalty'
 
@@ -410,15 +412,35 @@ export interface PrefilterResult {
 
 export type PrefilterFn = (message: PrefilterMessage, ctx: PrefilterContext) => PrefilterResult
 
-export const PREFILTER_THRESHOLD_DEFAULT = 0.5
+/**
+ * Lowered from 0.5. At 0.5 a message needed a known ATS sender or a tracked company just
+ * to be looked at; at 0.35 a single body phrase or a careers sender is enough. Reading a
+ * few extra messages is cheap. Missing an application confirmation is not.
+ */
+export const PREFILTER_THRESHOLD_DEFAULT = 0.35
 
+/**
+ * Tuned for RECALL, not precision. A message the agent never sees is invisible forever;
+ * a message it reads and dismisses costs a few seconds. So every threshold decision here
+ * errs toward letting mail through.
+ *
+ * body_keyword carries 0.5 on its own — enough to clear the threshold unaided — because
+ * the single most common shape of hiring mail is a bland subject ("Thank you for your
+ * interest in Datadog") wrapped around an unmistakable body ("we have received your
+ * application for the Staff Engineer, Compute job"). Scoring subjects alone missed those
+ * entirely.
+ */
 export const PREFILTER_WEIGHTS: Readonly<Record<PrefilterReasonCode, number>> = {
   ats_domain: 0.5,
   known_company_domain: 0.6,
   thread_linked: 0.9,
   subject_keyword: 0.3,
+  body_keyword: 0.5,
+  careers_sender: 0.35,
   meeting_signal: 0.3,
-  newsletter_penalty: -0.4
+  // Softened from -0.4: real ATS mail is bulk mail and carries List-Unsubscribe too.
+  // This should nudge, never veto.
+  newsletter_penalty: -0.15
 }
 
 export const ATS_DOMAINS: readonly string[] = [
@@ -448,7 +470,22 @@ export const MEETING_URL_HOSTS: readonly string[] = [
 ]
 
 export const SUBJECT_SIGNAL_PATTERN =
-  /applicat|interview|position|role|recruit|candidat|opportunit|offer|hiring|screen|assessment|take.?home|onsite/i
+  /applicat|interview|position|role|recruit|candidat|opportunit|offer|hiring|screen|assessment|take.?home|onsite|thank you for (?:your interest|applying)|thanks for applying|we received|received your|your candidacy|join (?:our|the) team|career|talent|job/i
+
+/**
+ * Phrases that betray hiring mail from the body alone. Deliberately generous — see the
+ * note on PREFILTER_WEIGHTS. Matched against plain text; HTML is tag-stripped first.
+ */
+export const BODY_SIGNAL_PATTERN =
+  /thank(?:s| you)\s+for\s+(?:applying|your\s+(?:application|interest))|(?:we(?:'ve|\s+have)?\s+)?received\s+your\s+application|your\s+application\b|application\s+(?:for|to)\s+the\b|recruit(?:ing|ment)\s+team|talent\s+(?:acquisition|community|team)|hiring\s+(?:team|manager|process)|phone\s+screen|next\s+steps|schedule\s+(?:a|an)\s+(?:call|interview|chat|conversation)|we\s+regret\s+to\s+inform|move\s+forward\s+with\s+your|job\s+(?:application|opening|posting)|interview|candidate/i
+
+/**
+ * Sender local-parts that mean "this came from a careers pipeline". Intentionally does NOT
+ * include no-reply / do-not-reply: those cover every transactional email ever sent, and the
+ * body signal already catches the careers mail that uses them.
+ */
+export const CAREERS_SENDER_PATTERN =
+  /^(?:careers?|jobs?|talent|recruit(?:ing|ment|er)?|hiring|apply|applications?|people(?:ops)?|hr)\b/i
 
 /* ────────────────────────────────────────────────────────────────────────────
  * agent runs
@@ -742,6 +779,8 @@ export interface AppInfo {
   dbPath: string
   /** false => the agent bridge cannot run at all; show the sign-in / install state. */
   claudeCliAvailable: boolean
+  /** Account-setup guide. Per-provider anchors: `${setupGuideUrl}#gmail`. */
+  setupGuideUrl: string
 }
 
 /** Badge counts for the left rail + RUN button pill. */
