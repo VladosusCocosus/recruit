@@ -3,17 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="dark">
-<meta name="theme-color" content="#07090A">
-<meta name="description" content="Connect a mailbox to Recruit: IMAP servers, app passwords and failure modes for Gmail, iCloud, Fastmail and anything else.">
-<title>Recruit · connecting your mailbox</title>
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1e1e20" media="(prefers-color-scheme: dark)">
+<meta name="description" content="Connect a mailbox to Jobbox: IMAP servers, app passwords and failure modes for Gmail, iCloud, Fastmail and anything else.">
+<title>Jobbox · connecting your mailbox</title>
 
 <link rel="preload" href="/fonts/SpaceGrotesk-Variable.woff2" as="font" type="font/woff2" crossorigin="anonymous">
 <link rel="preload" href="/fonts/InstrumentSerif-400.woff2" as="font" type="font/woff2" crossorigin="anonymous">
 <link rel="preload" href="/fonts/JetBrainsMono-Regular.woff2" as="font" type="font/woff2" crossorigin="anonymous">
 
 <style>
-/* Recruit — connecting your mailbox.
+/* Jobbox — connecting your mailbox.
  *
  * Built on the fline design language, and the three rules that travel with it
  * are the rules this page is checked against:
@@ -78,57 +79,162 @@
 /* ----------------------------------------------------------------- tokens - */
 
 :root {
-  color-scheme: dark;
+  /* The app's own tokens, lifted from src/renderer/index.css. Light is the base
+   * because the app's :root is its light palette; dark is the override, and the
+   * data-theme escape hatch beats the media query in both directions exactly as
+   * the app's Settings theme picker does.
+   *
+   * Four meanings, and they are the app's four, not a set invented here: blue is
+   * the one interactive colour, green is a thing that worked, orange is a person
+   * being required, red is a refusal. Grey is an absence — a path with nothing
+   * behind it, which is not the same as a failure and is not coloured like one.
+   */
+  color-scheme: light dark;
 
-  --void: #07090a;
-  --deep: #080a0b;
-  --panel: #0c1012;
-  --panel-2: #0a0d0e;
-  --track: #12181a;
+  --void: #ffffff;
+  --deep: #f2f2f4;
+  --panel: #ffffff;
+  --panel-2: #f7f7f9;
+  --track: rgba(0, 0, 0, 0.07);
+  --topbar: rgba(255, 255, 255, 0.86);
 
-  --line: rgba(255, 255, 255, 0.07);
-  --line-2: rgba(255, 255, 255, 0.09);
-  --line-3: rgba(255, 255, 255, 0.12);
+  --line: rgba(0, 0, 0, 0.09);
+  --line-2: rgba(0, 0, 0, 0.12);
+  --line-3: rgba(0, 0, 0, 0.22);
 
-  --text: #e6eae8;
-  --dim: #a6b0aa;
-  --mute: #8b958f;
-  --faint: #6e7975;
-  --ghost: #4a5450;
+  --text: #1c1c1e;
+  --dim: #6b6b70;
+  --mute: #6b6b70;
+  --faint: #9a9aa0;
+  --ghost: #b5b5bb;
 
-  /* The filament — a path that works. */
-  --fil: #00e08a;
-  --fil-lit: #6bffc0;
-  --fil-ink: #07090a;
-  --fil-line: rgba(0, 224, 138, 0.3);
-  --fil-edge: rgba(0, 224, 138, 0.25);
-  --fil-wash: rgba(0, 224, 138, 0.06);
+  --fil: #007aff;
+  --fil-lit: #0a6fd8;
+  --fil-ink: #ffffff;
+  --fil-line: rgba(0, 122, 255, 0.32);
+  --fil-edge: rgba(0, 122, 255, 0.28);
+  --fil-wash: rgba(0, 122, 255, 0.10);
 
-  /* A person is required. Rationed. */
-  --needs: #f0b429;
-  --needs-line: rgba(240, 180, 41, 0.34);
-  --needs-wash: rgba(240, 180, 41, 0.06);
+  --ok: #29a745;
+  --ok-line: rgba(41, 167, 69, 0.34);
+  --ok-wash: rgba(41, 167, 69, 0.12);
 
-  /* The provider's machinery, and a path that does not exist. */
-  --plat: #5d8cff;
-  --plat-line: rgba(93, 140, 255, 0.28);
-  --plat-wash: rgba(93, 140, 255, 0.05);
-  --idle: #39423e;
+  --needs: #e08600;
+  --needs-line: rgba(224, 134, 0, 0.36);
+  --needs-wash: rgba(224, 134, 0, 0.13);
+
+  --bad: #d70015;
+  --bad-line: rgba(215, 0, 21, 0.32);
+  --bad-wash: rgba(215, 0, 21, 0.10);
+
+  --plat: #007aff;
+  --plat-line: rgba(0, 122, 255, 0.28);
+  --plat-wash: rgba(0, 122, 255, 0.06);
+  --idle: #b5b5bb;
 
   --font-display: 'Instrument Serif', Georgia, 'Times New Roman', serif;
   --font-ui: 'Space Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas,
     monospace;
 
-  --r-card: 13px;
-  --r-panel: 11px;
-  --r-ctrl: 9px;
-  --r-pill: 99px;
+  /* The app's radii, not a second set. */
+  --r-card: 10px;
+  --r-panel: 10px;
+  --r-ctrl: 6px;
+  --r-pill: 999px;
 
   --t: 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
   --wrap: 1200px;
   --pad: 28px;
   --measure: 66ch;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+  --void: #1e1e20;
+  --deep: #1a1a1c;
+  --panel: #262629;
+  --panel-2: #232326;
+  --track: rgba(255, 255, 255, 0.09);
+  --topbar: rgba(30, 30, 32, 0.86);
+
+  --line: rgba(255, 255, 255, 0.09);
+  --line-2: rgba(255, 255, 255, 0.12);
+  --line-3: rgba(255, 255, 255, 0.22);
+
+  --text: #f2f2f5;
+  --dim: #a0a0a8;
+  --mute: #a0a0a8;
+  --faint: #6f6f78;
+  --ghost: #55555e;
+
+  --fil: #0a84ff;
+  --fil-lit: #3d9bff;
+  --fil-ink: #ffffff;
+  --fil-line: rgba(10, 132, 255, 0.34);
+  --fil-edge: rgba(10, 132, 255, 0.30);
+  --fil-wash: rgba(10, 132, 255, 0.18);
+
+  --ok: #30d158;
+  --ok-line: rgba(48, 209, 88, 0.34);
+  --ok-wash: rgba(48, 209, 88, 0.16);
+
+  --needs: #ff9f0a;
+  --needs-line: rgba(255, 159, 10, 0.36);
+  --needs-wash: rgba(255, 159, 10, 0.16);
+
+  --bad: #ff453a;
+  --bad-line: rgba(255, 69, 58, 0.34);
+  --bad-wash: rgba(255, 69, 58, 0.16);
+
+  --plat: #0a84ff;
+  --plat-line: rgba(10, 132, 255, 0.30);
+  --plat-wash: rgba(10, 132, 255, 0.10);
+  --idle: #55555e;
+  }
+}
+
+:root[data-theme='dark'] {
+  --void: #1e1e20;
+  --deep: #1a1a1c;
+  --panel: #262629;
+  --panel-2: #232326;
+  --track: rgba(255, 255, 255, 0.09);
+  --topbar: rgba(30, 30, 32, 0.86);
+
+  --line: rgba(255, 255, 255, 0.09);
+  --line-2: rgba(255, 255, 255, 0.12);
+  --line-3: rgba(255, 255, 255, 0.22);
+
+  --text: #f2f2f5;
+  --dim: #a0a0a8;
+  --mute: #a0a0a8;
+  --faint: #6f6f78;
+  --ghost: #55555e;
+
+  --fil: #0a84ff;
+  --fil-lit: #3d9bff;
+  --fil-ink: #ffffff;
+  --fil-line: rgba(10, 132, 255, 0.34);
+  --fil-edge: rgba(10, 132, 255, 0.30);
+  --fil-wash: rgba(10, 132, 255, 0.18);
+
+  --ok: #30d158;
+  --ok-line: rgba(48, 209, 88, 0.34);
+  --ok-wash: rgba(48, 209, 88, 0.16);
+
+  --needs: #ff9f0a;
+  --needs-line: rgba(255, 159, 10, 0.36);
+  --needs-wash: rgba(255, 159, 10, 0.16);
+
+  --bad: #ff453a;
+  --bad-line: rgba(255, 69, 58, 0.34);
+  --bad-wash: rgba(255, 69, 58, 0.16);
+
+  --plat: #0a84ff;
+  --plat-line: rgba(10, 132, 255, 0.30);
+  --plat-wash: rgba(10, 132, 255, 0.10);
+  --idle: #55555e;
 }
 
 /* ------------------------------------------------------------------ reset - */
@@ -328,7 +434,7 @@ h3.sub {
   white-space: nowrap;
 }
 
-/* A field label in the Recruit UI. Sans, because it is a thing you read on a
+/* A field label in the Jobbox UI. Sans, because it is a thing you read on a
  * screen rather than type. */
 .ui {
   font-weight: 600;
@@ -341,7 +447,7 @@ h3.sub {
   position: sticky;
   top: 0;
   z-index: 60;
-  background: rgba(7, 9, 10, 0.86);
+  background: var(--topbar);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--line);
@@ -376,6 +482,7 @@ h3.sub {
   width: 15px;
   height: 15px;
   flex: none;
+  color: var(--fil);
 }
 
 .topbar-nav {
@@ -465,13 +572,13 @@ h3.sub {
 
 @keyframes ripple {
   0% {
-    box-shadow: 0 0 0 0 rgba(0, 224, 138, 0.5);
+    box-shadow: 0 0 0 0 var(--fil-edge);
   }
   70% {
-    box-shadow: 0 0 0 12px rgba(0, 224, 138, 0);
+    box-shadow: 0 0 0 12px transparent;
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(0, 224, 138, 0);
+    box-shadow: 0 0 0 0 transparent;
   }
 }
 
@@ -538,7 +645,7 @@ h3.sub {
 
 .btn-ghost:hover {
   color: var(--text);
-  border-color: rgba(0, 224, 138, 0.5);
+  border-color: var(--fil-edge);
 }
 
 /* The architecture, under the verb. Mono because arm64 and x64 are identifiers. */
@@ -638,14 +745,14 @@ h3.sub {
 }
 
 .term-line .s {
-  color: var(--plat);
+  color: var(--ok);
 }
 
 .term-line .cmt {
   color: var(--ghost);
 }
 
-/* The commands Recruit has no code to send. */
+/* The commands Jobbox has no code to send. */
 .term-line.never {
   color: var(--idle);
   text-decoration: line-through;
@@ -674,7 +781,7 @@ h3.sub {
 }
 
 .term-foot .on {
-  color: var(--fil);
+  color: var(--ok);
 }
 
 /* -------------------------------------------------------------- providers - */
@@ -735,8 +842,8 @@ h3.sub {
 }
 
 .who-app {
-  color: var(--fil);
-  border: 1px solid var(--fil-edge);
+  color: var(--ok);
+  border: 1px solid var(--ok-line);
 }
 
 .who-you {
@@ -753,6 +860,12 @@ h3.sub {
 .who-none {
   color: var(--faint);
   border: 1px solid var(--line-2);
+}
+
+.who-bad {
+  color: var(--bad);
+  border: 1px solid var(--bad-line);
+  background: var(--bad-wash);
 }
 
 /* ------------------------------------------------------------------ steps - */
@@ -860,7 +973,7 @@ h3.sub {
 }
 
 .tbl .on {
-  color: var(--fil);
+  color: var(--ok);
 }
 
 .tbl .off {
@@ -975,6 +1088,12 @@ figcaption {
   stroke-width: 1;
 }
 
+.svg-ok {
+  fill: var(--ok-wash);
+  stroke: var(--ok-line);
+  stroke-width: 1;
+}
+
 .svg-you {
   fill: var(--needs-wash);
   stroke: var(--needs-line);
@@ -1008,9 +1127,23 @@ figcaption {
   fill: none;
 }
 
+.svg-line-ok {
+  stroke: var(--ok);
+  color: var(--ok);
+  stroke-width: 1;
+  fill: none;
+}
+
 .svg-line-you {
   stroke: var(--needs);
   color: var(--needs);
+  stroke-width: 1;
+  fill: none;
+}
+
+.svg-line-bad {
+  stroke: var(--bad);
+  color: var(--bad);
   stroke-width: 1;
   fill: none;
 }
@@ -1044,12 +1177,20 @@ figcaption {
   fill: var(--needs);
 }
 
+.svg-m-ok {
+  fill: var(--ok);
+}
+
 .svg-m-server {
   fill: var(--plat);
 }
 
 .svg-m-dead {
   fill: var(--idle);
+}
+
+.svg-m-bad {
+  fill: var(--bad);
 }
 
 .svg-big {
@@ -1183,10 +1324,10 @@ figcaption {
   <div class="topbar-in">
     <a class="brand" href="#top">
       <svg class="brand-mark" viewBox="0 0 16 16" aria-hidden="true">
-        <rect x="1" y="3.5" width="14" height="10" rx="2.5" fill="none" stroke="#00e08a" stroke-width="1.4"></rect>
-        <path d="M1.8 5 L8 9.4 L14.2 5" fill="none" stroke="#00e08a" stroke-width="1.4" stroke-linecap="round"></path>
+        <rect x="1" y="3.5" width="14" height="10" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.4"></rect>
+        <path d="M1.8 5 L8 9.4 L14.2 5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path>
       </svg>
-      recruit
+      jobbox
     </a>
     <nav class="topbar-nav" aria-label="Sections">
       <a href="#how">how it connects</a>
@@ -1212,7 +1353,7 @@ figcaption {
       <div>
         <span class="pill"><span class="pip" aria-hidden="true"></span>read-only · imap</span>
         <h1>Sign it in.<br>It only <span class="em">reads</span>.</h1>
-        <p class="lede">Recruit connects to one INBOX over IMAP. Every provider below needs the
+        <p class="lede">Jobbox connects to one INBOX over IMAP. Every provider below needs the
           same two things from you: an app-specific password, and the right server, port and TLS
           setting.</p>
 
@@ -1239,12 +1380,12 @@ figcaption {
           leaves the machine</p>
       </div>
 
-      <figure class="term" aria-label="An IMAP session: Recruit connects, authenticates with an app password, selects INBOX, searches the last ninety days and fetches message bodies with BODY.PEEK, which does not set the seen flag. The STORE, EXPUNGE and APPEND commands that would change the mailbox are struck through, because Recruit has no code that sends them.">
+      <figure class="term" aria-label="An IMAP session: Jobbox connects, authenticates with an app password, selects INBOX, searches the last ninety days and fetches message bodies with BODY.PEEK, which does not set the seen flag. The STORE, EXPUNGE and APPEND commands that would change the mailbox are struck through, because Jobbox has no code that sends them.">
         <div class="term-bar" aria-hidden="true">
           <span class="term-dot"></span>
           <span class="term-dot"></span>
           <span class="term-dot"></span>
-          <span class="term-title">recruit · imap session</span>
+          <span class="term-title">jobbox · imap session</span>
         </div>
         <div class="term-body">
 <div class="term-line"><span class="cmt">$</span> connect <span class="s">imap.gmail.com:993</span> <span class="cmt">tls</span></div>
@@ -1281,14 +1422,14 @@ figcaption {
       <div class="section-head">
         <span class="eyebrow">How it connects</span>
         <h2>What it does with the account</h2>
-        <p class="lede">Worth knowing before you hand it a password. Recruit signs in as a mail
+        <p class="lede">Worth knowing before you hand it a password. Jobbox signs in as a mail
           client, pulls the last 90 days of your INBOX, and never sends a command back that
           changes anything on the server.</p>
       </div>
 
       <figure>
         <div class="plot">
-          <svg viewBox="0 0 860 300" role="img" aria-label="Recruit authenticates to the provider's IMAP server with an app password, receives messages, stores them in a local SQLite database and stores the password in the macOS Keychain. The path that would write flags, delete messages or send mail is dashed and crossed out.">
+          <svg viewBox="0 0 860 300" role="img" aria-label="Jobbox authenticates to the provider's IMAP server with an app password, receives messages, stores them in a local SQLite database and stores the password in the macOS Keychain. The path that would write flags, delete messages or send mail is dashed and crossed out.">
             <defs>
               <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
                 <path d="M 0 1 L 9 5 L 0 9 z" fill="currentColor"></path>
@@ -1306,12 +1447,12 @@ figcaption {
             <text class="svg-m svg-m-server" x="122" y="143" text-anchor="middle">imap.example.com:993</text>
 
             <rect class="svg-app" x="330" y="72" width="200" height="112" rx="10"></rect>
-            <text class="svg-t" x="430" y="112" text-anchor="middle">Recruit</text>
+            <text class="svg-t" x="430" y="112" text-anchor="middle">Jobbox</text>
             <text class="svg-m svg-m-app" x="430" y="134" text-anchor="middle">sync + prefilter</text>
             <text class="svg-m" x="430" y="154" text-anchor="middle">INBOX · 90 days</text>
 
             <rect class="svg-panel" x="638" y="72" width="200" height="112" rx="10"></rect>
-            <text class="svg-t" x="738" y="120" text-anchor="middle">recruit.db</text>
+            <text class="svg-t" x="738" y="120" text-anchor="middle">jobbox.db</text>
             <text class="svg-m" x="738" y="143" text-anchor="middle">messages + scores</text>
 
             <rect class="svg-you" x="330" y="236" width="200" height="54" rx="10"></rect>
@@ -1331,7 +1472,7 @@ figcaption {
           </svg>
         </div>
         <figcaption>The password takes one path — into the Keychain — and only SQLite ever grows.
-          The dashed edge is the one Recruit never opens: v1 has no code that writes an IMAP flag,
+          The dashed edge is the one Jobbox never opens: v1 has no code that writes an IMAP flag,
           moves a message or sends mail.</figcaption>
       </figure>
 
@@ -1372,7 +1513,7 @@ figcaption {
         <li class="step">
           <span class="step-n">05</span>
           <div>
-            <div class="step-name">Save, then Sync <span class="who who-app">recruit</span></div>
+            <div class="step-name">Save, then Sync <span class="who who-app">jobbox</span></div>
             <p class="step-body">Messages scoring 0.5 or higher in the prefilter become candidates
               for the agent to triage.</p>
           </div>
@@ -1381,7 +1522,7 @@ figcaption {
 
       <div class="note">
         <span class="eyebrow eyebrow-mute">Optional</span>
-        <p><strong>SMTP does nothing in this version.</strong> Recruit stores and
+        <p><strong>SMTP does nothing in this version.</strong> Jobbox stores and
           connection-tests the outgoing half so sending can land later, but nothing sends today.
           Leave it blank and everything still works.</p>
       </div>
@@ -1406,9 +1547,9 @@ figcaption {
 
             <rect class="svg-panel" x="24" y="44" width="348" height="72" rx="10"></rect>
             <text class="svg-big" x="48" y="90">993</text>
-            <rect x="132" y="68" width="40" height="22" rx="11" fill="var(--fil)"></rect>
-            <circle cx="161" cy="79" r="7.5" fill="var(--fil-ink)"></circle>
-            <text class="svg-m svg-m-app" x="186" y="84">Use TLS · on</text>
+            <rect x="132" y="68" width="40" height="22" rx="11" fill="var(--ok)"></rect>
+            <circle cx="161" cy="79" r="7.5" fill="#ffffff"></circle>
+            <text class="svg-m svg-m-ok" x="186" y="84">Use TLS · on</text>
 
             <rect class="svg-panel" x="404" y="44" width="348" height="72" rx="10"></rect>
             <text class="svg-big" x="428" y="90">143</text>
@@ -1420,9 +1561,9 @@ figcaption {
 
             <rect class="svg-panel" x="24" y="170" width="348" height="72" rx="10"></rect>
             <text class="svg-big" x="48" y="216">465</text>
-            <rect x="132" y="194" width="40" height="22" rx="11" fill="var(--fil)"></rect>
-            <circle cx="161" cy="205" r="7.5" fill="var(--fil-ink)"></circle>
-            <text class="svg-m svg-m-app" x="186" y="210">Use TLS · on</text>
+            <rect x="132" y="194" width="40" height="22" rx="11" fill="var(--ok)"></rect>
+            <circle cx="161" cy="205" r="7.5" fill="#ffffff"></circle>
+            <text class="svg-m svg-m-ok" x="186" y="210">Use TLS · on</text>
 
             <rect class="svg-panel" x="404" y="170" width="348" height="72" rx="10"></rect>
             <text class="svg-big" x="428" y="216">587</text>
@@ -1432,7 +1573,7 @@ figcaption {
           </svg>
         </div>
         <figcaption>Match the toggle to the port, not to your instincts about security. Mismatch it
-          and the test fails during the handshake, not at authentication — which is why Recruit
+          and the test fails during the handshake, not at authentication — which is why Jobbox
           reports those two failures with different words.</figcaption>
       </figure>
     </div>
@@ -1466,7 +1607,7 @@ figcaption {
           <div>
             <div class="step-name">Create the app password <span class="who who-you">you</span></div>
             <p class="step-body">Go to <span class="id">myaccount.google.com/apppasswords</span>,
-              name it <strong>Recruit</strong>, and create it.</p>
+              name it <strong>Jobbox</strong>, and create it.</p>
           </div>
         </li>
         <li class="step">
@@ -1502,8 +1643,8 @@ figcaption {
 
       <div class="note">
         <span class="eyebrow eyebrow-mute">Scope</span>
-        <p><strong>Recruit only reads INBOX.</strong> A Gmail filter that archives or labels
-          recruiter mail on arrival takes it out of INBOX, and Recruit will never see it.
+        <p><strong>Jobbox only reads INBOX.</strong> A Gmail filter that archives or labels
+          recruiter mail on arrival takes it out of INBOX, and Jobbox will never see it.
           Promotions and Updates are still INBOX, so those do get picked up.</p>
       </div>
     </div>
@@ -1532,7 +1673,7 @@ figcaption {
             <div class="step-name">Generate the password <span class="who who-you">you</span></div>
             <p class="step-body">Sign in at <span class="id">account.apple.com</span> →
               <strong>Sign-In and Security</strong> → <strong>App-Specific Passwords</strong>.
-              Label it <strong>Recruit</strong> and copy it. Apple shows it once.</p>
+              Label it <strong>Jobbox</strong> and copy it. Apple shows it once.</p>
           </div>
         </li>
         <li class="step">
@@ -1564,9 +1705,9 @@ figcaption {
             <polygon class="svg-server" points="328,85 400,46 472,85 400,124"></polygon>
             <text class="svg-m svg-m-server" x="400" y="89" text-anchor="middle">signs in?</text>
 
-            <line class="svg-line-app" x1="472" y1="85" x2="564" y2="85" marker-end="url(#b)"></line>
-            <text class="svg-m svg-m-app" x="518" y="77" text-anchor="middle">yes</text>
-            <rect class="svg-app" x="570" y="52" width="200" height="66" rx="10"></rect>
+            <line class="svg-line-ok" x1="472" y1="85" x2="564" y2="85" marker-end="url(#b)"></line>
+            <text class="svg-m svg-m-ok" x="518" y="77" text-anchor="middle">yes</text>
+            <rect class="svg-ok" x="570" y="52" width="200" height="66" rx="10"></rect>
             <text class="svg-t" x="670" y="92" text-anchor="middle">Done — save it</text>
 
             <line class="svg-line-you" x1="400" y1="124" x2="400" y2="170" marker-end="url(#b)"></line>
@@ -1664,17 +1805,17 @@ figcaption {
         <span class="eyebrow eyebrow-mute">Provider</span>
         <div class="head-row">
           <h2>Outlook &amp; Microsoft 365</h2>
-          <span class="who who-none">no way in</span>
+          <span class="who who-bad">no way in</span>
         </div>
-        <p class="lede">Recruit ships an Outlook preset and it will not authenticate. Microsoft has
+        <p class="lede">Jobbox ships an Outlook preset and it will not authenticate. Microsoft has
           removed password-based sign-in from IMAP and SMTP: personal Outlook.com accounts lost it
           on 16 September 2024, Exchange Online mailboxes earlier, and the last SMTP holdout closed
-          on 30 April 2026. The only remaining door is OAuth, which Recruit has no client for.</p>
+          on 30 April 2026. The only remaining door is OAuth, which Jobbox has no client for.</p>
       </div>
 
       <figure>
         <div class="plot">
-          <svg viewBox="0 0 830 240" role="img" aria-label="Recruit sends an app password over basic auth and Microsoft refuses it. The OAuth path Microsoft accepts is not implemented in Recruit.">
+          <svg viewBox="0 0 830 240" role="img" aria-label="Jobbox sends an app password over basic auth and Microsoft refuses it. The OAuth path Microsoft accepts is not implemented in Jobbox.">
             <defs>
               <marker id="c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
                 <path d="M 0 1 L 9 5 L 0 9 z" fill="currentColor"></path>
@@ -1682,13 +1823,13 @@ figcaption {
             </defs>
 
             <rect class="svg-app" x="20" y="42" width="190" height="64" rx="10"></rect>
-            <text class="svg-t" x="115" y="70" text-anchor="middle">Recruit</text>
+            <text class="svg-t" x="115" y="70" text-anchor="middle">Jobbox</text>
             <text class="svg-m svg-m-app" x="115" y="90" text-anchor="middle">app password</text>
 
-            <line class="svg-line-dead" x1="210" y1="74" x2="588" y2="74" marker-end="url(#c)"></line>
-            <line class="svg-line-dead" x1="392" y1="67" x2="406" y2="81" stroke-dasharray="0"></line>
-            <line class="svg-line-dead" x1="406" y1="67" x2="392" y2="81" stroke-dasharray="0"></line>
-            <text class="svg-m svg-m-dead" x="399" y="56" text-anchor="middle">basic auth — refused</text>
+            <line class="svg-line-bad" x1="210" y1="74" x2="588" y2="74" marker-end="url(#c)"></line>
+            <line class="svg-line-bad" x1="392" y1="67" x2="406" y2="81" stroke-dasharray="0"></line>
+            <line class="svg-line-bad" x1="406" y1="67" x2="392" y2="81" stroke-dasharray="0"></line>
+            <text class="svg-m svg-m-bad" x="399" y="56" text-anchor="middle">basic auth — refused</text>
 
             <rect class="svg-dead" x="20" y="140" width="190" height="64" rx="10"></rect>
             <text class="svg-t" x="115" y="168" text-anchor="middle" fill="var(--ghost)">OAuth client</text>
@@ -1702,7 +1843,7 @@ figcaption {
             <text class="svg-m svg-m-server" x="700" y="138" text-anchor="middle">outlook.office365.com</text>
           </svg>
         </div>
-        <figcaption>Nothing you can set in Recruit or in your Microsoft account bridges the gap —
+        <figcaption>Nothing you can set in Jobbox or in your Microsoft account bridges the gap —
           app passwords for Microsoft accounts were themselves a basic-auth mechanism, and went
           with it.</figcaption>
       </figure>
@@ -1710,8 +1851,8 @@ figcaption {
       <div class="caveat">
         <span class="eyebrow eyebrow-needs">The way around it</span>
         <p><strong>If your job mail lives in Outlook,</strong> the practical route today is a
-          forwarding rule from Outlook into a mailbox Recruit can read, and pointing Recruit at
-          that one instead. Set the rule up in Outlook yourself — Recruit cannot create it.</p>
+          forwarding rule from Outlook into a mailbox Jobbox can read, and pointing Jobbox at
+          that one instead. Set the rule up in Outlook yourself — Jobbox cannot create it.</p>
       </div>
     </div>
   </section>
@@ -1760,7 +1901,7 @@ figcaption {
       <div class="note note-dead">
         <span class="eyebrow eyebrow-mute">No plain IMAP endpoint</span>
         <p><strong>Proton and Tutanota</strong> encrypt mailboxes in a way that has no plain IMAP
-          endpoint. Proton exposes IMAP only through Proton Mail Bridge running locally, so Recruit
+          endpoint. Proton exposes IMAP only through Proton Mail Bridge running locally, so Jobbox
           would point at <span class="id">127.0.0.1</span> with the Bridge's own generated
           password. Tutanota has no IMAP at all.</p>
       </div>
@@ -1773,7 +1914,7 @@ figcaption {
       <div class="section-head">
         <span class="eyebrow eyebrow-plat">When it fails</span>
         <h2>Read the message before changing anything</h2>
-        <p class="lede">Recruit distinguishes the failure modes deliberately, so the message tells
+        <p class="lede">Jobbox distinguishes the failure modes deliberately, so the message tells
           you which layer broke.</p>
       </div>
 
@@ -1814,7 +1955,7 @@ figcaption {
 
       <div class="note">
         <span class="eyebrow eyebrow-mute">Not an auth problem</span>
-        <p><strong>Connection fine, but no mail appears?</strong> Recruit syncs INBOX only, and
+        <p><strong>Connection fine, but no mail appears?</strong> Jobbox syncs INBOX only, and
           only the last 90 days — mail that a server-side filter moved to a folder or label never
           appears.</p>
       </div>
@@ -1825,7 +1966,7 @@ figcaption {
 
 <footer class="foot">
   <div class="wrap">
-    <p>Recruit v1 · read-only IMAP · passwords in the macOS Keychain, never in the database</p>
+    <p>Jobbox v1 · read-only IMAP · passwords in the macOS Keychain, never in the database</p>
   </div>
 </footer>
 
