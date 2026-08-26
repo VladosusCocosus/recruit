@@ -1,8 +1,8 @@
-# Recruit
+# Jobbox
 
 A macOS email client that is really an agent-driven job-application tracker.
 
-Recruit syncs your inbox, scores every message with a local prefilter, and hands the
+Jobbox syncs your inbox, scores every message with a local prefilter, and hands the
 likely job-related ones to Claude Code. Claude reads them and **proposes** tracker
 changes — new applications, status moves, interview events, message links. Nothing it
 proposes touches the tracker until you accept it in the Review queue.
@@ -29,7 +29,7 @@ npm run rebuild    # only if better-sqlite3/keytar need an Electron-ABI rebuild
 ```
 
 The agent bridge shells out to the `claude` binary. A GUI-launched `.app` does not
-inherit your login shell's PATH, so Recruit looks in `~/.local/bin`, `~/.claude/local`,
+inherit your login shell's PATH, so Jobbox looks in `~/.local/bin`, `~/.claude/local`,
 `/opt/homebrew/bin`, `/usr/local/bin`, `~/.bun/bin` and `~/.volta/bin` before giving up;
 you can also set an explicit path in Settings. **If Claude Code isn't signed in, runs fail
 with a dedicated banner** telling you to run `claude` in a terminal to log in — that is a
@@ -56,11 +56,13 @@ First launch shows a setup checklist: **add account → sync → first scan → 
 
 Gmail and other 2FA providers need an app-specific password, not your account password.
 **Outlook and Microsoft 365 cannot connect at all** — Microsoft removed password sign-in from
-IMAP and SMTP, and Recruit has no OAuth client. The preset is kept, with a warning in the form.
+IMAP and SMTP, and Jobbox has no OAuth client. The preset is kept, with a warning in the form.
 
-The per-provider guide lives at [server/setup.html](server/setup.html), served by the update
-service at `/setup`; the **Setup help** button in the account form opens it at the anchor for
-whatever provider is configured.
+The per-provider guide is the static site in [site/](site/), deployed to
+`https://jobbox.fline.sh`. The **Setup help** button in the account form opens it at the
+anchor for the configured provider; `RECRUIT_SETUP_URL` overrides the origin in dev. It is
+deliberately not served by the update service — a mail-setup problem should stay readable
+when that host is down.
 
 ## How the agent is sandboxed
 
@@ -84,7 +86,7 @@ Worth knowing before you point it at real mail:
 
 v1 is deliberately narrow.
 
-- **Mail is read-only.** No compose, no reply, no forward. Recruit never writes IMAP flags
+- **Mail is read-only.** No compose, no reply, no forward. Jobbox never writes IMAP flags
   either — marking something read or dismissed is local state only.
 - **SMTP is stored but unused.** Credentials are saved and connection-tested so sending can
   land later; nothing sends today.
@@ -115,7 +117,7 @@ tests/                prefilter + .ics parser unit tests
 
 ## Updates
 
-Recruit checks for new versions against a small Go service (`server/`) and, when one
+Jobbox checks for new versions against a small Go service (`server/`) and, when one
 exists, shows a banner offering a download. It does **not** install updates itself.
 
 That is a consequence of signing, not an oversight. Squirrel.Mac — the mechanism

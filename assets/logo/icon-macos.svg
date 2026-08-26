@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <mask id="jobbox-bb-m" maskUnits="userSpaceOnUse" x="100" y="100" width="824" height="824">
+    <rect x="100" y="100" width="824" height="824" fill="#fff"/>
+    <g fill="none" stroke="#000" stroke-width="10" stroke-linecap="round" transform="translate(100 100) scale(6.4375)">
+      <path d="M29 40 V88"/><circle cx="44" cy="73" r="15"/>
+      <path d="M69 40 V88"/><circle cx="84" cy="73" r="15"/>
+    </g>
+  </mask>
+  <rect x="100" y="100" width="824" height="824" rx="180" fill="#007aff" mask="url(#jobbox-bb-m)"/>
+</svg>

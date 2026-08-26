@@ -1,7 +1,7 @@
 ## Install
 
 Download the DMG for your Mac — **arm64** for Apple Silicon (M1 and later), **x64** for
-Intel — open it and drag Recruit to Applications.
+Intel — open it and drag Jobbox to Applications.
 
 ### First launch
 
@@ -9,7 +9,7 @@ These builds are **not signed with an Apple Developer certificate**, so macOS bl
 on first launch. Clear the quarantine flag:
 
 ```bash
-xattr -dr com.apple.quarantine /Applications/Recruit.app
+xattr -dr com.apple.quarantine /Applications/Jobbox.app
 ```
 
 Then open the app normally.
@@ -21,7 +21,7 @@ where an "Open Anyway" button appears after a blocked launch attempt.
 
 ### Requirements
 
-Recruit drives the `claude` CLI on your own machine — there is no API key and no server
+Jobbox drives the `claude` CLI on your own machine — there is no API key and no server
 holding your mail. Install Claude Code and sign in first:
 
 ```bash

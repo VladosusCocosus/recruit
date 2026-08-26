@@ -1,0 +1,1301 @@
+/* Jobbox — connecting your mailbox.
+ *
+ * Built on the fline design language, and the three rules that travel with it
+ * are the rules this page is checked against:
+ *
+ *   1. One accent, and it means one thing. Filament green is a path that
+ *      works. Amber is a person being required — it marks the steps you
+ *      perform by hand and nothing else, because scarcity is the only reason
+ *      it is believed. Blue is the provider's own machinery: hostnames, ports,
+ *      the TLS handshake. Grey is a path that does not exist.
+ *   2. Serif for the argument, sans for the interface, mono for anything read
+ *      as an identifier. A hostname, a port and an error string are mono
+ *      because they are things you would type or read back; a sentence is not.
+ *   3. No external request. The three families are served from the same
+ *      container as the page, so a document about mail that never leaves your
+ *      machine does not open two connections to a font CDN to say so.
+ *
+ * Dark only, on the same near-black ground.
+ */
+
+/* ------------------------------------------------------------------ fonts - */
+
+@font-face {
+  font-family: 'Space Grotesk';
+  src: url('/fonts/SpaceGrotesk-Variable.woff2') format('woff2');
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Instrument Serif';
+  src: url('/fonts/InstrumentSerif-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Instrument Serif';
+  src: url('/fonts/InstrumentSerif-400Italic.woff2') format('woff2');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/JetBrainsMono-Regular.woff2') format('woff2');
+  font-weight: 400 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/JetBrainsMono-Bold.woff2') format('woff2');
+  font-weight: 600 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ----------------------------------------------------------------- tokens - */
+
+:root {
+  /* The app's own tokens, lifted from src/renderer/index.css. Light is the base
+   * because the app's :root is its light palette; dark is the override, and the
+   * data-theme escape hatch beats the media query in both directions exactly as
+   * the app's Settings theme picker does.
+   *
+   * Four meanings, and they are the app's four, not a set invented here: blue is
+   * the one interactive colour, green is a thing that worked, orange is a person
+   * being required, red is a refusal. Grey is an absence — a path with nothing
+   * behind it, which is not the same as a failure and is not coloured like one.
+   */
+  color-scheme: light dark;
+
+  --void: #ffffff;
+  --deep: #f2f2f4;
+  --panel: #ffffff;
+  --panel-2: #f7f7f9;
+  --track: rgba(0, 0, 0, 0.07);
+  --topbar: rgba(255, 255, 255, 0.86);
+
+  --line: rgba(0, 0, 0, 0.09);
+  --line-2: rgba(0, 0, 0, 0.12);
+  --line-3: rgba(0, 0, 0, 0.22);
+
+  --text: #1c1c1e;
+  --dim: #6b6b70;
+  --mute: #6b6b70;
+  --faint: #9a9aa0;
+  --ghost: #b5b5bb;
+
+  --fil: #007aff;
+  --fil-lit: #0a6fd8;
+  --fil-ink: #ffffff;
+  --fil-line: rgba(0, 122, 255, 0.32);
+  --fil-edge: rgba(0, 122, 255, 0.28);
+  --fil-wash: rgba(0, 122, 255, 0.10);
+
+  --ok: #29a745;
+  --ok-line: rgba(41, 167, 69, 0.34);
+  --ok-wash: rgba(41, 167, 69, 0.12);
+
+  --needs: #e08600;
+  --needs-line: rgba(224, 134, 0, 0.36);
+  --needs-wash: rgba(224, 134, 0, 0.13);
+
+  --bad: #d70015;
+  --bad-line: rgba(215, 0, 21, 0.32);
+  --bad-wash: rgba(215, 0, 21, 0.10);
+
+  --plat: #007aff;
+  --plat-line: rgba(0, 122, 255, 0.28);
+  --plat-wash: rgba(0, 122, 255, 0.06);
+  --idle: #b5b5bb;
+
+  --font-display: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+  --font-ui: 'Space Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas,
+    monospace;
+
+  /* The app's radii, not a second set. */
+  --r-card: 10px;
+  --r-panel: 10px;
+  --r-ctrl: 6px;
+  --r-pill: 999px;
+
+  --t: 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+  --wrap: 1200px;
+  --pad: 28px;
+  --measure: 66ch;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+  --void: #1e1e20;
+  --deep: #1a1a1c;
+  --panel: #262629;
+  --panel-2: #232326;
+  --track: rgba(255, 255, 255, 0.09);
+  --topbar: rgba(30, 30, 32, 0.86);
+
+  --line: rgba(255, 255, 255, 0.09);
+  --line-2: rgba(255, 255, 255, 0.12);
+  --line-3: rgba(255, 255, 255, 0.22);
+
+  --text: #f2f2f5;
+  --dim: #a0a0a8;
+  --mute: #a0a0a8;
+  --faint: #6f6f78;
+  --ghost: #55555e;
+
+  --fil: #0a84ff;
+  --fil-lit: #3d9bff;
+  --fil-ink: #ffffff;
+  --fil-line: rgba(10, 132, 255, 0.34);
+  --fil-edge: rgba(10, 132, 255, 0.30);
+  --fil-wash: rgba(10, 132, 255, 0.18);
+
+  --ok: #30d158;
+  --ok-line: rgba(48, 209, 88, 0.34);
+  --ok-wash: rgba(48, 209, 88, 0.16);
+
+  --needs: #ff9f0a;
+  --needs-line: rgba(255, 159, 10, 0.36);
+  --needs-wash: rgba(255, 159, 10, 0.16);
+
+  --bad: #ff453a;
+  --bad-line: rgba(255, 69, 58, 0.34);
+  --bad-wash: rgba(255, 69, 58, 0.16);
+
+  --plat: #0a84ff;
+  --plat-line: rgba(10, 132, 255, 0.30);
+  --plat-wash: rgba(10, 132, 255, 0.10);
+  --idle: #55555e;
+  }
+}
+
+:root[data-theme='dark'] {
+  --void: #1e1e20;
+  --deep: #1a1a1c;
+  --panel: #262629;
+  --panel-2: #232326;
+  --track: rgba(255, 255, 255, 0.09);
+  --topbar: rgba(30, 30, 32, 0.86);
+
+  --line: rgba(255, 255, 255, 0.09);
+  --line-2: rgba(255, 255, 255, 0.12);
+  --line-3: rgba(255, 255, 255, 0.22);
+
+  --text: #f2f2f5;
+  --dim: #a0a0a8;
+  --mute: #a0a0a8;
+  --faint: #6f6f78;
+  --ghost: #55555e;
+
+  --fil: #0a84ff;
+  --fil-lit: #3d9bff;
+  --fil-ink: #ffffff;
+  --fil-line: rgba(10, 132, 255, 0.34);
+  --fil-edge: rgba(10, 132, 255, 0.30);
+  --fil-wash: rgba(10, 132, 255, 0.18);
+
+  --ok: #30d158;
+  --ok-line: rgba(48, 209, 88, 0.34);
+  --ok-wash: rgba(48, 209, 88, 0.16);
+
+  --needs: #ff9f0a;
+  --needs-line: rgba(255, 159, 10, 0.36);
+  --needs-wash: rgba(255, 159, 10, 0.16);
+
+  --bad: #ff453a;
+  --bad-line: rgba(255, 69, 58, 0.34);
+  --bad-wash: rgba(255, 69, 58, 0.16);
+
+  --plat: #0a84ff;
+  --plat-line: rgba(10, 132, 255, 0.30);
+  --plat-wash: rgba(10, 132, 255, 0.10);
+  --idle: #55555e;
+}
+
+/* ------------------------------------------------------------------ reset - */
+
+/* Every element reset sits inside :where() and contributes zero specificity, so
+ * a reset can never outrank a component class. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+:where(body, h1, h2, h3, h4, p, figure, blockquote, dl, dd, ul, ol) {
+  margin: 0;
+}
+
+:where(ul, ol) {
+  padding: 0;
+  list-style: none;
+}
+
+:where(img, svg) {
+  display: block;
+  max-width: 100%;
+}
+
+html {
+  scroll-behavior: smooth;
+  /* The sticky bar is 56px; an anchor that lands under it looks broken. */
+  scroll-padding-top: 76px;
+}
+
+body {
+  margin: 0;
+  background: var(--void);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 16px;
+  line-height: 1.55;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  color: var(--fil);
+  text-decoration: none;
+  transition: color var(--t);
+}
+
+a:hover {
+  color: var(--fil-lit);
+}
+
+:focus-visible {
+  outline: 2px solid var(--fil);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+.skip {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 90;
+  background: var(--fil);
+  color: var(--fil-ink);
+  font-weight: 600;
+  padding: 10px 16px;
+  border-radius: 0 0 var(--r-ctrl) 0;
+}
+
+.skip:focus {
+  left: 0;
+  color: var(--fil-ink);
+}
+
+/* ------------------------------------------------------------------ shell - */
+
+.wrap {
+  max-width: var(--wrap);
+  margin: 0 auto;
+  padding: 0 var(--pad);
+}
+
+.section {
+  padding: 66px 0 72px;
+  border-top: 1px solid var(--line);
+}
+
+.section-head {
+  margin-bottom: 26px;
+}
+
+.eyebrow {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fil);
+}
+
+.eyebrow-needs {
+  color: var(--needs);
+}
+
+.eyebrow-plat {
+  color: var(--plat);
+}
+
+.eyebrow-mute {
+  color: var(--faint);
+}
+
+h1,
+h2,
+h3.display {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.015em;
+}
+
+h1 {
+  font-size: clamp(46px, 7.4vw, 78px);
+  line-height: 0.96;
+  letter-spacing: -0.02em;
+  margin: 20px 0 0;
+}
+
+h1 .em {
+  font-style: italic;
+  color: var(--fil);
+}
+
+h2 {
+  font-size: clamp(32px, 4.4vw, 44px);
+  line-height: 1.05;
+  margin: 10px 0 0;
+}
+
+h3.display {
+  font-size: clamp(24px, 3vw, 30px);
+  line-height: 1.1;
+  margin: 0 0 12px;
+}
+
+h3.sub {
+  font-family: var(--font-ui);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 34px 0 0;
+  color: var(--text);
+}
+
+.lede {
+  margin-top: 12px;
+  max-width: var(--measure);
+  font-size: 16px;
+  color: var(--dim);
+}
+
+.prose {
+  max-width: var(--measure);
+  color: var(--dim);
+  font-size: 15.5px;
+  line-height: 1.65;
+}
+
+.prose + .prose {
+  margin-top: 14px;
+}
+
+.prose strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.prose em {
+  font-style: normal;
+  color: var(--text);
+}
+
+/* An identifier — a thing you would type into a field, or read back out of an
+ * error. Never a sentence. */
+.id {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  background: var(--track);
+  border: 1px solid var(--line-2);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: var(--dim);
+  white-space: nowrap;
+}
+
+/* A field label in the Jobbox UI. Sans, because it is a thing you read on a
+ * screen rather than type. */
+.ui {
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* ----------------------------------------------------------------- topbar - */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  background: var(--topbar);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+
+.topbar-in {
+  max-width: var(--wrap);
+  margin: 0 auto;
+  padding: 0 var(--pad);
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+  flex: none;
+}
+
+.brand:hover {
+  color: var(--text);
+}
+
+.brand-mark {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  color: var(--fil);
+}
+
+.topbar-nav {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.topbar-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.topbar-nav a {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--faint);
+  white-space: nowrap;
+  transition: color var(--t);
+}
+
+.topbar-nav a:hover {
+  color: var(--text);
+}
+
+.topbar-nav a.dead {
+  color: var(--ghost);
+}
+
+.topbar-nav a.dead:hover {
+  color: var(--mute);
+}
+
+/* ------------------------------------------------------------------- hero - */
+
+.hero {
+  position: relative;
+  padding: 62px 0 68px;
+  overflow: hidden;
+}
+
+.hero-grid {
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse 70% 60% at 30% 40%, #000 0%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 30% 40%, #000 0%, transparent 100%);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.hero-in {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.06fr);
+  gap: 46px;
+  align-items: center;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 11px 5px 8px;
+  border: 1px solid var(--fil-edge);
+  border-radius: var(--r-pill);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--fil);
+}
+
+.pip {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--fil);
+  animation: ripple 2.2s ease-out infinite;
+}
+
+@keyframes ripple {
+  0% {
+    box-shadow: 0 0 0 0 var(--fil-edge);
+  }
+  70% {
+    box-shadow: 0 0 0 12px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.hero-note {
+  margin-top: 22px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--faint);
+  line-height: 1.7;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.chip {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--mute);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 7px 11px;
+  border-radius: 7px;
+}
+
+/* --------------------------------------------------------------- controls - */
+
+.btn {
+  display: inline-block;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 13.5px;
+  padding: 8px 15px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background var(--t), border-color var(--t), color var(--t);
+}
+
+.btn-lg {
+  font-size: 15px;
+  padding: 12px 20px;
+  border-radius: var(--r-ctrl);
+}
+
+.btn-fil {
+  background: var(--fil);
+  color: var(--fil-ink);
+}
+
+.btn-fil:hover {
+  background: var(--fil-lit);
+  color: var(--fil-ink);
+}
+
+.btn-ghost {
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.btn-ghost:hover {
+  color: var(--text);
+  border-color: var(--fil-edge);
+}
+
+/* The architecture, under the verb. Mono because arm64 and x64 are identifiers. */
+.btn-sub {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  opacity: 0.72;
+  margin-top: 1px;
+}
+
+.hero-cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 26px;
+}
+
+.topbar-cta {
+  flex: none;
+  margin-left: auto;
+}
+
+/* Gatekeeper is a person being required, so it is amber and it is brief. */
+.gate {
+  margin-top: 16px;
+  max-width: 46ch;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--needs);
+}
+
+.gate code {
+  background: var(--needs-wash);
+  border: 1px solid var(--needs-line);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+/* ---------------------------------------------------------------- session - */
+
+/* The signature. A real IMAP session is the most characteristic artifact in
+ * this subject's world, and the read-only claim is easier to believe as an
+ * absence in a transcript than as a sentence: the commands that would write are
+ * printed struck through, in the grey reserved for a path that does not exist.
+ */
+
+.term {
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-card);
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.term-bar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel-2);
+}
+
+.term-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--idle);
+  flex: none;
+}
+
+.term-title {
+  margin-left: 6px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--faint);
+}
+
+.term-body {
+  padding: 15px 16px 17px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.85;
+  overflow-x: auto;
+}
+
+.term-line {
+  white-space: pre;
+  color: var(--mute);
+}
+
+.term-line .c {
+  color: var(--fil);
+}
+
+.term-line .s {
+  color: var(--ok);
+}
+
+.term-line .cmt {
+  color: var(--ghost);
+}
+
+/* The commands Jobbox has no code to send. */
+.term-line.never {
+  color: var(--idle);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.term-foot {
+  display: flex;
+  border-top: 1px solid var(--line);
+}
+
+.term-foot span {
+  flex: 1;
+  padding: 10px 6px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+  border-left: 1px solid var(--line);
+}
+
+.term-foot span:first-child {
+  border-left: 0;
+}
+
+.term-foot .on {
+  color: var(--ok);
+}
+
+/* -------------------------------------------------------------- providers - */
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-top: 26px;
+}
+
+.card {
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-card);
+  background: var(--panel);
+  padding: 20px;
+  transition: transform var(--t), border-color var(--t);
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  border-color: var(--fil-edge);
+}
+
+.card h3 {
+  margin-top: 10px;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.card p {
+  margin-top: 8px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--faint);
+}
+
+/* --------------------------------------------------------------- sections - */
+
+.head-row {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+/* Who acts. The only place amber is allowed is `you`. */
+.who {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-radius: 4px;
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+
+.who-app {
+  color: var(--ok);
+  border: 1px solid var(--ok-line);
+}
+
+.who-you {
+  color: var(--needs);
+  border: 1px solid var(--needs-line);
+  background: var(--needs-wash);
+}
+
+.who-server {
+  color: var(--plat);
+  border: 1px solid var(--plat-line);
+}
+
+.who-none {
+  color: var(--faint);
+  border: 1px solid var(--line-2);
+}
+
+.who-bad {
+  color: var(--bad);
+  border: 1px solid var(--bad-line);
+  background: var(--bad-wash);
+}
+
+/* ------------------------------------------------------------------ steps - */
+
+.steps {
+  margin-top: 26px;
+  border: 1px solid var(--line-2);
+  border-radius: 14px;
+  background: var(--panel-2);
+}
+
+.step {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 14px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--line);
+}
+
+.step:first-child {
+  border-top: 0;
+}
+
+.step-n {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ghost);
+  padding-top: 2px;
+}
+
+.step-name {
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.step-body {
+  margin-top: 6px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--faint);
+  max-width: var(--measure);
+}
+
+.step-body strong {
+  color: var(--dim);
+  font-weight: 600;
+}
+
+.step-body em {
+  font-style: normal;
+  color: var(--dim);
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------------------ table - */
+
+.tbl-wrap {
+  margin-top: 22px;
+  border: 1px solid var(--line-2);
+  border-radius: 12px;
+  background: var(--panel);
+  overflow-x: auto;
+}
+
+.tbl {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.tbl th {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--line-2);
+  white-space: nowrap;
+}
+
+.tbl td {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--dim);
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.tbl tr:last-child td {
+  border-bottom: 0;
+}
+
+.tbl td:first-child {
+  color: var(--text);
+}
+
+.tbl .on {
+  color: var(--ok);
+}
+
+.tbl .off {
+  color: var(--faint);
+}
+
+.tbl .wrap-cell {
+  white-space: normal;
+}
+
+/* ----------------------------------------------------------------- caveat - */
+
+/* As prominent as the instructions above it. A page that lets the reader
+ * assume a step is optional has misled them with true sentences. */
+.caveat {
+  margin-top: 22px;
+  border: 1px solid var(--needs-line);
+  border-radius: 14px;
+  background: var(--needs-wash);
+  padding: 20px 22px;
+}
+
+.caveat p {
+  margin-top: 8px;
+  max-width: var(--measure);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--dim);
+}
+
+.caveat strong {
+  color: var(--needs);
+  font-weight: 600;
+}
+
+.note {
+  margin-top: 22px;
+  border: 1px solid var(--line-2);
+  border-radius: 14px;
+  background: var(--panel-2);
+  padding: 20px 22px;
+}
+
+.note p {
+  margin-top: 8px;
+  max-width: var(--measure);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--faint);
+}
+
+.note strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.note em {
+  font-style: normal;
+  color: var(--dim);
+  font-weight: 600;
+}
+
+/* A path that does not exist. Grey, not red — nothing here is an alarm, it is
+ * an absence. */
+.note-dead {
+  border-color: var(--line-2);
+  background: transparent;
+}
+
+.note-dead strong {
+  color: var(--mute);
+}
+
+/* ------------------------------------------------------------------ figure */
+
+figure {
+  margin: 26px 0 0;
+}
+
+figcaption {
+  margin-top: 12px;
+  max-width: var(--measure);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--faint);
+}
+
+.plot {
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-card);
+  background: var(--panel);
+  padding: 22px 20px;
+  overflow-x: auto;
+}
+
+/* SVG roles, on the same four meanings as everything else. */
+.svg-box {
+  fill: none;
+  stroke: var(--line-3);
+  stroke-width: 1;
+}
+
+.svg-panel {
+  fill: var(--panel-2);
+  stroke: var(--line-3);
+  stroke-width: 1;
+}
+
+.svg-app {
+  fill: var(--fil-wash);
+  stroke: var(--fil-line);
+  stroke-width: 1;
+}
+
+.svg-ok {
+  fill: var(--ok-wash);
+  stroke: var(--ok-line);
+  stroke-width: 1;
+}
+
+.svg-you {
+  fill: var(--needs-wash);
+  stroke: var(--needs-line);
+  stroke-width: 1;
+}
+
+.svg-server {
+  fill: var(--plat-wash);
+  stroke: var(--plat-line);
+  stroke-width: 1;
+}
+
+.svg-dead {
+  fill: none;
+  stroke: var(--idle);
+  stroke-width: 1;
+  stroke-dasharray: 5 4;
+}
+
+.svg-line {
+  stroke: var(--line-3);
+  stroke-width: 1;
+  fill: none;
+  color: var(--line-3);
+}
+
+.svg-line-app {
+  stroke: var(--fil);
+  color: var(--fil);
+  stroke-width: 1;
+  fill: none;
+}
+
+.svg-line-ok {
+  stroke: var(--ok);
+  color: var(--ok);
+  stroke-width: 1;
+  fill: none;
+}
+
+.svg-line-you {
+  stroke: var(--needs);
+  color: var(--needs);
+  stroke-width: 1;
+  fill: none;
+}
+
+.svg-line-bad {
+  stroke: var(--bad);
+  color: var(--bad);
+  stroke-width: 1;
+  fill: none;
+}
+
+.svg-line-dead {
+  stroke: var(--idle);
+  color: var(--idle);
+  stroke-width: 1;
+  fill: none;
+  stroke-dasharray: 5 4;
+}
+
+.svg-t {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  fill: var(--text);
+}
+
+.svg-m {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  fill: var(--faint);
+}
+
+.svg-m-app {
+  fill: var(--fil);
+}
+
+.svg-m-you {
+  fill: var(--needs);
+}
+
+.svg-m-ok {
+  fill: var(--ok);
+}
+
+.svg-m-server {
+  fill: var(--plat);
+}
+
+.svg-m-dead {
+  fill: var(--idle);
+}
+
+.svg-m-bad {
+  fill: var(--bad);
+}
+
+.svg-big {
+  font-family: var(--font-mono);
+  font-size: 21px;
+  font-weight: 600;
+  fill: var(--text);
+}
+
+/* -------------------------------------------------------------- diagnostic */
+
+.diag {
+  margin-top: 26px;
+  border: 1px solid var(--line-2);
+  border-radius: 14px;
+  background: var(--panel-2);
+  overflow: hidden;
+}
+
+.diag-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 22px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--line);
+}
+
+.diag-row:first-child {
+  border-top: 0;
+}
+
+/* The literal string the app prints. Mono, because you read it back. */
+.diag-err {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+.diag-fix {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--faint);
+}
+
+.diag-fix em {
+  font-style: normal;
+  color: var(--dim);
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------------------ footer */
+
+.foot {
+  border-top: 1px solid var(--line);
+  padding: 30px 0 46px;
+}
+
+.foot p {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ghost);
+  line-height: 1.7;
+}
+
+/* ------------------------------------------------------------- responsive - */
+
+@media (max-width: 900px) {
+  .hero-in {
+    grid-template-columns: 1fr;
+    gap: 34px;
+  }
+
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
+
+  .diag-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+}
+
+@media (max-width: 620px) {
+  :root {
+    --pad: 18px;
+  }
+
+  .section {
+    padding: 52px 0 56px;
+  }
+
+  .hero {
+    padding: 42px 0 50px;
+  }
+
+  .step {
+    grid-template-columns: 26px 1fr;
+    gap: 10px;
+    padding: 14px 16px;
+  }
+
+  .term-body {
+    font-size: 11.5px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+
+  .card:hover {
+    transform: none;
+  }
+}

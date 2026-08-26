@@ -1,6 +1,6 @@
 # recruit-updates
 
-Update and download endpoint for [Recruit](../). The app's repository is private, so the
+Update and download endpoint for [Jobbox](../). The app's repository is private, so the
 desktop client cannot read its GitHub releases directly — that would mean shipping a
 GitHub token inside the app bundle. This service holds the token server-side and
 re-publishes release assets over public URLs.
@@ -22,7 +22,7 @@ URL, so release bytes never pass through this process.
 
 | Variable | Required | Notes |
 |---|---|---|
-| `GITHUB_TOKEN` | yes | Fine-grained token, read-only Contents scope on the Recruit repo |
+| `GITHUB_TOKEN` | yes | Fine-grained token, read-only Contents scope on the Jobbox repo |
 | `GITHUB_REPO` | yes | `owner/name` |
 | `PUBLIC_BASE_URL` | no | Absolute base used when building asset URLs; inferred from the request otherwise |
 | `PORT` | no | Defaults to 8080 |

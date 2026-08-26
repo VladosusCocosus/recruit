@@ -15,6 +15,7 @@ import { app, shell } from 'electron'
 import type { UpdateStatus } from '@shared/types'
 
 const DEFAULT_FEED = 'https://recruit-updates.fly.dev'
+const DEFAULT_SETUP_SITE = 'https://jobbox.fline.sh'
 const CHECK_DELAY_MS = 10_000 // let the window paint before touching the network
 const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000
 const REQUEST_TIMEOUT_MS = 8_000
@@ -30,11 +31,13 @@ export function feedBase(): string {
 }
 
 /**
- * The account-setup guide, served by the same service as the update feed. Anchors match
- * the provider keys in the account form: #gmail, #icloud, #fastmail, #outlook, #custom.
+ * The account-setup guide: a static site on its own host, deliberately not behind the
+ * update feed — a mail-setup problem should stay readable when that service is down.
+ * Anchors match the provider keys in the account form: #gmail, #icloud, #fastmail,
+ * #outlook. `RECRUIT_SETUP_URL` points it at a local copy in dev.
  */
 export function setupGuideUrl(): string {
-  return `${feedBase()}/setup`
+  return (process.env.RECRUIT_SETUP_URL || DEFAULT_SETUP_SITE).replace(/\/+$/, '')
 }
 
 export function getUpdateStatus(): UpdateStatus {

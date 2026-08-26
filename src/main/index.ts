@@ -71,6 +71,11 @@ function createWindow(): BrowserWindow {
  * its handlers are registered.
  */
 function boot(): void {
+  // Deliberately still 'Recruit', even though the bundle is Jobbox.app since the
+  // rename. This string is what app.getPath('userData') resolves against, so
+  // changing it moves state to ~/Library/Application Support/Jobbox and orphans
+  // every existing database, settings file and keychain fallback. Rename it only
+  // together with a migration that moves the old directory across.
   app.setName('Recruit')
 
   const userData = app.getPath('userData')

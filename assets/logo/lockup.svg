@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 485 128" width="485" height="128" role="img" aria-label="Jobbox">
+  <style>.ink{fill:var(--jobbox-ink,#1c1c1e)}.bb,.tile{fill:var(--jobbox-accent,#007aff)}</style>
+  <mask id="jb-l" maskUnits="userSpaceOnUse" x="0" y="0" width="128" height="128">
+    <rect width="128" height="128" fill="#fff"/>
+    <g fill="none" stroke="#000" stroke-width="10" stroke-linecap="round">
+      <path d="M29 40 V88"/><circle cx="44" cy="73" r="15"/>
+      <path d="M69 40 V88"/><circle cx="84" cy="73" r="15"/>
+    </g>
+  </mask>
+  <rect class="tile" width="128" height="128" rx="28" mask="url(#jb-l)"/>
+  <g transform="translate(156 27) scale(0.638)">
+    <text x="-2" y="114" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="160" font-weight="700" letter-spacing="-4.8"><tspan class="ink">Jo</tspan><tspan class="bb">bb</tspan><tspan class="ink">ox</tspan></text>
+  </g>
+</svg>

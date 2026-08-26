@@ -1,6 +1,6 @@
 appId: com.recruit.app
-productName: Recruit
-copyright: Copyright © 2026 Recruit contributors
+productName: Jobbox
+copyright: Copyright © 2026 Jobbox contributors
 
 directories:
   output: release
@@ -19,6 +19,7 @@ asarUnpack:
 
 mac:
   category: public.app-category.productivity
+  icon: build/icon.png
   darkModeSupport: true
   # No arch list here on purpose. An arch array in this file WINS over the
   # --arm64 / --x64 CLI flags, so every invocation built both architectures and
@@ -35,7 +36,7 @@ mac:
   notarize: false
 
 dmg:
-  title: Recruit ${version}
+  title: Jobbox ${version}
   contents:
     - x: 140
       y: 180
