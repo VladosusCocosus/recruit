@@ -74,7 +74,8 @@ jobs:
       - name: Publish to object storage
         if: startsWith(github.ref, 'refs/tags/v')
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.MINIO_ROOT_USER }}
+          # Not a secret: the root user is a public literal in site/fline.json.
+          AWS_ACCESS_KEY_ID: recruit
           AWS_SECRET_ACCESS_KEY: ${{ secrets.MINIO_ROOT_PASSWORD }}
           AWS_DEFAULT_REGION: us-east-1
           AWS_EC2_METADATA_DISABLED: 'true'

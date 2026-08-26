@@ -1,6 +1,6 @@
 {
   "name": "recruit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Recruit — a macOS email client that is really an agent-driven job-application tracker",
   "private": true,
   "license": "MIT",
