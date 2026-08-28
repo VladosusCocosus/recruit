@@ -35,6 +35,14 @@ const DOWNLOADS_BASE = (
 
 // The counted download links. Keys are the names that appear in the stats, so
 // they are stable and readable rather than derived from the file name.
+//
+// These still say Recruit, which is the old product name, because that is what
+// is in the bucket. The release workflow was taught to publish the alias under
+// both Jobbox-* and Recruit-*, but that lands the first time a release is cut
+// after it, and until then Jobbox-arm64.dmg is a 404. Point these at Jobbox-*
+// once a release has shipped with both names — the redirect is resolved here
+// with no check against storage, so a wrong name is a broken download button
+// rather than a fallback.
 const TARGETS = {
   'mac-arm64': 'Recruit-arm64.dmg',
   'mac-x64': 'Recruit-x64.dmg',
