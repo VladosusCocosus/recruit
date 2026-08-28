@@ -130,6 +130,13 @@ jobs:
 
           # Stable aliases. The website links at these forever, so shipping a
           # release makes the site current without the site being touched.
+          #
+          # Jobbox-* is the name to link at; Recruit-* is the old product name,
+          # still written because the deployed site and every download link
+          # posted before the rename point at it. Both are the same file. Drop
+          # the Recruit-* pair once nothing published references it.
+          s3 s3 cp "$arm_dmg" "s3://$BUCKET/latest/Jobbox-arm64.dmg"
+          s3 s3 cp "$x64_dmg" "s3://$BUCKET/latest/Jobbox-x64.dmg"
           s3 s3 cp "$arm_dmg" "s3://$BUCKET/latest/Recruit-arm64.dmg"
           s3 s3 cp "$x64_dmg" "s3://$BUCKET/latest/Recruit-x64.dmg"
 
