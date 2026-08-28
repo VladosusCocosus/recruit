@@ -1,7 +1,7 @@
 // Static file server for the Jobbox site.
 //
-// No third-party dependencies: the site is two HTML pages, five woff2 faces and
-// a folder of screenshots, and a framework to hand those back would be its own
+// No third-party dependencies: the site is two HTML pages, a stylesheet and a
+// folder of screenshots, and a framework to hand those back would be its own
 // liability. The platform passes PORT in and routes whichever port the process
 // opens.
 //
