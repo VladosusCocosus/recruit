@@ -83,18 +83,24 @@ const LINKED_MESSAGE_COUNT = `(SELECT count(*) FROM item_messages im
      JOIN messages m ON m.id = im.message_id
      WHERE im.item_id = i.id AND m.deleted_at IS NULL)`
 
+/**
+ * Same filter, same reason: lastMessageAt and the mail half of lastContactAt answer "when did
+ * this company last write", and a message the user deleted is not an answer to that. Left
+ * unfiltered, a card would keep quoting the date of mail its own message_count no longer counts
+ * — the exact disagreement lastContactAt was introduced to end.
+ */
+const LAST_LINKED_MESSAGE_AT = `(SELECT max(m.date_utc) FROM item_messages im
+     JOIN messages m ON m.id = im.message_id
+     WHERE im.item_id = i.id AND m.deleted_at IS NULL)`
+
 const SUMMARY_COLUMNS = `${ITEM_COLUMNS},
   ${LINKED_MESSAGE_COUNT} AS message_count,
   (SELECT count(*) FROM timeline_events te
      WHERE te.item_id = i.id AND te.superseded_by IS NULL) AS event_count,
-  (SELECT max(m.date_utc) FROM item_messages im
-     JOIN messages m ON m.id = im.message_id
-     WHERE im.item_id = i.id) AS last_message_at,
+  ${LAST_LINKED_MESSAGE_AT} AS last_message_at,
   NULLIF(
     max(
-      COALESCE((SELECT max(m.date_utc) FROM item_messages im
-                  JOIN messages m ON m.id = im.message_id
-                 WHERE im.item_id = i.id), ''),
+      COALESCE(${LAST_LINKED_MESSAGE_AT}, ''),
       COALESCE((SELECT max(COALESCE(te.occurred_at, te.starts_at)) FROM timeline_events te
                  WHERE te.item_id = i.id AND te.superseded_by IS NULL), '')
     ),
