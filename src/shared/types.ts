@@ -261,6 +261,12 @@ export interface ItemSummary extends Item {
    * to `lastActivityAt`, which also counts row edits. Null when no mail is linked.
    */
   lastMessageAt: string | null
+  /**
+   * Newest proof that something happened: mail either way, or a timeline entry someone
+   * logged. Null when there is neither. Drives the stale indicator, so it is
+   * deliberately blind to `updatedAt` — a resync or an edit is not contact.
+   */
+  lastContactAt: string | null
   lastActivityAt: string | null
 }
 

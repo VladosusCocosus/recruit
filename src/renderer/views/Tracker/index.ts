@@ -39,7 +39,7 @@ export {
   isAllDay,
   formatAllDayRange,
   staleness,
-  lastActivityAt,
+  lastContactAt,
   lastMessageAt,
   toLocalInputValue,
   fromLocalInputValue

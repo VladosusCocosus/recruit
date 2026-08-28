@@ -269,6 +269,8 @@ export interface ItemSummaryRow extends ItemRow {
   event_count: number
   /** max(messages.date_utc) over the linked mail. Null when nothing is linked. */
   last_message_at: string | null
+  /** Newest mail or logged timeline entry. Null when neither exists. */
+  last_contact_at: string | null
   last_activity_at: string | null
 }
 
@@ -307,6 +309,7 @@ export function rowToItemSummary(
     eventCount: row.event_count ?? 0,
     nextEvent,
     lastMessageAt: row.last_message_at ?? null,
+    lastContactAt: row.last_contact_at ?? null,
     lastActivityAt: row.last_activity_at ?? row.updated_at
   }
 }

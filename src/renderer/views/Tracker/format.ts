@@ -18,7 +18,7 @@ import type { Item, ItemSummary, TimelineEvent } from '@shared/types'
 
 export { formatCountdown, formatDateTime, formatRelative, formatTime }
 
-/** A card with no activity for this long gets the stale dot. */
+/** A card with no contact for this long gets the stale dot. */
 export const STALE_AFTER_DAYS = 14
 
 const MINUTE = 60_000
@@ -88,17 +88,21 @@ export function isFutureEvent(ev: TimelineEvent, now: number = Date.now()): bool
 }
 
 /**
- * Date of the most recent linked email, or null when nothing is linked yet. Unlike
- * `lastActivityAt` this never falls back to `updated_at` — linking or editing an item
- * bumps that to sync time, which would read as "we just heard from them".
+ * Date of the most recent linked email, or null when nothing is linked yet. Narrower
+ * than `lastContactAt`: a call logged by hand is contact but is not a message, and
+ * this one answers "when did they last write?".
  */
 export function lastMessageAt(item: Item | ItemSummary): string | null {
   return (item as Partial<ItemSummary>).lastMessageAt ?? null
 }
 
-/** Last thing that happened on an item, whatever the db could tell us. */
-export function lastActivityAt(item: Item | ItemSummary): string {
-  return (item as Partial<ItemSummary>).lastActivityAt ?? item.updatedAt ?? item.createdAt
+/**
+ * Newest proof that something actually happened: mail either way, or a timeline entry
+ * someone logged. Falls back to when the item was created — an application filed a
+ * month ago that never drew a reply has been quiet for a month, not for zero days.
+ */
+export function lastContactAt(item: Item | ItemSummary): string {
+  return (item as Partial<ItemSummary>).lastContactAt ?? item.createdAt
 }
 
 export interface Staleness {
@@ -107,16 +111,20 @@ export interface Staleness {
 }
 
 /**
- * Stale = an OPEN item with nothing scheduled and no activity for STALE_AFTER_DAYS.
+ * Stale = an OPEN item with nothing scheduled and no contact for STALE_AFTER_DAYS.
  * A booked interview next week is not stale, however quiet the thread has been —
  * flagging those would train the user to ignore the indicator.
+ *
+ * Measured from `lastContactAt`, not `updatedAt`: the old reading reset the clock
+ * every time a sync linked a message or the user edited a field, so the dot mostly
+ * meant "nobody has touched this row" — which is not the question being asked.
  */
 export function staleness(
   item: ItemSummary,
   statusKind: 'open' | 'closed',
   now: number = Date.now()
 ): Staleness {
-  const last = parse(lastActivityAt(item))
+  const last = parse(lastContactAt(item))
   const days = last === null ? 0 : Math.floor((now - last) / DAY)
   if (statusKind === 'closed' || item.archivedAt) return { stale: false, days }
   if (item.nextEvent && isFutureEvent(item.nextEvent, now)) return { stale: false, days }
