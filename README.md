@@ -147,3 +147,55 @@ To build locally instead:
 ```bash
 npm run dist:mac      # DMG + ZIP into release/
 ```
+
+## Download numbers
+
+The site's Download buttons used to link straight at the object store, so MinIO served
+the bytes and nothing in this repo ever learned that a copy had been taken. They now point
+at `/download/mac/arm64` and `/download/mac/x64`, which the site's own server answers with
+a `302` to the same object after recording the request. Storage still serves the bytes —
+only the redirect passes through Node, and if the counter throws, the redirect still goes
+out. A broken counter must never cost a download.
+
+Read the numbers back as JSON:
+
+```bash
+curl https://jobbox.fline.sh/api/downloads
+```
+
+Three figures are kept per architecture, per day and in total:
+
+| Field | Meaning |
+|---|---|
+| `hits` | Requests handed a redirect, after automated traffic was removed |
+| `uniques` | Those hits deduplicated per visitor per UTC day |
+| `filtered` | Requests excluded as bots, link unfurlers, prefetches or `HEAD` probes |
+
+`filtered` exists so the discard pile stays visible. Every time the link is pasted into
+Slack or iMessage the unfurler fetches it, and on a site this young a link checker can
+outnumber the humans — folding that into the headline number would invent users.
+
+`uniques` deduplicates **within** a UTC day, so the total is a sum of daily figures rather
+than a lifetime headcount: someone who comes back a week later counts twice. A true
+lifetime figure would mean keeping every visitor fingerprint forever, which is both
+unbounded and more than this needs to know.
+
+No address is stored. A visitor is a truncated SHA-256 of the client IP, the user agent
+and a random salt minted on first run and held in the state file; without the salt the
+digests do not reverse, and rotating it means deleting one line. The client IP is taken
+from the **rightmost** `X-Forwarded-For` entry — the one the platform's proxy observed —
+so a client cannot inflate `uniques` by sending a header full of invented addresses.
+
+State is a single JSON file at `/data/downloads.json`, declared as a volume on the
+`recruit-site` service in [site/fline.json](site/fline.json). Writes are debounced and go
+through a temp file and a rename, so a crash mid-write leaves the last good state, and
+`SIGTERM` flushes so a redeploy does not drop the final few clicks. **Without that volume
+the counter silently restarts from zero on every deploy** — it falls back to temp storage
+and says so at boot rather than refusing to start. Set `JOBBOX_STATS_TOKEN` to require
+`Authorization: Bearer <token>` on `/api/downloads`; left unset the numbers are public.
+
+Two things this deliberately does not count. In-app update checks and downloads go to the
+Go service and to `downloads/updates/...`, and counting them here would mix "people trying
+the app" with "installs that already exist", which is the number that grows on its own.
+The bucket also stays publicly readable, so an old direct link still works and bypasses
+the counter — the figure is a floor, not an audit.
