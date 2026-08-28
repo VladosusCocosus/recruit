@@ -40,6 +40,25 @@ export type ProposalState = 'pending' | 'accepted' | 'rejected' | 'superseded'
 export type AgentRunKind = 'triage' | 'enrich'
 export type AgentRunState = 'starting' | 'running' | 'finished' | 'error' | 'stopped'
 
+/**
+ * Which CLI the agent bridge spawns. Both run as a subprocess on the user's own
+ * subscription auth — Recruit never holds an API key for either.
+ */
+export const AGENT_ENGINES = ['claude', 'codex'] as const
+export type AgentEngine = (typeof AGENT_ENGINES)[number]
+
+/** Product name of each engine, for UI copy. */
+export const AGENT_ENGINE_LABEL: Record<AgentEngine, string> = {
+  claude: 'Claude Code',
+  codex: 'Codex'
+}
+
+/** The binary each engine is invoked as, for UI copy and PATH search. */
+export const AGENT_ENGINE_BINARY: Record<AgentEngine, string> = {
+  claude: 'claude',
+  codex: 'codex'
+}
+
 export type ThemePreference = 'system' | 'light' | 'dark'
 export type ConnectionProtocol = 'imap' | 'smtp'
 
@@ -149,7 +168,10 @@ export interface MessageSummary {
   snippet: string | null
   hasAttachments: boolean
   flags: string[]
-  /** Derived from flags: !flags.includes('\\Seen'). Local only — v1 never writes IMAP flags. */
+  /**
+   * Derived: no '\\Seen' flag AND no local read_at. Local only — v1 never writes IMAP flags,
+   * so opening a message clears this here and nowhere else.
+   */
   isUnread: boolean
   prefilterScore: number | null
   prefilterReasons: PrefilterReason[]
@@ -520,6 +542,23 @@ export type AgentErrorKind =
 export const CLAUDE_AUTH_ERROR_MARKER = 'Failed to authenticate'
 export const CLAUDE_NOT_SIGNED_IN_MESSAGE =
   "Claude Code isn't signed in — run `claude` in a terminal to log in"
+/** Codex reports the same condition as a 401 from api.openai.com. Same remedy shape. */
+export const CODEX_NOT_SIGNED_IN_MESSAGE =
+  "Codex isn't signed in — run `codex` in a terminal to log in"
+
+const NOT_SIGNED_IN_MESSAGES: Record<AgentEngine, string> = {
+  claude: CLAUDE_NOT_SIGNED_IN_MESSAGE,
+  codex: CODEX_NOT_SIGNED_IN_MESSAGE
+}
+
+/**
+ * The signed-out copy for one engine. Both halves matter: the banner splits on the
+ * em-dash to get a title and a remedy, so keep the "<product> isn't signed in — run
+ * `<binary>` in a terminal to log in" shape for anything added here.
+ */
+export function agentNotSignedInMessage(engine: AgentEngine): string {
+  return NOT_SIGNED_IN_MESSAGES[engine] ?? CLAUDE_NOT_SIGNED_IN_MESSAGE
+}
 
 export interface AgentRun {
   id: number
@@ -750,7 +789,14 @@ export type AgentModel = (typeof AGENT_MODELS)[number]
 
 export interface AppSettings {
   prefilterThreshold: number
+  /** Claude model name. Codex is not given a model and uses its own default. */
   model: string
+  /** Which CLI the agent bridge spawns. */
+  agentEngine: AgentEngine
+  /** 'claude' means "find it on PATH"; an absolute path pins it. */
+  claudeBinaryPath: string
+  /** 'codex' means "find it on PATH"; an absolute path pins it. */
+  codexBinaryPath: string
   /** Enrichment (WebSearch) runs are OFF by default. */
   enrichmentEnabled: boolean
   blockRemoteImages: boolean
@@ -763,6 +809,9 @@ export interface AppSettings {
 export const DEFAULT_SETTINGS: AppSettings = {
   prefilterThreshold: PREFILTER_THRESHOLD_DEFAULT,
   model: 'sonnet',
+  agentEngine: 'claude',
+  claudeBinaryPath: 'claude',
+  codexBinaryPath: 'codex',
   enrichmentEnabled: false,
   blockRemoteImages: true,
   syncIntervalMinutes: 10,
@@ -777,8 +826,10 @@ export interface AppInfo {
   platform: string
   userDataPath: string
   dbPath: string
+  /** The engine these two fields describe — AppSettings.agentEngine, echoed back. */
+  agentEngine: AgentEngine
   /** false => the agent bridge cannot run at all; show the sign-in / install state. */
-  claudeCliAvailable: boolean
+  agentCliAvailable: boolean
   /** Account-setup guide. Per-provider anchors: `${setupGuideUrl}#gmail`. */
   setupGuideUrl: string
 }
@@ -872,6 +923,13 @@ export interface RecruitApi {
   getMessage(messageId: number): Promise<Message | null>
   getMessageHtml(messageId: number, allowRemoteImages: boolean): Promise<SanitizedBody>
   setTriageState(messageIds: number[], state: TriageState): Promise<void>
+  /** Local read state only: this never sends \Seen to the server. */
+  markMessagesRead(messageIds: number[], read: boolean): Promise<void>
+  /**
+   * Local SOFT delete: the row is kept and filtered out of every read, so nothing that links
+   * to it dangles and the next sync cannot resurrect it. Pass false to undelete.
+   */
+  deleteMessages(messageIds: number[], deleted: boolean): Promise<void>
   /** Re-runs the prefilter over stored messages, e.g. after the threshold changes. */
   rescorePrefilter(): Promise<{ scored: number; candidates: number }>
 
@@ -952,6 +1010,8 @@ export const IPC_METHODS = [
   'getMessage',
   'getMessageHtml',
   'setTriageState',
+  'markMessagesRead',
+  'deleteMessages',
   'rescorePrefilter',
   'listStatuses',
   'listItems',

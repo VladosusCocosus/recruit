@@ -67,6 +67,8 @@ export interface McpBridge {
   mintToken(runId: number): string;
   /** Revoke a token and tear down its sessions. Call in the run's finally block. */
   revokeToken(token: string): void;
+  /** The listener's address. Engines that configure MCP by URL need it directly. */
+  mcpUrl(): string;
   /** The exact JSON string for --mcp-config. */
   mcpConfigJson(token: string): string;
   /** Revoke everything and close the listener. Call on app quit. */
@@ -796,6 +798,12 @@ export function createMcpServer(deps: McpDeps): McpBridge {
         sessions.delete(sid);
         closeSession(session);
       }
+    },
+
+    mcpUrl(): string {
+      if (port == null)
+        throw new Error("MCP server is not started — call start() first.");
+      return `http://127.0.0.1:${port}${MCP_PATH}`;
     },
 
     mcpConfigJson(token: string): string {

@@ -1,6 +1,10 @@
 import { useCallback, useState } from 'react'
 import {
+  AGENT_ENGINES,
+  AGENT_ENGINE_BINARY,
+  AGENT_ENGINE_LABEL,
   AGENT_MODELS,
+  type AgentEngine,
   type AppSettings,
   type ThemePreference
 } from '@shared/types'
@@ -20,6 +24,7 @@ import {
   Segmented,
   Select,
   Slider,
+  TextInput,
   Toggle,
   errorMessage,
   pluralize,
@@ -46,6 +51,14 @@ const MODEL_OPTIONS = AGENT_MODELS.map((m) => ({
   label: m.charAt(0).toUpperCase() + m.slice(1)
 }))
 
+const ENGINE_OPTIONS = AGENT_ENGINES.map((e) => ({ value: e, label: AGENT_ENGINE_LABEL[e] }))
+
+/** Which settings key the path field writes, for the engine currently selected. */
+const BINARY_PATH_KEY: Record<AgentEngine, 'claudeBinaryPath' | 'codexBinaryPath'> = {
+  claude: 'claudeBinaryPath',
+  codex: 'codexBinaryPath'
+}
+
 export default function SettingsView({
   settings,
   onUpdateSettings,
@@ -58,6 +71,8 @@ export default function SettingsView({
   const [rescoring, setRescoring] = useState(false)
 
   const rows = accounts.data ?? []
+  const engine: AgentEngine = settings?.agentEngine ?? 'claude'
+  const engineBinary = AGENT_ENGINE_BINARY[engine]
   const selected: number | 'new' = editing ?? (rows[0]?.id ?? 'new')
   const account = selected === 'new' ? null : rows.find((a) => a.id === selected) ?? null
 
@@ -132,7 +147,7 @@ export default function SettingsView({
             {/* ── triage ───────────────────────────────────────────────── */}
             <FormSection
               title="Triage"
-              hint="The prefilter scores every message locally before Claude sees anything. Only messages at or above the threshold become candidates."
+              hint="The prefilter scores every message locally before the agent sees anything. Only messages at or above the threshold become candidates."
             >
               <Field
                 label="Candidate threshold"
@@ -175,26 +190,66 @@ export default function SettingsView({
             {/* ── agent ────────────────────────────────────────────────── */}
             <FormSection
               title="Agent"
-              hint="Claude never writes to the tracker directly. Every change it wants to make lands in the Review queue for you to accept or reject."
+              hint="The agent never writes to the tracker directly. Every change it wants to make lands in the Review queue for you to accept or reject."
             >
-              <Field label="Model">
+              <Field
+                label="Engine"
+                hint="Which CLI Recruit spawns. It runs on that tool's own subscription — Recruit never holds an API key."
+              >
                 <Select
-                  value={settings.model}
-                  options={MODEL_OPTIONS}
-                  onValueChange={(v) => void onUpdateSettings({ model: v })}
+                  value={engine}
+                  options={ENGINE_OPTIONS}
+                  onValueChange={(v) => void onUpdateSettings({ agentEngine: v as AgentEngine })}
                   style={{ maxWidth: 200 }}
                 />
               </Field>
+              <Field
+                label={`Path to ${engineBinary}`}
+                hint={`Leave as “${engineBinary}” to search PATH and the usual install locations. Set an absolute path if Recruit can't find it — a GUI app doesn't inherit your shell's PATH.`}
+              >
+                <TextInput
+                  value={settings[BINARY_PATH_KEY[engine]]}
+                  placeholder={engineBinary}
+                  onValueChange={(v) =>
+                    void onUpdateSettings({ [BINARY_PATH_KEY[engine]]: v.trim() || engineBinary })
+                  }
+                  style={{ maxWidth: 380 }}
+                />
+              </Field>
+              {engine === 'claude' ? (
+                <Field label="Model">
+                  <Select
+                    value={settings.model}
+                    options={MODEL_OPTIONS}
+                    onValueChange={(v) => void onUpdateSettings({ model: v })}
+                    style={{ maxWidth: 200 }}
+                  />
+                </Field>
+              ) : null}
               <Toggle
                 checked={settings.enrichmentEnabled}
                 onCheckedChange={(v) => void onUpdateSettings({ enrichmentEnabled: v })}
                 label="Look up company descriptions on the web"
                 hint="Runs a separate, isolated agent that receives only a company name — no message data and no access to your tracker. Off by default."
               />
-              {appInfo.data && !appInfo.data.claudeCliAvailable ? (
-                <Banner tone="warning" icon="terminal" title="Claude Code isn't installed">
-                  Recruit couldn&apos;t find the <code>claude</code> binary on this machine. Triage
-                  runs are unavailable until it is installed.
+              {engine === 'codex' ? (
+                <Banner tone="warning" icon="alert" title="Codex triage runs can reach the web">
+                  Triage reads your mail, so it is meant to have no way to send anything out. On
+                  Claude Code that is enforced. Codex has no working switch for its web search, so
+                  a message that manages to steer the agent could get text off this machine.
+                  Everything else still holds: no shell, no files, read-only sandbox, and your own
+                  Codex MCP servers are not loaded.
+                </Banner>
+              ) : null}
+              {appInfo.data && !appInfo.data.agentCliAvailable ? (
+                <Banner
+                  tone="warning"
+                  icon="terminal"
+                  title={`${AGENT_ENGINE_LABEL[engine]} isn't installed`}
+                >
+                  Recruit couldn&apos;t find the <code>{engineBinary}</code> binary on this machine.
+                  Triage runs are unavailable until it is installed, or until you set its path
+                  above.
                 </Banner>
               ) : null}
             </FormSection>
@@ -246,8 +301,8 @@ export default function SettingsView({
                 <KeyValue>
                   <KeyValueRow label="Version">{appInfo.data.version}</KeyValueRow>
                   <KeyValueRow label="Electron">{appInfo.data.electronVersion}</KeyValueRow>
-                  <KeyValueRow label="Claude Code">
-                    {appInfo.data.claudeCliAvailable ? (
+                  <KeyValueRow label={AGENT_ENGINE_LABEL[appInfo.data.agentEngine]}>
+                    {appInfo.data.agentCliAvailable ? (
                       <Badge tone="success">Available</Badge>
                     ) : (
                       <Badge tone="warning">Not found</Badge>

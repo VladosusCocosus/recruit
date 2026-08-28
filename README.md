@@ -3,16 +3,19 @@
 A macOS email client that is really an agent-driven job-application tracker.
 
 Jobbox syncs your inbox, scores every message with a local prefilter, and hands the
-likely job-related ones to Claude Code. Claude reads them and **proposes** tracker
-changes — new applications, status moves, interview events, message links. Nothing it
-proposes touches the tracker until you accept it in the Review queue.
+likely job-related ones to a coding-agent CLI — **Claude Code or Codex**, your choice in
+Settings. The agent reads them and **proposes** tracker changes — new applications, status
+moves, interview events, message links. Nothing it proposes touches the tracker until you
+accept it in the Review queue.
 
 Electron + React 18 + SQLite (better-sqlite3). The main process owns all state; the
 renderer talks to it over a typed IPC bridge and never touches the database.
 
 ## Running it in dev
 
-Requires Node >= 20.19 (this tree is on 25.6) and the `claude` CLI on your machine.
+Requires Node >= 20.19 (this tree is on 25.6) and either the `claude` or the `codex` CLI
+on your machine, signed in. Jobbox spawns it as a subprocess on your own subscription and
+never holds an API key for either.
 
 ```bash
 npm install
@@ -28,12 +31,48 @@ npm test           # vitest — prefilter + .ics parser only, by design
 npm run rebuild    # only if better-sqlite3/keytar need an Electron-ABI rebuild
 ```
 
-The agent bridge shells out to the `claude` binary. A GUI-launched `.app` does not
-inherit your login shell's PATH, so Jobbox looks in `~/.local/bin`, `~/.claude/local`,
-`/opt/homebrew/bin`, `/usr/local/bin`, `~/.bun/bin` and `~/.volta/bin` before giving up;
-you can also set an explicit path in Settings. **If Claude Code isn't signed in, runs fail
-with a dedicated banner** telling you to run `claude` in a terminal to log in — that is a
-first-class state, not a generic error.
+### Finding the CLI
+
+The agent bridge shells out to the `claude` or `codex` binary. A GUI-launched `.app` does
+not inherit your login shell's PATH, so Jobbox searches `~/.local/bin`, `~/.claude/local`,
+`/opt/homebrew/bin`, `/usr/local/bin`, `~/.bun/bin`, `~/Library/pnpm`, `~/.yarn/bin`,
+`~/.npm-global/bin`, `~/.volta/bin`, `~/.deno/bin`, `~/go/bin` and every per-version bin
+directory under nvm, fnm, mise and asdf before giving up. Codex is usually an npm global,
+so on a version-manager setup it lives somewhere like
+`~/.nvm/versions/node/<version>/bin/codex` — that is exactly the case the last group
+covers. **Settings → Agent** has an explicit path override per engine if the search misses.
+
+**If the selected CLI isn't signed in, runs fail with a dedicated banner** telling you to
+run `claude` (or `codex`) in a terminal to log in — that is a first-class state, not a
+generic error.
+
+### What each run kind can reach
+
+Two run kinds, isolated on purpose. Triage reads untrusted email, so it must have no way
+to send anything out; enrich reaches the web, so it must have no way to see anything
+private.
+
+| | triage | enrich |
+|---|---|---|
+| tracker MCP tools | yes, allowlisted | **no server configured at all** |
+| email | this run's allowlist only | never — input is a company name string |
+| web | Claude Code: no. Codex: **yes, see below** | yes |
+| shell / files / subagents | no | no |
+
+On Claude Code that is `--tools ""` (no built-ins whatsoever) plus `--strict-mcp-config`.
+On Codex it is `--ignore-user-config` (so your own `~/.codex/config.toml` MCP servers are
+never loaded into a run that reads your mail), `--ignore-rules`, `-s read-only`,
+`--ephemeral`, and `--disable` for the shell, exec, browser, computer-use, apps and
+subagent-spawning features. The tracker server is pinned by `-c mcp_servers.tracker.*`
+overrides with a per-run bearer token that travels by environment variable, so it is never
+written to `agent_runs.command_json`.
+
+**Known gap, Codex only:** `codex exec` cannot turn web search off. `tools.web_search=false`
+is accepted and removes Codex's own web-search tool, but the ChatGPT backend still exposes
+a server-side web tool and the model will use it. Verified against codex-cli 0.147.0 on
+gpt-5.6-sol, gpt-5.5 and gpt-5.4-mini; built-in model providers cannot be overridden
+either. So a Codex triage run has an egress path a Claude Code triage run does not, and
+Settings says so. Claude Code remains the default engine.
 
 State lives in `app.getPath('userData')`: `recruit.db` (SQLite, WAL) and `settings.json`.
 Set `RECRUIT_DB_PATH` to point the database somewhere else.
@@ -52,7 +91,7 @@ First launch shows a setup checklist: **add account → sync → first scan → 
 4. **Run.** The `▶ Run · N` button in the toolbar spawns a triage run over the candidates.
    The same button turns into a live status — elapsed time, current tool call, Stop.
 5. **Review.** Accept or reject each proposal. Every card shows the prefilter reason that
-   flagged the message, so you can see why Claude was looking at it.
+   flagged the message, so you can see why the agent was looking at it.
 
 Gmail and other 2FA providers need an app-specific password, not your account password.
 **Outlook and Microsoft 365 cannot connect at all** — Microsoft removed password sign-in from
@@ -68,9 +107,11 @@ when that host is down.
 
 Worth knowing before you point it at real mail:
 
-- The triage run gets **no built-in tools** (`--tools ""`): no Bash, Read, Write, WebFetch
-  or WebSearch. Its only capability is one HTTP MCP server on `127.0.0.1`, guarded by a
-  per-run bearer token that is revoked the moment the run ends.
+- The triage run gets **no built-in tools**: no shell, no file access, no subagents, and
+  on Claude Code no web either (`--tools ""`). Its only capability is one HTTP MCP server
+  on `127.0.0.1`, guarded by a per-run bearer token that is revoked the moment the run
+  ends. See *What each run kind can reach* above for the per-engine flags, and for the one
+  thing Codex cannot currently enforce.
 - **Reads are run-scoped.** The run can only read the messages on its own allowlist, which
   is written to the database *before* the child process exists. The run id is bound to the
   token server-side, so the model cannot name a different run.
@@ -79,8 +120,10 @@ Worth knowing before you point it at real mail:
   tracker tables is only reachable from the Accept button.
 - Email text is untrusted input. Tool results say so explicitly, but treat the triage
   prompt's injection resistance as unproven until you have watched a few real runs.
-- **Enrichment** (a separate run kind that may use WebSearch) is **off by default** and,
-  when on, gets a company name string and no tracker access at all.
+- **Enrichment** (a separate run kind that may search the web) is **off by default** and,
+  when on, gets a company name string and no tracker access at all — no MCP server is
+  configured for it, so the tracker listener is not merely un-allowed, it is
+  unaddressable.
 
 ## Known gaps
 

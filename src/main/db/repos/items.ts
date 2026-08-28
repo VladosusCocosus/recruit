@@ -74,8 +74,17 @@ function requireStatus(key: string): Status {
 
 const ITEM_COLUMNS = 'i.*, s.key AS status_key'
 
+/**
+ * The link rows outlive a local delete (migration 003) — nothing about deleting a message
+ * un-links it from the item. So every message count here joins `messages` and skips the deleted
+ * ones, or the badge would promise more mail than listItemMessages can show.
+ */
+const LINKED_MESSAGE_COUNT = `(SELECT count(*) FROM item_messages im
+     JOIN messages m ON m.id = im.message_id
+     WHERE im.item_id = i.id AND m.deleted_at IS NULL)`
+
 const SUMMARY_COLUMNS = `${ITEM_COLUMNS},
-  (SELECT count(*) FROM item_messages im WHERE im.item_id = i.id) AS message_count,
+  ${LINKED_MESSAGE_COUNT} AS message_count,
   (SELECT count(*) FROM timeline_events te
      WHERE te.item_id = i.id AND te.superseded_by IS NULL) AS event_count,
   max(
@@ -144,11 +153,12 @@ export function listItemMessages(itemId: number): MessageSummary[] {
     `SELECT m.id, m.account_id, m.folder, m.uid, m.uid_validity, m.message_id, m.in_reply_to,
             m.references_json, m.thread_key, m.from_name, m.from_addr, m.from_domain, m.to_json,
             m.cc_json, m.subject, m.date_utc, m.snippet, m.list_unsubscribe, m.has_attachments,
-            m.flags_json, m.prefilter_score, m.prefilter_reasons_json, m.triage_state, m.fetched_at,
+            m.flags_json, m.prefilter_score, m.prefilter_reasons_json, m.triage_state, m.read_at,
+            m.fetched_at,
             (SELECT group_concat(im2.item_id) FROM item_messages im2 WHERE im2.message_id = m.id)
               AS linked_item_ids
      FROM item_messages im JOIN messages m ON m.id = im.message_id
-     WHERE im.item_id = ?
+     WHERE im.item_id = ? AND m.deleted_at IS NULL
      ORDER BY m.date_utc DESC, m.id DESC`,
     itemId
   ).map(rowToMessageSummary)
@@ -174,7 +184,7 @@ export function listItemsDigest(query: ItemQuery = {}): ItemDigest[] {
   }>(
     `SELECT i.id, i.company, i.company_domain, i.role, i.location, s.key AS status_key,
             i.close_reason, i.job_url, i.source, i.updated_at, i.archived_at,
-            (SELECT count(*) FROM item_messages im WHERE im.item_id = i.id) AS message_count,
+            ${LINKED_MESSAGE_COUNT} AS message_count,
             (SELECT min(te.starts_at) FROM timeline_events te
                WHERE te.item_id = i.id AND te.superseded_by IS NULL
                  AND te.starts_at IS NOT NULL AND te.starts_at >= ?) AS next_event_at

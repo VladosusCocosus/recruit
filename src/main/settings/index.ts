@@ -2,67 +2,40 @@
  * App settings: a small JSON file in userData, read once and cached.
  *
  * The stored shape is a superset of the shared `AppSettings` (which is what
- * crosses IPC) plus three main-process-only keys the agent bridge needs:
- * claudeBinaryPath, syncBackfillDays, agentCommandTemplate.
+ * crosses IPC) plus one main-process-only key: syncBackfillDays.
+ *
+ * How the agent process is spawned is NOT configurable here. It used to be — a
+ * `{{placeholder}}` argv template lived in this file, unread by the runner, and it
+ * could never have expressed Codex anyway (repeated `-c key=value` overrides, a
+ * bearer token that must travel by environment variable rather than argv). The one
+ * mechanism is now AgentEngineAdapter in src/main/agent/engines.ts; this file only
+ * decides WHICH engine and WHERE its binary lives.
  */
-import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { constants as FS, accessSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { delimiter, dirname, isAbsolute, join } from 'node:path'
 import { app } from 'electron'
-import { DEFAULT_SETTINGS, type AppSettings, type ThemePreference } from '@shared/types'
+import {
+  AGENT_ENGINES,
+  AGENT_ENGINE_BINARY,
+  DEFAULT_SETTINGS,
+  type AgentEngine,
+  type AppSettings,
+  type ThemePreference
+} from '@shared/types'
 
 /* ────────────────────────────────────────────────────────────────────────────
  * shape
  * ──────────────────────────────────────────────────────────────────────────── */
 
-/**
- * How the agent process is spawned. Swapping this is how "or another agent"
- * is supported — point `command` at a different binary and reshape `args`.
- * Placeholders are `{{name}}`; see renderAgentCommand().
- */
-export interface AgentCommandTemplate {
-  command: string
-  args: string[]
-}
-
-/** The claude CLI 2.1.x invocation. Every value comes from the run, not here. */
-export const DEFAULT_AGENT_COMMAND_TEMPLATE: AgentCommandTemplate = {
-  command: '{{binary}}',
-  args: [
-    '-p',
-    '{{prompt}}',
-    '--system-prompt',
-    '{{systemPrompt}}',
-    '--tools',
-    '{{tools}}',
-    '--strict-mcp-config',
-    '--mcp-config',
-    '{{mcpConfig}}',
-    '--allowedTools',
-    '{{allowedTools}}',
-    '--permission-mode',
-    'bypassPermissions',
-    '--output-format',
-    'json',
-    '--no-session-persistence',
-    '--model',
-    '{{model}}'
-  ]
-}
-
 export interface MainSettings extends AppSettings {
-  /** 'claude' means "find it"; an absolute path pins it. See resolveClaudeBinary(). */
-  claudeBinaryPath: string
   syncBackfillDays: number
-  agentCommandTemplate: AgentCommandTemplate
 }
 
 export const DEFAULT_MAIN_SETTINGS: MainSettings = {
   ...DEFAULT_SETTINGS,
-  claudeBinaryPath: 'claude',
-  syncBackfillDays: 90,
-  agentCommandTemplate: DEFAULT_AGENT_COMMAND_TEMPLATE
+  syncBackfillDays: 90
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -101,16 +74,6 @@ function str(value: unknown, fallback: string): string {
   return typeof value === 'string' && value.trim() !== '' ? value : fallback
 }
 
-function template(value: unknown): AgentCommandTemplate {
-  if (typeof value !== 'object' || value === null) return DEFAULT_AGENT_COMMAND_TEMPLATE
-  const t = value as Partial<AgentCommandTemplate>
-  const args = Array.isArray(t.args) && t.args.every((a) => typeof a === 'string') ? t.args : null
-  if (!args || typeof t.command !== 'string' || t.command === '') {
-    return DEFAULT_AGENT_COMMAND_TEMPLATE
-  }
-  return { command: t.command, args }
-}
-
 /** Coerces anything read off disk (or sent from the renderer) into a valid shape. */
 export function normalizeSettings(raw: unknown): MainSettings {
   const r = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>
@@ -118,15 +81,18 @@ export function normalizeSettings(raw: unknown): MainSettings {
   return {
     prefilterThreshold: num(r['prefilterThreshold'], d.prefilterThreshold, 0, 5),
     model: str(r['model'], d.model),
+    agentEngine: AGENT_ENGINES.includes(r['agentEngine'] as AgentEngine)
+      ? (r['agentEngine'] as AgentEngine)
+      : d.agentEngine,
+    claudeBinaryPath: str(r['claudeBinaryPath'], d.claudeBinaryPath),
+    codexBinaryPath: str(r['codexBinaryPath'], d.codexBinaryPath),
     enrichmentEnabled: bool(r['enrichmentEnabled'], d.enrichmentEnabled),
     blockRemoteImages: bool(r['blockRemoteImages'], d.blockRemoteImages),
     syncIntervalMinutes: num(r['syncIntervalMinutes'], d.syncIntervalMinutes, 0, 1440),
     maxCandidatesPerRun: num(r['maxCandidatesPerRun'], d.maxCandidatesPerRun, 1, 1000),
     theme: THEMES.includes(r['theme'] as ThemePreference) ? (r['theme'] as ThemePreference) : d.theme,
     setupDismissed: bool(r['setupDismissed'], d.setupDismissed),
-    claudeBinaryPath: str(r['claudeBinaryPath'], d.claudeBinaryPath),
-    syncBackfillDays: num(r['syncBackfillDays'], d.syncBackfillDays, 1, 3650),
-    agentCommandTemplate: template(r['agentCommandTemplate'])
+    syncBackfillDays: num(r['syncBackfillDays'], d.syncBackfillDays, 1, 3650)
   }
 }
 
@@ -160,7 +126,8 @@ export function updateSettings(patch: Partial<MainSettings>): MainSettings {
   writeFileSync(tmp, JSON.stringify(next, null, 2), 'utf8')
   renameSync(tmp, path)
   cached = next
-  if ('claudeBinaryPath' in patch) claudeCache = null
+  if ('claudeBinaryPath' in patch) binaryCache.delete('claude')
+  if ('codexBinaryPath' in patch) binaryCache.delete('codex')
   return next
 }
 
@@ -185,15 +152,50 @@ export function resetSettings(): MainSettings {
  * the installers actually put it.
  * ──────────────────────────────────────────────────────────────────────────── */
 
-export type ClaudeBinarySource = 'setting' | 'path' | 'fallback' | 'unresolved'
+export type AgentBinarySource = 'setting' | 'path' | 'fallback' | 'unresolved'
 
-export interface ClaudeBinaryResolution {
+export interface AgentBinaryResolution {
   /** Always spawnable-as-is: an absolute path when found, else the raw setting. */
   path: string
-  source: ClaudeBinarySource
+  source: AgentBinarySource
   available: boolean
   /** Everything that was stat'd, for a "we looked here" diagnostic in Settings. */
   searched: string[]
+}
+
+/** Which settings key holds each engine's override. */
+const BINARY_PATH_KEY: Record<AgentEngine, 'claudeBinaryPath' | 'codexBinaryPath'> = {
+  claude: 'claudeBinaryPath',
+  codex: 'codexBinaryPath'
+}
+
+/**
+ * Node version managers install into a per-version directory, so the bin dir for
+ * an npm global like `codex` is only knowable by listing them. Missing dirs and
+ * unreadable ones are simply not candidates.
+ */
+function versionManagerBinDirs(): string[] {
+  const home = homedir()
+  const roots = [
+    join(home, '.nvm', 'versions', 'node'),
+    join(home, '.fnm', 'node-versions'),
+    join(home, '.local', 'share', 'mise', 'installs', 'node'),
+    join(home, '.asdf', 'installs', 'nodejs')
+  ]
+  const dirs: string[] = []
+  for (const root of roots) {
+    let entries: string[]
+    try {
+      entries = readdirSync(root)
+    } catch {
+      continue
+    }
+    for (const entry of entries) {
+      // fnm nests one level deeper (<version>/installation/bin).
+      dirs.push(join(root, entry, 'bin'), join(root, entry, 'installation', 'bin'))
+    }
+  }
+  return dirs
 }
 
 /** Dirs a GUI-launched app is missing. Searched, and prepended to the spawn PATH. */
@@ -209,7 +211,9 @@ export function guiPathDirs(): string[] {
     join(home, '.yarn', 'bin'),
     join(home, '.npm-global', 'bin'),
     join(home, '.volta', 'bin'),
-    join(home, 'go', 'bin')
+    join(home, '.deno', 'bin'),
+    join(home, 'go', 'bin'),
+    ...versionManagerBinDirs()
   ]
 }
 
@@ -223,29 +227,36 @@ function isExecutableFile(path: string): boolean {
   }
 }
 
-let claudeCache: ClaudeBinaryResolution | null = null
+const binaryCache = new Map<AgentEngine, AgentBinaryResolution>()
 
 /**
- * Resolves `claudeBinaryPath` to something spawnable. Cached; call with
- * `{ force: true }` (or change the setting) to re-probe.
+ * Resolves one engine's binary path setting to something spawnable. Cached per
+ * engine; call with `{ force: true }` (or change the setting) to re-probe.
  */
-export function resolveClaudeBinary(options?: { force?: boolean }): ClaudeBinaryResolution {
-  if (claudeCache && !options?.force) return claudeCache
+export function resolveAgentBinary(
+  engine: AgentEngine,
+  options?: { force?: boolean }
+): AgentBinaryResolution {
+  const hit = binaryCache.get(engine)
+  if (hit && !options?.force) return hit
 
-  const configured = getSetting('claudeBinaryPath')
+  const configured = str(getSetting(BINARY_PATH_KEY[engine]), AGENT_ENGINE_BINARY[engine])
   const searched: string[] = []
+  const settle = (r: AgentBinaryResolution): AgentBinaryResolution => {
+    binaryCache.set(engine, r)
+    return r
+  }
 
   // 1. An explicit path in settings wins outright.
   if (isAbsolute(configured) || configured.startsWith('.') || configured.includes('/')) {
     searched.push(configured)
     const ok = isExecutableFile(configured)
-    claudeCache = {
+    return settle({
       path: configured,
       source: ok ? 'setting' : 'unresolved',
       available: ok,
       searched
-    }
-    return claudeCache
+    })
   }
 
   // 2. A bare name: walk the inherited PATH ourselves (no shell, no `which`).
@@ -254,8 +265,7 @@ export function resolveClaudeBinary(options?: { force?: boolean }): ClaudeBinary
     const candidate = join(dir, configured)
     searched.push(candidate)
     if (isExecutableFile(candidate)) {
-      claudeCache = { path: candidate, source: 'path', available: true, searched }
-      return claudeCache
+      return settle({ path: candidate, source: 'path', available: true, searched })
     }
   }
 
@@ -265,18 +275,16 @@ export function resolveClaudeBinary(options?: { force?: boolean }): ClaudeBinary
     if (searched.includes(candidate)) continue
     searched.push(candidate)
     if (isExecutableFile(candidate)) {
-      claudeCache = { path: candidate, source: 'fallback', available: true, searched }
-      return claudeCache
+      return settle({ path: candidate, source: 'fallback', available: true, searched })
     }
   }
 
-  claudeCache = { path: configured, source: 'unresolved', available: false, searched }
-  return claudeCache
+  return settle({ path: configured, source: 'unresolved', available: false, searched })
 }
 
-/** Convenience for AppInfo.claudeCliAvailable. */
-export function isClaudeAvailable(): boolean {
-  return resolveClaudeBinary().available
+/** Convenience for AppInfo.agentCliAvailable — the SELECTED engine's binary. */
+export function isAgentCliAvailable(engine?: AgentEngine): boolean {
+  return resolveAgentBinary(engine ?? getSetting('agentEngine')).available
 }
 
 /**
@@ -289,45 +297,4 @@ export function agentSpawnEnv(extra?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const seen = new Set<string>()
   const path = merged.filter((d) => (seen.has(d) ? false : (seen.add(d), true))).join(delimiter)
   return { ...process.env, ...extra, PATH: path }
-}
-
-/* ────────────────────────────────────────────────────────────────────────────
- * command template rendering
- * ──────────────────────────────────────────────────────────────────────────── */
-
-export type AgentCommandVars = Record<string, string | string[] | null | undefined>
-
-const PLACEHOLDER = /\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g
-
-function interpolate(text: string, vars: AgentCommandVars): string {
-  return text.replace(PLACEHOLDER, (_m, name: string) => {
-    const value = vars[name]
-    if (value === null || value === undefined) return ''
-    return Array.isArray(value) ? value.join(' ') : value
-  })
-}
-
-/**
- * Expands a template into argv. An arg that is *exactly* one placeholder is
- * replaced by its value: an array splices in as multiple args, null/undefined
- * drops the arg entirely, and '' survives as an empty arg (that is how
- * `--tools ""` is expressed). Placeholders inside a larger string interpolate.
- */
-export function renderAgentCommand(
-  tpl: AgentCommandTemplate,
-  vars: AgentCommandVars
-): { command: string; args: string[] } {
-  const args: string[] = []
-  for (const arg of tpl.args) {
-    const exact = /^\{\{\s*([A-Za-z0-9_]+)\s*\}\}$/.exec(arg)
-    if (exact) {
-      const value = vars[exact[1]]
-      if (value === null || value === undefined) continue
-      if (Array.isArray(value)) args.push(...value)
-      else args.push(value)
-      continue
-    }
-    args.push(interpolate(arg, vars))
-  }
-  return { command: interpolate(tpl.command, vars), args }
 }

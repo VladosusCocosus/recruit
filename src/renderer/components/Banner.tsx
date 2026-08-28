@@ -1,7 +1,15 @@
 import type { ReactNode } from 'react'
-import { CLAUDE_NOT_SIGNED_IN_MESSAGE, type AgentErrorKind, type UpdateStatus } from '@shared/types'
+import {
+  AGENT_ENGINE_BINARY,
+  AGENT_ENGINE_LABEL,
+  agentNotSignedInMessage,
+  type AgentEngine,
+  type AgentErrorKind,
+  type UpdateStatus
+} from '@shared/types'
 import { Icon, type IconName } from './Icon'
 import { Button, IconButton } from './Button'
+import { useAppInfo } from './hooks'
 
 export type BannerTone = 'info' | 'warning' | 'danger' | 'success' | 'neutral'
 
@@ -62,16 +70,19 @@ export function Banner({
   )
 }
 
-/* ── the Claude Code sign-in state ───────────────────────────────────────────
+/* ── the agent sign-in state ─────────────────────────────────────────────────
    The brief calls this out explicitly: it WILL happen, it is not an edge case,
    and it must never degrade into a generic failure message. Title and remedy are
-   derived from the shared CLAUDE_NOT_SIGNED_IN_MESSAGE constant so the wording
-   here can never drift from what main reports.                                */
+   derived from the shared agentNotSignedInMessage() so the wording here can never
+   drift from what main reports — and so a signed-out Codex says `codex`, not
+   `claude`. The component keeps its original name deliberately: it is imported in
+   several views, and only the copy needed to become engine-aware.               */
 
-const [SIGNED_OUT_TITLE, SIGNED_OUT_REMEDY] = ((): [string, string] => {
-  const parts = CLAUDE_NOT_SIGNED_IN_MESSAGE.split(' — ')
-  return [parts[0] ?? CLAUDE_NOT_SIGNED_IN_MESSAGE, parts[1] ?? '']
-})()
+function signedOutParts(engine: AgentEngine): [string, string] {
+  const message = agentNotSignedInMessage(engine)
+  const parts = message.split(' — ')
+  return [parts[0] ?? message, parts[1] ?? '']
+}
 
 /** Splits "run `claude` in a terminal to log in" so the command renders as code. */
 function withInlineCode(text: string): ReactNode {
@@ -86,6 +97,15 @@ function withInlineCode(text: string): ReactNode {
   )
 }
 
+/**
+ * Which CLI the banners are talking about. Every one of them is rendered deep in a
+ * view that has no reason to thread the engine down by hand, and AppInfo is already
+ * cached, so they read it themselves. Claude Code until it loads — the default.
+ */
+function useAgentEngine(): AgentEngine {
+  return useAppInfo().data?.agentEngine ?? 'claude'
+}
+
 export interface ClaudeNotSignedInBannerProps {
   /** Optional retry — usually re-runs the last triage run. */
   onRetry?: () => void
@@ -96,12 +116,12 @@ export function ClaudeNotSignedInBanner({
   onRetry,
   onDismiss
 }: ClaudeNotSignedInBannerProps): JSX.Element {
-  const remedy = SIGNED_OUT_REMEDY
+  const [title, remedy] = signedOutParts(useAgentEngine())
   return (
     <Banner
       tone="warning"
       icon="terminal"
-      title={SIGNED_OUT_TITLE}
+      title={title}
       actions={
         onRetry ? (
           <Button size="sm" icon="refresh" onClick={onRetry}>
@@ -111,9 +131,7 @@ export function ClaudeNotSignedInBanner({
       }
       onDismiss={onDismiss}
     >
-      {remedy
-        ? withInlineCode(remedy.charAt(0).toUpperCase() + remedy.slice(1))
-        : withInlineCode(CLAUDE_NOT_SIGNED_IN_MESSAGE)}
+      {withInlineCode(remedy ? remedy.charAt(0).toUpperCase() + remedy.slice(1) : title)}
       . Recruit will pick up the session automatically once you have.
     </Banner>
   )
@@ -124,16 +142,17 @@ export interface ClaudeMissingBannerProps {
   onDismiss?: () => void
 }
 
-/** `claude` was never found on PATH — a different problem with a different fix. */
+/** The CLI was never found on PATH — a different problem with a different fix. */
 export function ClaudeMissingBanner({
   onOpenSettings,
   onDismiss
 }: ClaudeMissingBannerProps): JSX.Element {
+  const engine = useAgentEngine()
   return (
     <Banner
       tone="warning"
       icon="terminal"
-      title="Claude Code isn't installed"
+      title={`${AGENT_ENGINE_LABEL[engine]} isn't installed`}
       actions={
         onOpenSettings ? (
           <Button size="sm" onClick={onOpenSettings}>
@@ -143,8 +162,9 @@ export function ClaudeMissingBanner({
       }
       onDismiss={onDismiss}
     >
-      Recruit couldn&apos;t find the <code>claude</code> binary. Install Claude Code, or set its
-      path in Settings. Triage runs are unavailable until then.
+      Recruit couldn&apos;t find the <code>{AGENT_ENGINE_BINARY[engine]}</code> binary. Install{' '}
+      {AGENT_ENGINE_LABEL[engine]}, or set its path in Settings. Triage runs are unavailable
+      until then.
     </Banner>
   )
 }
@@ -168,6 +188,7 @@ export function AgentErrorBanner({
   onOpenSettings,
   onDismiss
 }: AgentErrorBannerProps): JSX.Element | null {
+  const label = AGENT_ENGINE_LABEL[useAgentEngine()]
   if (!kind || kind === 'stopped') return null
   if (kind === 'not_signed_in') {
     return <ClaudeNotSignedInBanner onRetry={onRetry} onDismiss={onDismiss} />
@@ -179,9 +200,9 @@ export function AgentErrorBanner({
     kind === 'timeout'
       ? 'The run timed out'
       : kind === 'spawn_failed'
-        ? "Couldn't start Claude Code"
+        ? `Couldn't start ${label}`
         : kind === 'bad_output'
-          ? "Claude Code returned something Recruit couldn't read"
+          ? `${label} returned something Recruit couldn't read`
           : 'The run failed'
   return (
     <Banner

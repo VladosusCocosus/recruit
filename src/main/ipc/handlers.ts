@@ -55,13 +55,14 @@ export function registerIpcHandlers(services: AppServices): void {
     platform: process.platform,
     userDataPath: app.getPath('userData'),
     dbPath: db.getDbPath() ?? '',
-    claudeCliAvailable: runner.isClaudeAvailable(),
+    agentEngine: getSettings().agentEngine,
+    agentCliAvailable: runner.isAgentCliAvailable(),
     setupGuideUrl: updates.setupGuideUrl()
   }))
 
-  // MainSettings extends AppSettings (it adds claudeBinaryPath / syncBackfillDays /
-  // agentCommandTemplate, which do not exist on the shared type). A superset satisfies
-  // the contract, so the extra keys simply ride along to the renderer unannounced.
+  // MainSettings extends AppSettings (it adds syncBackfillDays, which does not exist on
+  // the shared type). A superset satisfies the contract, so the extra key simply rides
+  // along to the renderer unannounced.
   handle('getSettings', () => getSettings())
 
   handle('updateSettings', (patch: Partial<AppSettings>) => {
@@ -147,6 +148,17 @@ export function registerIpcHandlers(services: AppServices): void {
 
   handle('setTriageState', async (messageIds, state) => {
     db.setTriageState(messageIds, state)
+  })
+
+  // Local read state. The IMAP session is never told — see the read-only note above.
+  handle('markMessagesRead', async (messageIds, read) => {
+    db.markMessagesRead(messageIds, read)
+  })
+
+  // Local soft delete, same deal: the message stays on the server, it just stops existing
+  // here. Reversible by design, which is why the renderer offers undo instead of a dialog.
+  handle('deleteMessages', async (messageIds, deleted) => {
+    db.deleteMessages(messageIds, deleted)
   })
 
   handle('rescorePrefilter', () => mail.rescore())

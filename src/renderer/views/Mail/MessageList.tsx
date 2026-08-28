@@ -7,7 +7,7 @@
  * Presentational — MailView owns the data hook.
  */
 
-import type { UIEvent } from 'react'
+import { useEffect, useRef, type UIEvent } from 'react'
 import type { MessageSummary } from '@shared/types'
 import {
   CountBadge,
@@ -67,11 +67,33 @@ export function MessageList({
   runDisabled,
   runningMessageId
 }: MessageListProps): JSX.Element {
+  const bodyRef = useRef<HTMLDivElement | null>(null)
+  const scrolledFor = useRef<number | null>(null)
+
   const onScroll = (event: UIEvent<HTMLDivElement>): void => {
     if (!hasMore || loadingMore || loading) return
     const el = event.currentTarget
     if (el.scrollHeight - el.scrollTop - el.clientHeight < LOAD_MORE_SLACK_PX) onLoadMore()
   }
+
+  /**
+   * Keep the selected row on screen. Rows come from a deep link as often as from a click
+   * now, and a linked message can sit hundreds of rows down. `nearest` makes the click case
+   * a no-op — the row is already visible — and `scrolledFor` keeps a later page append from
+   * yanking the viewport back to a selection the user has since scrolled away from.
+   *
+   * Positional lookup rather than a ref per row: MessageRow is memoized and the rows render
+   * in `rows` order, so the nth [role=option] is the nth row.
+   */
+  useEffect(() => {
+    if (selectedId == null || scrolledFor.current === selectedId) return
+    const index = rows.findIndex((row) => row.id === selectedId)
+    if (index < 0) return
+    scrolledFor.current = selectedId
+    bodyRef.current?.querySelectorAll('[role="option"]')[index]?.scrollIntoView({
+      block: 'nearest'
+    })
+  }, [selectedId, rows])
 
   const searching = search.trim().length > 0
 
@@ -105,7 +127,12 @@ export function MessageList({
 
       {/* Not <PaneBody>: infinite paging needs the scroll event, which that primitive does
           not forward. Same class, same styling. */}
-      <div className="pane-body mail-list-body" onScroll={onScroll} role="listbox">
+      <div
+        className="pane-body mail-list-body"
+        ref={bodyRef}
+        onScroll={onScroll}
+        role="listbox"
+      >
         {error ? (
           <EmptyState
             icon="alert"

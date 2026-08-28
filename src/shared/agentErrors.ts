@@ -11,27 +11,37 @@
 import {
   CLAUDE_AUTH_ERROR_MARKER,
   CLAUDE_NOT_SIGNED_IN_MESSAGE,
+  CODEX_NOT_SIGNED_IN_MESSAGE,
   type AgentErrorKind
 } from './types'
 
 /**
- * Anything that means "the CLI has no usable credentials". Includes the exact message the
+ * Anything that means "the CLI has no usable credentials". Includes the exact messages the
  * runner itself stores, because on re-read that string may be all that survives.
+ *
+ * The last three are Codex's shape of the same condition: it reports a signed-out session
+ * as a 401 from the OpenAI endpoint rather than as prose. The host is part of the pattern
+ * on purpose — the tracker's own MCP listener answers 401 for a stale run token, and that
+ * is a bug in this app, not a reason to tell the user to log in again.
  */
 const AUTH_PATTERNS: RegExp[] = [
   new RegExp(escapeLiteral(CLAUDE_AUTH_ERROR_MARKER), 'i'),
   new RegExp(escapeLiteral(CLAUDE_NOT_SIGNED_IN_MESSAGE), 'i'),
+  new RegExp(escapeLiteral(CODEX_NOT_SIGNED_IN_MESSAGE), 'i'),
   /invalid api key/i,
   /authentication_error/i,
   /not logged in/i,
   /isn['’]t signed in/i,
-  /please run\s+.{0,3}(?:\/login|claude)/i,
+  /please run\s+.{0,3}(?:\/login|claude|codex)/i,
   /oauth token (?:has )?expired/i,
   /credentials? (?:not found|missing|expired)/i,
-  /credit balance is too low/i
+  /credit balance is too low/i,
+  /missing bearer or basic authentication/i,
+  /401 unauthorized[^\n]*\bopenai\.com/i,
+  /run `codex` (?:login|in a terminal)/i
 ]
 
-const CLI_MISSING = /enoent|command not found|not found on path|is not recognized|claude:? (?:cli )?(?:was )?not found|no such file or directory/i
+const CLI_MISSING = /enoent|command not found|not found on path|is not recognized|(?:claude|codex):? (?:cli )?(?:was )?not found|no such file or directory/i
 const STOPPED = /\bstopped\b|aborted|sigterm|sigkill|cancell?ed/i
 const TIMEOUT = /timed?[ -]?out|timeout/i
 const SPAWN_FAILED = /spawn|failed to start|eacces|eperm/i

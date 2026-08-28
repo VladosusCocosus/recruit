@@ -6,13 +6,20 @@
 import type { ViewProps } from '@renderer/App'
 import { MailView } from './MailView'
 
-export default function CandidatesView({ navigate, refreshCounts }: ViewProps): JSX.Element {
+export default function CandidatesView({
+  navigate,
+  focus,
+  focusNonce,
+  refreshCounts
+}: ViewProps): JSX.Element {
   return (
     <MailView
       mode="candidates"
       onModeChange={navigate}
       onCountsChanged={refreshCounts}
-      onOpenItem={() => navigate('board')}
+      onOpenItem={(itemId) => navigate('board', { item: itemId })}
+      focusMessageId={focus?.kind === 'message' ? focus.id : null}
+      focusNonce={focusNonce}
     />
   )
 }

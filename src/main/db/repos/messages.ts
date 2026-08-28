@@ -74,36 +74,52 @@ export type PrefilterInput = PrefilterMessage & { id: number }
 
 const LINKED = '(SELECT group_concat(im.item_id) FROM item_messages im WHERE im.message_id = m.id) AS linked_item_ids'
 
+/**
+ * A soft-deleted message does not exist as far as reads are concerned (migration 003). Every
+ * query here that can put a message — or a count of messages — in front of the user or the
+ * agent carries this. The two that deliberately do not are maxUid() and getPrefilterContext();
+ * both say why at the call site.
+ */
+const LIVE = 'm.deleted_at IS NULL'
+
 /** Everything except the two body columns — the mail list must stay cheap. */
 const SUMMARY_COLUMNS = `
   m.id, m.account_id, m.folder, m.uid, m.uid_validity, m.message_id, m.in_reply_to,
   m.references_json, m.thread_key, m.from_name, m.from_addr, m.from_domain, m.to_json,
   m.cc_json, m.subject, m.date_utc, m.snippet, m.list_unsubscribe, m.has_attachments,
-  m.flags_json, m.prefilter_score, m.prefilter_reasons_json, m.triage_state, m.fetched_at,
-  ${LINKED}`
+  m.flags_json, m.prefilter_score, m.prefilter_reasons_json, m.triage_state, m.read_at,
+  m.fetched_at, ${LINKED}`
 
 const FULL_COLUMNS = `m.*, ${LINKED}`
 
 /* ── reads ──────────────────────────────────────────────────────────────── */
 
+/** null for a deleted message — the reader shows its "Message not available" state. */
 export function getMessage(messageId: number): Message | null {
-  const row = queryOne<MessageRow>(`SELECT ${FULL_COLUMNS} FROM messages m WHERE m.id = ?`, messageId)
+  const row = queryOne<MessageRow>(
+    `SELECT ${FULL_COLUMNS} FROM messages m WHERE m.id = ? AND ${LIVE}`,
+    messageId
+  )
   return row ? rowToMessage(row, listAttachments(messageId)) : null
 }
 
 export function getMessageSummary(messageId: number): MessageSummary | null {
   const row = queryOne<MessageRow>(
-    `SELECT ${SUMMARY_COLUMNS} FROM messages m WHERE m.id = ?`,
+    `SELECT ${SUMMARY_COLUMNS} FROM messages m WHERE m.id = ? AND ${LIVE}`,
     messageId
   )
   return row ? rowToMessageSummary(row) : null
 }
 
+/**
+ * Also the agent's `listRunMessages` and the review queue's ProposalCard.messages: a deleted
+ * message drops out of both rather than being served from a stale id list.
+ */
 export function listMessagesByIds(messageIds: number[]): MessageSummary[] {
   if (!messageIds.length) return []
   return queryAll<MessageRow>(
     `SELECT ${SUMMARY_COLUMNS} FROM messages m
-     WHERE m.id IN (${placeholders(messageIds.length)})
+     WHERE m.id IN (${placeholders(messageIds.length)}) AND ${LIVE}
      ORDER BY m.date_utc DESC, m.id DESC`,
     ...messageIds
   ).map(rowToMessageSummary)
@@ -115,7 +131,9 @@ interface WhereParts {
 }
 
 function buildWhere(query: MessageQuery): WhereParts {
-  const clauses: string[] = []
+  // Unconditional, and first: MessageQuery has no way to ask for deleted mail, so both the
+  // page and the `total` it is counted against are always over live rows.
+  const clauses: string[] = [LIVE]
   const params: unknown[] = []
 
   if (query.accountId !== undefined) {
@@ -149,7 +167,7 @@ function buildWhere(query: MessageQuery): WhereParts {
     clauses.push('NOT EXISTS (SELECT 1 FROM item_messages im2 WHERE im2.message_id = m.id)')
   }
 
-  return { sql: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '', params }
+  return { sql: `WHERE ${clauses.join(' AND ')}`, params }
 }
 
 export function listMessages(query: MessageQuery = {}): MessageListPage {
@@ -173,7 +191,7 @@ export function listMessages(query: MessageQuery = {}): MessageListPage {
 export function listCandidates(limit = 200): MessageSummary[] {
   return queryAll<MessageRow>(
     `SELECT ${SUMMARY_COLUMNS} FROM messages m
-     WHERE m.triage_state = 'candidate'
+     WHERE m.triage_state = 'candidate' AND ${LIVE}
      ORDER BY m.prefilter_score DESC, m.date_utc DESC, m.id DESC
      LIMIT ?`,
     limit
@@ -189,33 +207,43 @@ export function listAttachments(messageId: number): Attachment[] {
 
 export function countMessages(accountId?: number): number {
   return accountId === undefined
-    ? count('SELECT count(*) FROM messages')
-    : count('SELECT count(*) FROM messages WHERE account_id = ?', accountId)
+    ? count(`SELECT count(*) FROM messages m WHERE ${LIVE}`)
+    : count(`SELECT count(*) FROM messages m WHERE ${LIVE} AND m.account_id = ?`, accountId)
 }
 
 export function countCandidates(): number {
-  return count("SELECT count(*) FROM messages WHERE triage_state = 'candidate'")
+  return count(`SELECT count(*) FROM messages m WHERE m.triage_state = 'candidate' AND ${LIVE}`)
 }
 
 export function countByTriageState(state: TriageState): number {
-  return count('SELECT count(*) FROM messages WHERE triage_state = ?', state)
+  return count(`SELECT count(*) FROM messages m WHERE m.triage_state = ? AND ${LIVE}`, state)
 }
 
 /**
- * Unread = the \Seen flag is absent. flags_json holds a JSON array, so the escaped
- * flag reads as "\\Seen" in the stored text — match on the bare word.
+ * Unread = the \Seen flag is absent AND the user has not opened it here. flags_json holds a
+ * JSON array, so the escaped flag reads as "\\Seen" in the stored text — match on the bare
+ * word. Must stay in step with rowToMessageSummary's isUnread, which the rail badge is
+ * counting rows for.
+ *
+ * Deleting an unread message drops it out of this count, which is why the optimistic patch in
+ * useMessages has to concede the badge the same way.
  */
 export function countUnread(accountId?: number): number {
-  const scope = accountId === undefined ? '' : 'AND account_id = ?'
+  const scope = accountId === undefined ? '' : 'AND m.account_id = ?'
   const params = accountId === undefined ? [] : [accountId]
   return count(
-    `SELECT count(*) FROM messages
-     WHERE (flags_json IS NULL OR flags_json NOT LIKE '%Seen%') ${scope}`,
+    `SELECT count(*) FROM messages m
+     WHERE m.read_at IS NULL AND (m.flags_json IS NULL OR m.flags_json NOT LIKE '%Seen%')
+       AND ${LIVE} ${scope}`,
     ...params
   )
 }
 
-/** Highest UID stored for a folder — the IMAP sync resumes from here. */
+/**
+ * Highest UID stored for a folder — the IMAP sync resumes from here. Deliberately counts
+ * deleted rows: this is a position in the server's UID space, not a message the user can see,
+ * and skipping a deleted UID would make every poll re-fetch it forever.
+ */
 export function maxUid(accountId: number, folder: string, uidValidity: number): number | null {
   const row = queryOne<{ max_uid: number | null }>(
     `SELECT MAX(uid) AS max_uid FROM messages
@@ -252,6 +280,13 @@ export function replaceAttachments(messageId: number, attachments: AttachmentInp
  * On re-fetch, omitted fields are PRESERVED (COALESCE), not cleared — an envelope-only
  * pass followed by a body-only pass is a normal IMAP pattern and must not lose data.
  * triage_state is likewise kept unless the caller explicitly sets one.
+ *
+ * read_at and deleted_at are not in the UPDATE at all, on purpose: a re-fetch refreshes
+ * flags_json, and if it also cleared the local state every sync pass would turn the whole inbox
+ * unread again and undelete everything the user deleted. That is not hypothetical for
+ * deleted_at — MailSync re-fetches the entire backfill window whenever lastUid is 0 (a fresh
+ * account row, or a UIDVALIDITY reset), and each of those re-fetches lands here as an UPDATE on
+ * the existing (account_id, folder, uid_validity, uid) row. Deleted stays deleted.
  */
 export function upsertMessage(input: MessageUpsertInput): UpsertMessageResult {
   return transact(() => {
@@ -362,6 +397,36 @@ export function setTriageState(messageIds: number[], state: TriageState): void {
 }
 
 /**
+ * The local read state, and the only writer of read_at. v1 never touches IMAP flags, so
+ * marking a message unread again cannot un-set \Seen — it just clears this column, and a
+ * message the server already reports as seen stays read.
+ */
+export function markMessagesRead(messageIds: number[], read: boolean): void {
+  if (!messageIds.length) return
+  execute(
+    `UPDATE messages SET read_at = ? WHERE id IN (${placeholders(messageIds.length)})`,
+    read ? nowIso() : null,
+    ...messageIds
+  )
+}
+
+/**
+ * The local delete, and the only writer of deleted_at. Soft by construction: the row, its
+ * attachments and every foreign key into it (item_messages, agent_run_messages, proposals)
+ * survive untouched, so `deleted = false` is a complete undo and nothing downstream ever sees
+ * a dangling id. The server is not told — v1 mail is read-only, and the message is still in
+ * the mailbox on the next device.
+ */
+export function deleteMessages(messageIds: number[], deleted: boolean): void {
+  if (!messageIds.length) return
+  execute(
+    `UPDATE messages SET deleted_at = ? WHERE id IN (${placeholders(messageIds.length)})`,
+    deleted ? nowIso() : null,
+    ...messageIds
+  )
+}
+
+/**
  * Stores a prefilter verdict. Only moves the message between 'unseen' and 'candidate' —
  * a message the user or the agent already handled keeps its state.
  */
@@ -390,12 +455,18 @@ export function setPrefilterResult(
 
 /* ── prefilter feed ─────────────────────────────────────────────────────── */
 
-/** Every stored message id, oldest first. Chunk these into getPrefilterInputs for a rescore. */
+/** Every live message id, oldest first. Chunk these into getPrefilterInputs for a rescore. */
 export function listMessageIdsForPrefilter(): number[] {
-  return queryAll<{ id: number }>('SELECT id FROM messages ORDER BY id').map((r) => r.id)
+  return queryAll<{ id: number }>(`SELECT m.id FROM messages m WHERE ${LIVE} ORDER BY m.id`).map(
+    (r) => r.id
+  )
 }
 
-/** Exactly the columns PrefilterMessage exposes — nothing wider reaches the scorer. */
+/**
+ * Exactly the columns PrefilterMessage exposes — nothing wider reaches the scorer. Ids come
+ * from listMessageIdsForPrefilter, which is already filtered; carrying the filter here too
+ * means a caller-supplied list cannot feed a deleted body back into scoring either.
+ */
 export function getPrefilterInputs(messageIds: number[]): PrefilterInput[] {
   if (!messageIds.length) return []
   const marks = placeholders(messageIds.length)
@@ -409,8 +480,9 @@ export function getPrefilterInputs(messageIds: number[]): PrefilterInput[] {
     thread_key: string | null
     list_unsubscribe: string | null
   }>(
-    `SELECT id, from_addr, from_domain, subject, body_text, body_html, thread_key, list_unsubscribe
-     FROM messages WHERE id IN (${marks})`,
+    `SELECT m.id, m.from_addr, m.from_domain, m.subject, m.body_text, m.body_html, m.thread_key,
+            m.list_unsubscribe
+     FROM messages m WHERE m.id IN (${marks}) AND ${LIVE}`,
     ...messageIds
   )
   const attachments = queryAll<{
@@ -449,7 +521,13 @@ export function listMessagesForPrefilter(): PrefilterInput[] {
   return getPrefilterInputs(listMessageIdsForPrefilter())
 }
 
-/** The two live signal sets the prefilter scores against. Satisfies PrefilterContext. */
+/**
+ * The two live signal sets the prefilter scores against. Satisfies PrefilterContext.
+ *
+ * Deliberately does not filter deleted_at: these are the domains and threads the user has
+ * TRACKED, and deleting one message out of a linked thread is not a statement that the thread
+ * stopped mattering. Nothing here is a message — only strings the scorer matches against.
+ */
 export function getPrefilterContext(): {
   itemDomains: Set<string>
   linkedThreadKeys: Set<string>

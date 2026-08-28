@@ -7,7 +7,8 @@
 import './index.css'
 
 import { useCallback } from 'react'
-import type { AppCounts, NavKey, SyncStatus } from '@shared/types'
+import { AGENT_ENGINE_LABEL, type AppCounts, type NavKey, type SyncStatus } from '@shared/types'
+import type { Navigate, RouteTarget } from '@renderer/components'
 import {
   AgentErrorBanner,
   EmptyState,
@@ -53,8 +54,17 @@ import UpNextView from './views/UpNext/UpNextView'
    ════════════════════════════════════════════════════════════════════════════ */
 
 export interface ViewProps {
-  /** Switch top-level views. Updates the hash, so back/forward keep working. */
-  navigate: (key: NavKey) => void
+  /**
+   * Switch top-level views, optionally deep-linking one row:
+   * `navigate('inbox', { message: 12 })`. Updates the hash, so back/forward keep working.
+   */
+  navigate: Navigate
+  /**
+   * What the hash points at, if anything. A view honours a target of its own kind and
+   * ignores the rest — `focusNonce` says when, so re-following the same link still lands.
+   */
+  focus: RouteTarget | null
+  focusNonce: number
   counts: AppCounts
   /** Force a badge refresh. Counts also self-refresh on main's change events. */
   refreshCounts: () => void
@@ -90,7 +100,8 @@ export default function App(): JSX.Element {
 }
 
 function Shell(): JSX.Element {
-  const [nav, navigate] = useHashRoute('inbox')
+  const [route, navigate] = useHashRoute('inbox')
+  const nav = route.nav
   const settings = useSettings()
   const update = useUpdate()
   const { counts, reload: refreshCounts } = useCounts()
@@ -103,7 +114,10 @@ function Shell(): JSX.Element {
   useTheme(settings.settings?.theme)
 
   const account = accounts.data?.[0] ?? null
-  const claudeMissing = appInfo.data ? !appInfo.data.claudeCliAvailable : false
+  const agentCliMissing = appInfo.data ? !appInfo.data.agentCliAvailable : false
+  const agentCliMissingReason = appInfo.data
+    ? `${AGENT_ENGINE_LABEL[appInfo.data.agentEngine]} isn't installed`
+    : null
 
   const startRun = useCallback(() => void run.start({ kind: 'triage' }), [run])
   const syncNow = useCallback(() => void sync.syncNow(), [sync])
@@ -114,8 +128,8 @@ function Shell(): JSX.Element {
     onRun: startRun,
     syncing: sync.busy,
     running: run.active !== null,
-    runDisabledReason: claudeMissing
-      ? "Claude Code isn't installed"
+    runDisabledReason: agentCliMissing
+      ? agentCliMissingReason
       : counts.candidates === 0
         ? 'No candidate messages yet'
         : null
@@ -163,7 +177,7 @@ function Shell(): JSX.Element {
             elapsedMs={run.elapsedMs}
             onStart={startRun}
             onStop={() => void run.stop()}
-            disabledReason={claudeMissing ? "Claude Code isn't installed" : null}
+            disabledReason={agentCliMissing ? agentCliMissingReason : null}
           />
         </Toolbar>
 
@@ -211,7 +225,13 @@ function Shell(): JSX.Element {
                   }}
                 />
               ) : View ? (
-                <View navigate={navigate} counts={counts} refreshCounts={refreshCounts} />
+                <View
+                  navigate={navigate}
+                  focus={route.target}
+                  focusNonce={route.nonce}
+                  counts={counts}
+                  refreshCounts={refreshCounts}
+                />
               ) : (
                 <LoadingState />
               )}
