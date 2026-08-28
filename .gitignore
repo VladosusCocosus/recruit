@@ -13,3 +13,8 @@ coverage/
 .env
 .env.local
 release/
+
+# Launch and marketing copy: drafts, unpublished positioning, anything written
+# for an announcement rather than for the product. Kept out of the repo so it
+# cannot ship with a public checkout.
+launch/
