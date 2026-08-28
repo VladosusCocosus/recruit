@@ -87,6 +87,15 @@ export function isFutureEvent(ev: TimelineEvent, now: number = Date.now()): bool
   return (parse(ev.endsAt) ?? start) >= now
 }
 
+/**
+ * Date of the most recent linked email, or null when nothing is linked yet. Unlike
+ * `lastActivityAt` this never falls back to `updated_at` — linking or editing an item
+ * bumps that to sync time, which would read as "we just heard from them".
+ */
+export function lastMessageAt(item: Item | ItemSummary): string | null {
+  return (item as Partial<ItemSummary>).lastMessageAt ?? null
+}
+
 /** Last thing that happened on an item, whatever the db could tell us. */
 export function lastActivityAt(item: Item | ItemSummary): string {
   return (item as Partial<ItemSummary>).lastActivityAt ?? item.updatedAt ?? item.createdAt

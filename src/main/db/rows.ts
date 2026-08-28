@@ -267,6 +267,8 @@ export interface ItemRow {
 export interface ItemSummaryRow extends ItemRow {
   message_count: number
   event_count: number
+  /** max(messages.date_utc) over the linked mail. Null when nothing is linked. */
+  last_message_at: string | null
   last_activity_at: string | null
 }
 
@@ -304,6 +306,7 @@ export function rowToItemSummary(
     messageCount: row.message_count ?? 0,
     eventCount: row.event_count ?? 0,
     nextEvent,
+    lastMessageAt: row.last_message_at ?? null,
     lastActivityAt: row.last_activity_at ?? row.updated_at
   }
 }

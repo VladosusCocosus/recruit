@@ -40,6 +40,7 @@ export {
   formatAllDayRange,
   staleness,
   lastActivityAt,
+  lastMessageAt,
   toLocalInputValue,
   fromLocalInputValue
 } from './format'

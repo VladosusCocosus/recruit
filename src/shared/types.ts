@@ -256,6 +256,11 @@ export interface ItemSummary extends Item {
   messageCount: number
   eventCount: number
   nextEvent: TimelineEvent | null
+  /**
+   * Date of the most recent linked message — when this thread last moved, as opposed
+   * to `lastActivityAt`, which also counts row edits. Null when no mail is linked.
+   */
+  lastMessageAt: string | null
   lastActivityAt: string | null
 }
 

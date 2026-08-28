@@ -6,18 +6,25 @@ import { useMemo, useState } from 'react'
 import type { CloseReason, ItemSummary } from '@shared/types'
 import type { JSX } from 'react'
 import { Button, EmptyState, StatusBadge } from '@renderer/components'
-import { eventWhen, formatCountdown, formatRelative, lastActivityAt, staleness } from './format'
+import {
+  eventWhen,
+  formatCountdown,
+  formatDateTime,
+  formatRelative,
+  lastMessageAt,
+  staleness
+} from './format'
 import { closeReasonLabel, StatusSelect } from './StatusSelect'
 import type { StatusIndex } from './useTracker'
 
-type SortKey = 'company' | 'role' | 'status' | 'next' | 'activity'
+type SortKey = 'company' | 'role' | 'status' | 'next' | 'lastMessage'
 
 const COLUMNS: ReadonlyArray<{ key: SortKey; label: string; className?: string }> = [
   { key: 'company', label: 'Company' },
   { key: 'role', label: 'Role' },
   { key: 'status', label: 'Status', className: 'col-status' },
   { key: 'next', label: 'Next', className: 'col-next' },
-  { key: 'activity', label: 'Last activity', className: 'col-activity' }
+  { key: 'lastMessage', label: 'Last message', className: 'col-last-message' }
 ]
 
 function compare(a: ItemSummary, b: ItemSummary, key: SortKey, statusIndex: StatusIndex): number {
@@ -40,8 +47,16 @@ function compare(a: ItemSummary, b: ItemSummary, key: SortKey, statusIndex: Stat
       if (!bn) return -1
       return an.localeCompare(bn)
     }
-    case 'activity':
-      return lastActivityAt(b).localeCompare(lastActivityAt(a))
+    case 'lastMessage': {
+      // Most recent mail first. Items with no mail are parked at the end afterwards,
+      // in both directions — see `rows`.
+      const am = lastMessageAt(a)
+      const bm = lastMessageAt(b)
+      if (!am && !bm) return a.company.localeCompare(b.company)
+      if (!am) return 1
+      if (!bm) return -1
+      return bm.localeCompare(am)
+    }
     default:
       return 0
   }
@@ -64,12 +79,19 @@ export function ItemList({
   onChangeStatus: (itemId: number, statusKey: string, closeReason: CloseReason | null) => void
   onCreateItem?: () => void
 }): JSX.Element {
-  const [sort, setSort] = useState<SortKey>('activity')
+  const [sort, setSort] = useState<SortKey>('lastMessage')
   const [desc, setDesc] = useState(false)
 
   const rows = useMemo(() => {
     const sorted = [...items].sort((a, b) => compare(a, b, sort, statusIndex))
-    return desc ? sorted.reverse() : sorted
+    if (desc) sorted.reverse()
+    // Flipping to oldest-first is how you find the threads that have gone quiet, and a
+    // row with no mail has no answer to "how long ago?" — park those at the end either
+    // way instead of letting the flip float a wall of blanks to the top.
+    if (sort === 'lastMessage') {
+      return [...sorted.filter((i) => lastMessageAt(i)), ...sorted.filter((i) => !lastMessageAt(i))]
+    }
+    return sorted
   }, [items, sort, desc, statusIndex])
 
   if (items.length === 0) {
@@ -121,6 +143,7 @@ export function ItemList({
           const status = statusIndex.byKey.get(item.statusKey)
           const kind = statusIndex.kindOf(item)
           const stale = staleness(item, kind, now)
+          const lastMessage = lastMessageAt(item)
           const reason = closeReasonLabel(item.closeReason)
           return (
             <tr
@@ -156,8 +179,14 @@ export function ItemList({
                   <span className="tertiary">—</span>
                 )}
               </td>
-              <td className="col-activity tertiary tabular">
-                {formatRelative(lastActivityAt(item), now)}
+              <td className="col-last-message tertiary tabular">
+                {lastMessage ? (
+                  <span title={formatDateTime(lastMessage)}>
+                    {formatRelative(lastMessage, now)}
+                  </span>
+                ) : (
+                  '—'
+                )}
               </td>
               <td className="col-actions" onClick={(e) => e.stopPropagation()}>
                 <StatusSelect
