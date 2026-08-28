@@ -174,6 +174,7 @@ function itemDigest(
           kind: i.nextEvent.kind,
         }
       : null,
+    last_message_at: i.lastMessageAt,
     last_activity_at: i.lastActivityAt,
     updated_at: i.updatedAt,
     archived: Boolean(i.archivedAt),

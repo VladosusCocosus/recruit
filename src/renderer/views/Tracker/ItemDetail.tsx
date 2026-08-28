@@ -26,7 +26,7 @@ import type { JSX } from 'react'
 import type { ItemDetail as ItemDetailData, ItemPatch, WorkMode } from '@shared/types'
 import { AddEntry } from './AddEntry'
 import { Description } from './Description'
-import { lastActivityAt, staleness } from './format'
+import { formatDateTime, lastMessageAt, staleness } from './format'
 import { closeReasonLabel, StatusSelect } from './StatusSelect'
 import { Timeline } from './Timeline'
 import { useItemDetail, type StatusIndex } from './useTracker'
@@ -197,6 +197,7 @@ export function ItemDetail({
   const kind = statusIndex.kindOf(detail)
   const reason = closeReasonLabel(detail.closeReason)
   const stale = staleness(detail, kind, now)
+  const lastMessage = lastMessageAt(detail)
 
   return (
     <div className="item-detail">
@@ -229,7 +230,7 @@ export function ItemDetail({
           {reason ? <Chip>{reason}</Chip> : null}
           {detail.archivedAt ? <Chip>Archived</Chip> : null}
           {stale.stale ? (
-            <span className="chip is-stale" title={`No activity for ${stale.days} days`}>
+            <span className="chip is-stale" title={`Nothing heard for ${stale.days} days`}>
               Stale · {stale.days}d quiet
             </span>
           ) : null}
@@ -254,8 +255,17 @@ export function ItemDetail({
             </Chip>
           ) : null}
           <span className="tertiary detail-dates">
-            Added {formatListDate(detail.createdAt, now)} · last activity{' '}
-            {formatRelative(lastActivityAt(detail), now)}
+            Added {formatListDate(detail.createdAt, now)} ·{' '}
+            {lastMessage ? (
+              <>
+                last message{' '}
+                <span title={formatDateTime(lastMessage)}>
+                  {formatRelative(lastMessage, now)}
+                </span>
+              </>
+            ) : (
+              'no messages yet'
+            )}
           </span>
         </div>
 

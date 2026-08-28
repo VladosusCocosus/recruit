@@ -5,7 +5,7 @@
 import { Chip, Icon, initials } from '@renderer/components'
 import type { CloseReason, ItemSummary } from '@shared/types'
 import type { DragEvent, JSX } from 'react'
-import { eventWhen, formatCountdown, formatRelative, lastActivityAt, staleness } from './format'
+import { eventWhen, formatCountdown, formatRelative, lastContactAt, staleness } from './format'
 import { StatusSelect } from './StatusSelect'
 import type { StatusIndex } from './useTracker'
 
@@ -74,8 +74,8 @@ export function ItemCard({
         {stale.stale ? (
           <span
             className="stale-dot"
-            title={`No activity for ${stale.days} days — last was ${formatRelative(
-              lastActivityAt(item),
+            title={`Nothing heard for ${stale.days} days — last contact ${formatRelative(
+              lastContactAt(item),
               now
             )}`}
           >

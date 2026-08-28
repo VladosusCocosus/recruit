@@ -321,7 +321,7 @@
   max-width: 230px;
 }
 
-.item-table .col-activity {
+.item-table .col-last-message {
   white-space: nowrap;
   font-size: var(--fs-sm);
 }
