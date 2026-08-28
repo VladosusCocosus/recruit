@@ -26,9 +26,9 @@ const KIND_ICON: Record<TimelineEventKind, IconName> = {
 function sourceChip(source: TimelineEvent['source']): ReactNode {
   if (source === 'agent') {
     return (
-      <span className="chip is-agent" title="Added by Claude from your mail">
+      <span className="chip is-agent" title="Added by the agent from your mail">
         <Icon name="sparkle" size={10} />
-        Claude
+        Agent
       </span>
     )
   }
