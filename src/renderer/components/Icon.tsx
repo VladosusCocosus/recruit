@@ -22,6 +22,7 @@ export type IconName =
   | 'refresh'
   | 'plus'
   | 'chevronRight'
+  | 'chevronLeft'
   | 'mail'
   | 'link'
   | 'search'
@@ -122,6 +123,7 @@ const PATHS: Record<IconName, JSX.Element> = {
   ),
   plus: <path d="M8 3.4v9.2M3.4 8h9.2" {...STROKE} />,
   chevronRight: <path d="m6.2 3.6 4.4 4.4-4.4 4.4" {...STROKE} />,
+  chevronLeft: <path d="m9.8 3.6-4.4 4.4 4.4 4.4" {...STROKE} />,
   mail: (
     <g {...STROKE}>
       <rect x="1.9" y="3.4" width="12.2" height="9.2" rx="1.6" />

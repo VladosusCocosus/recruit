@@ -59,9 +59,9 @@ export function registerIpcHandlers(services: AppServices): void {
     setupGuideUrl: updates.setupGuideUrl()
   }))
 
-  // MainSettings extends AppSettings (it adds claudeBinaryPath / syncBackfillDays /
-  // agentCommandTemplate, which do not exist on the shared type). A superset satisfies
-  // the contract, so the extra keys simply ride along to the renderer unannounced.
+  // MainSettings extends AppSettings with agentCommandTemplate, which does not exist
+  // on the shared type. A superset satisfies the contract, so that one key rides along
+  // to the renderer unannounced.
   handle('getSettings', () => getSettings())
 
   handle('updateSettings', (patch: Partial<AppSettings>) => {
@@ -99,6 +99,12 @@ export function registerIpcHandlers(services: AppServices): void {
       throw new Error(`Refusing to open ${parsed.protocol} link`)
     }
     await shell.openExternal(parsed.toString())
+  })
+
+  handle('revealDatabase', async () => {
+    const path = db.getDbPath()
+    if (!path) throw new Error('The database has no path on disk yet')
+    shell.showItemInFolder(path)
   })
 
   /* ── accounts ───────────────────────────────────────────────────────────── */

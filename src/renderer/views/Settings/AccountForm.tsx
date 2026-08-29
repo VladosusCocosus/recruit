@@ -6,12 +6,9 @@ import type {
   ConnectionTestResult
 } from '@shared/types'
 import {
+  type AsyncState,
   Banner,
   Button,
-  ButtonGroup,
-  Field,
-  FieldRow,
-  FormSection,
   Icon,
   NumberInput,
   Select,
@@ -20,6 +17,7 @@ import {
   errorMessage,
   useAppInfo
 } from '@renderer/components'
+import { SettingsBlock, SettingsRow } from './SettingsGroup'
 
 /* ── provider presets ────────────────────────────────────────────────────── */
 
@@ -82,8 +80,8 @@ const PRESETS: Record<string, Preset | null> = {
     unsupported:
       'Microsoft has removed password sign-in from IMAP and SMTP — Outlook.com in September ' +
       '2024, Exchange Online mailboxes before that, and SMTP AUTH on 30 April 2026. OAuth is ' +
-      'the only way in, and Recruit has no OAuth client, so this account will fail to ' +
-      'authenticate. Forward the mail to a mailbox Recruit can read instead.'
+      'the only way in, and Jobbox has no OAuth client, so this account will fail to ' +
+      'authenticate. Forward the mail to a mailbox Jobbox can read instead.'
   }
 }
 
@@ -106,6 +104,153 @@ const PRESET_OPTIONS = [
     .filter((entry): entry is [string, Preset] => entry[1] !== null)
     .map(([value, preset]) => ({ value, label: preset.label }))
 ]
+
+/**
+ * Keyed off the host rather than the preset dropdown, so an account saved months ago
+ * still gets its own section of the guide — `preset` only means something on a fresh
+ * form. Suffix matches, not substrings: `mail.acme.com` ends in "me.com", and an
+ * on-premise `outlook.example.com` is an Exchange server that may still take a password.
+ */
+function providerFor(imapHost: string): string | null {
+  const host = imapHost.trim().toLowerCase().replace(/\.$/, '')
+  const at = (...domains: string[]): boolean =>
+    domains.some((d) => host === d || host.endsWith(`.${d}`))
+  if (at('gmail.com', 'googlemail.com')) return 'gmail'
+  if (at('mail.me.com', 'icloud.com')) return 'icloud'
+  if (at('fastmail.com', 'messagingengine.com')) return 'fastmail'
+  if (at('office365.com', 'outlook.com', 'hotmail.com', 'live.com')) return 'outlook'
+  return null
+}
+
+/**
+ * Opens the setup guide at a section.
+ *
+ * `setupGuideUrl` is the guide PAGE (…/setup), not the site origin — the anchors below
+ * exist only there. It used to be the origin, which sent every one of these clicks to
+ * the marketing landing page with a fragment that matched nothing.
+ *
+ * Anchors: #gmail #icloud #fastmail #outlook for the four presets, #custom for anything
+ * self-hosted, #trouble for the error decoder a failed connection test wants.
+ */
+function useGuide(): { base: string | null; open: (anchor: string) => void } {
+  const appInfo = useAppInfo()
+  const base = appInfo.data?.setupGuideUrl ?? null
+  const open = useCallback(
+    (anchor: string) => {
+      if (!base) return
+      void window.recruit.openExternal(`${base}#${anchor}`).catch(() => undefined)
+    },
+    [base]
+  )
+  return { base, open }
+}
+
+/** `https://jobbox.fline.sh/setup#gmail` -> `jobbox.fline.sh/setup#gmail`. */
+function displayUrl(base: string, anchor: string): string {
+  return `${base.replace(/^https?:\/\//, '')}#${anchor}`
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   ACCOUNTS SECTION
+
+   A list of accounts that pushes to a detail form, the way System Settings does
+   it. The old dropdown-above-a-form only appeared once you had two accounts, so
+   with one account there was no way to see what was configured without reading
+   the form itself.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+export interface AccountsSectionProps {
+  accounts: AsyncState<Account[]>
+  onAccountsChanged?: () => void
+}
+
+export function AccountsSection({
+  accounts,
+  onAccountsChanged
+}: AccountsSectionProps): JSX.Element {
+  const rows = accounts.data ?? []
+  // `null` = the list. A number is an account id; 'new' is the add form.
+  const [editing, setEditing] = useState<number | 'new' | null>(rows.length === 0 ? 'new' : null)
+  const guide = useGuide()
+
+  const afterChange = useCallback(() => {
+    accounts.reload()
+    onAccountsChanged?.()
+  }, [accounts, onAccountsChanged])
+
+  // Deep-link the guide at the first account's provider, falling back to the
+  // self-hosted section. Showing the destination rather than the provider key makes
+  // it obvious where the button goes — this used to land on the marketing homepage.
+  const anchor = rows.length > 0 ? providerFor(rows[0].imapHost) ?? 'custom' : 'top'
+  const guideLabel = guide.base ? displayUrl(guide.base, anchor) : undefined
+
+  // A failed load leaves `rows` empty, which is indistinguishable from "no accounts
+  // yet" — and that would open a blank add-account form over accounts that do exist.
+  if (accounts.error) {
+    return (
+      <div className="set-col">
+        <Banner tone="danger" title="Couldn't load your accounts" actions={
+          <Button size="sm" icon="refresh" onClick={() => accounts.reload()}>
+            Try again
+          </Button>
+        }>
+          {accounts.error}
+        </Banner>
+      </div>
+    )
+  }
+
+  if (editing !== null) {
+    const account = editing === 'new' ? null : rows.find((a) => a.id === editing) ?? null
+    return (
+      <div className="set-col">
+        {rows.length > 0 ? (
+          <button type="button" className="set-back" onClick={() => setEditing(null)}>
+            <Icon name="chevronLeft" size={12} />
+            Accounts
+          </button>
+        ) : null}
+        <AccountForm
+          key={editing}
+          account={account}
+          onSaved={() => {
+            afterChange()
+            setEditing(null)
+          }}
+          onDeleted={() => {
+            afterChange()
+            setEditing(null)
+          }}
+        />
+      </div>
+    )
+  }
+
+  return (
+    <div className="set-col">
+      <SettingsBlock footnote="Jobbox reads your inbox over IMAP. It never sends mail — SMTP details are stored and connection-tested only.">
+        {rows.map((a) => (
+          <SettingsRow
+            key={a.id}
+            label={a.email}
+            description={`${a.imapHost} · port ${a.imapPort} · ${a.imapSecure ? 'TLS' : 'STARTTLS'}`}
+            onClick={() => setEditing(a.id)}
+            chevron
+          />
+        ))}
+        <SettingsRow label="Add an account…" accent onClick={() => setEditing('new')} />
+      </SettingsBlock>
+
+      <SettingsBlock footnote="Servers, app passwords, and what each connection error means.">
+        <SettingsRow label="Setup guide" description={guideLabel}>
+          <Button size="sm" icon="external" onClick={() => guide.open(anchor)}>
+            Open
+          </Button>
+        </SettingsRow>
+      </SettingsBlock>
+    </div>
+  )
+}
 
 /* ── form state ──────────────────────────────────────────────────────────── */
 
@@ -164,15 +309,15 @@ export interface AccountFormProps {
   account: Account | null
   onSaved: (account: Account) => void
   onDeleted?: (accountId: number) => void
-  onCancel?: () => void
 }
 
-export function AccountForm({
-  account,
-  onSaved,
-  onDeleted,
-  onCancel
-}: AccountFormProps): JSX.Element {
+/**
+ * The one place in Settings with an explicit Save. Everything else applies on change,
+ * but credentials only mean anything as a set — a half-typed server and the old password
+ * is not a state worth persisting, and the connection test has to prove the whole set
+ * before it is worth storing a secret in the Keychain.
+ */
+export function AccountForm({ account, onSaved, onDeleted }: AccountFormProps): JSX.Element {
   const isNew = account === null
   const [form, setForm] = useState<FormState>(() => fromAccount(account))
   const [preset, setPreset] = useState('custom')
@@ -180,7 +325,7 @@ export function AccountForm({
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const appInfo = useAppInfo()
+  const guide = useGuide()
   // Validation stays quiet until the first save attempt — an untouched "add
   // account" form covered in red is not a helpful first impression.
   const [submitted, setSubmitted] = useState(false)
@@ -208,17 +353,14 @@ export function AccountForm({
   )
 
   // Typing an address fills both usernames until the user overrides them.
-  const setEmail = useCallback(
-    (email: string) => {
-      setForm((f) => ({
-        ...f,
-        email,
-        imapUser: f.imapUser === '' || f.imapUser === f.email ? email : f.imapUser,
-        smtpUser: f.smtpUser === '' || f.smtpUser === f.email ? email : f.smtpUser
-      }))
-    },
-    []
-  )
+  const setEmail = useCallback((email: string) => {
+    setForm((f) => ({
+      ...f,
+      email,
+      imapUser: f.imapUser === '' || f.imapUser === f.email ? email : f.imapUser,
+      smtpUser: f.smtpUser === '' || f.smtpUser === f.email ? email : f.smtpUser
+    }))
+  }, [])
 
   const errors = useMemo(() => {
     const e: Partial<Record<keyof FormState, string>> = {}
@@ -324,219 +466,229 @@ export function AccountForm({
     }
   }, [account, onDeleted])
 
-  const presetNote = PRESETS[preset]?.note
-
-  // Keyed off the host rather than the dropdown, so an account saved months ago still
-  // gets its own section of the guide — `preset` only means something on a fresh form.
-  const provider = useMemo(() => {
-    // Suffix matches, not substrings: `mail.acme.com` ends in "me.com", and an on-premise
-    // `outlook.example.com` is an Exchange server that may still take a password.
-    const host = form.imapHost.trim().toLowerCase().replace(/\.$/, '')
-    const at = (...domains: string[]): boolean =>
-      domains.some((d) => host === d || host.endsWith(`.${d}`))
-    if (at('gmail.com', 'googlemail.com')) return 'gmail'
-    if (at('mail.me.com', 'icloud.com')) return 'icloud'
-    if (at('fastmail.com', 'messagingengine.com')) return 'fastmail'
-    if (at('office365.com', 'outlook.com', 'hotmail.com', 'live.com')) return 'outlook'
-    return null
-  }, [form.imapHost])
-
+  const provider = useMemo(() => providerFor(form.imapHost), [form.imapHost])
   const unsupported = provider ? PRESETS[provider]?.unsupported ?? null : null
-
-  const openGuide = useCallback(
-    (anchor: string | null) => {
-      const base = appInfo.data?.setupGuideUrl
-      if (!base) return
-      void window.recruit.openExternal(anchor ? `${base}#${anchor}` : base).catch(() => undefined)
-    },
-    [appInfo.data]
-  )
+  const presetNote = PRESETS[preset]?.note
 
   return (
     <>
-      <FormSection
-        title={isNew ? 'Add an account' : 'Account'}
-        hint={
-          isNew
-            ? 'Recruit reads your inbox over IMAP. It never sends mail — SMTP details are stored and tested only.'
-            : undefined
-        }
-      >
+      <h2 className="set-pane-title">{isNew ? 'Add an account' : form.email || 'Account'}</h2>
+
+      <SettingsBlock footnote={isNew ? presetNote ?? undefined : undefined}>
         {isNew ? (
-          <Field label="Provider" hint={presetNote}>
-            <Select value={preset} options={PRESET_OPTIONS} onValueChange={applyPreset} />
-          </Field>
+          <SettingsRow label="Provider">
+            <Select
+              value={preset}
+              options={PRESET_OPTIONS}
+              aria-label="Provider preset"
+              onValueChange={applyPreset}
+            />
+          </SettingsRow>
         ) : null}
+        <SettingsRow label="Email address">
+          {shown('email') ? <span className="set-row-error">{shown('email')}</span> : null}
+          <TextInput
+            type="email"
+            value={form.email}
+            onValueChange={setEmail}
+            placeholder="you@example.com"
+            aria-label="Email address"
+            className="set-w-text"
+          />
+        </SettingsRow>
+        <SettingsRow label="Display name">
+          <TextInput
+            value={form.displayName}
+            onValueChange={(v) => patch({ displayName: v })}
+            placeholder="Optional"
+            aria-label="Display name"
+            className="set-w-text"
+          />
+        </SettingsRow>
+      </SettingsBlock>
 
-        <FieldRow>
-          <Field label="Email address" error={shown('email')}>
-            <TextInput
-              type="email"
-              value={form.email}
-              onValueChange={setEmail}
-              placeholder="you@example.com"
-            />
-          </Field>
-          <Field label="Display name">
-            <TextInput
-              value={form.displayName}
-              onValueChange={(v) => patch({ displayName: v })}
-              placeholder="Optional"
-            />
-          </Field>
-        </FieldRow>
-
-        {unsupported ? (
-          <div className="form-banner">
-            <Banner
-              tone="warning"
-              title="Recruit cannot sign in to this provider"
-              actions={
-                <Button size="sm" icon="external" onClick={() => openGuide(provider)}>
-                  Why
-                </Button>
-              }
-            >
-              {unsupported}
-            </Banner>
-          </div>
-        ) : null}
-
-        <div className="form-help">
-          <Button size="sm" variant="subtle" icon="external" onClick={() => openGuide(provider)}>
-            Setup help
-          </Button>
-          <span className="tertiary">
-            Servers, app passwords, and what each connection error means.
-          </span>
-        </div>
-      </FormSection>
-
-      <FormSection title="Incoming mail (IMAP)">
-        <FieldRow>
-          <Field label="Server" error={shown('imapHost')}>
-            <TextInput
-              value={form.imapHost}
-              onValueChange={(v) => patch({ imapHost: v })}
-              placeholder="imap.example.com"
-            />
-          </Field>
-          <Field label="Port" narrow error={shown('imapPort')}>
-            <NumberInput
-              value={form.imapPort}
-              onValueChange={(v) => patch({ imapPort: v })}
-              min={1}
-              max={65535}
-            />
-          </Field>
-        </FieldRow>
-        <Field label="Username" error={shown('imapUser')}>
-          <TextInput value={form.imapUser} onValueChange={(v) => patch({ imapUser: v })} />
-        </Field>
-        <Field
-          label="Password"
-          error={shown('imapPassword')}
-          hint={isNew ? undefined : 'Leave blank to keep the password already in your Keychain.'}
+      {unsupported ? (
+        <Banner
+          tone="warning"
+          title="Jobbox cannot sign in to this provider"
+          actions={
+            <Button size="sm" icon="external" onClick={() => guide.open(provider ?? 'custom')}>
+              Why
+            </Button>
+          }
         >
+          {unsupported}
+        </Banner>
+      ) : null}
+
+      <SettingsBlock
+        title="Incoming mail (IMAP)"
+        footnote={isNew ? undefined : 'Leave the password blank to keep the one already in your Keychain.'}
+      >
+        <SettingsRow label="Server">
+          {shown('imapHost') ? <span className="set-row-error">{shown('imapHost')}</span> : null}
+          <TextInput
+            value={form.imapHost}
+            onValueChange={(v) => patch({ imapHost: v })}
+            placeholder="imap.example.com"
+            aria-label="IMAP server"
+            className="set-w-text"
+          />
+        </SettingsRow>
+        <SettingsRow label="Port">
+          {shown('imapPort') ? <span className="set-row-error">{shown('imapPort')}</span> : null}
+          <NumberInput
+            value={form.imapPort}
+            onValueChange={(v) => patch({ imapPort: v })}
+            min={1}
+            max={65535}
+            aria-label="IMAP port"
+            className="set-w-num"
+          />
+        </SettingsRow>
+        <SettingsRow label="Username">
+          {shown('imapUser') ? <span className="set-row-error">{shown('imapUser')}</span> : null}
+          <TextInput
+            value={form.imapUser}
+            onValueChange={(v) => patch({ imapUser: v })}
+            aria-label="IMAP username"
+            className="set-w-text"
+          />
+        </SettingsRow>
+        <SettingsRow label="Password">
+          {shown('imapPassword') ? (
+            <span className="set-row-error">{shown('imapPassword')}</span>
+          ) : null}
           <TextInput
             type="password"
             value={form.imapPassword}
             onValueChange={(v) => patch({ imapPassword: v })}
             placeholder={isNew ? '' : '••••••••'}
             autoComplete="off"
+            aria-label="IMAP password"
+            className="set-w-text"
           />
-        </Field>
-        <Toggle
-          checked={form.imapSecure}
-          onCheckedChange={(v) => patch({ imapSecure: v })}
+        </SettingsRow>
+        <SettingsRow
           label="Use TLS"
-          hint="On for port 993. Turn off for STARTTLS on 143."
-        />
+          description="On for port 993. Off for STARTTLS on 143."
+        >
+          <Toggle
+            checked={form.imapSecure}
+            onCheckedChange={(v) => patch({ imapSecure: v })}
+            label="Use TLS for IMAP"
+          />
+        </SettingsRow>
         <TestRow
           protocol="imap"
           state={tests.imap}
           canTest={Boolean(form.imapHost && form.imapPort && form.imapUser && form.imapPassword)}
           onTest={() => void runTest('imap')}
+          onExplain={() => guide.open('trouble')}
         />
-      </FormSection>
+      </SettingsBlock>
 
-      <FormSection
+      <SettingsBlock
         title="Outgoing mail (SMTP)"
-        hint="Optional in this version. Recruit stores and tests these details but never sends mail."
+        footnote={
+          isNew
+            ? 'Optional in this version. Jobbox stores and tests these details but never sends mail.'
+            : 'Optional in this version. Jobbox stores and tests these details but never sends mail. Leave the password blank to keep the stored one.'
+        }
       >
-        <FieldRow>
-          <Field label="Server">
-            <TextInput
-              value={form.smtpHost}
-              onValueChange={(v) => patch({ smtpHost: v })}
-              placeholder="smtp.example.com"
-            />
-          </Field>
-          <Field label="Port" narrow>
-            <NumberInput
-              value={form.smtpPort}
-              onValueChange={(v) => patch({ smtpPort: v })}
-              min={1}
-              max={65535}
-            />
-          </Field>
-        </FieldRow>
-        <Field label="Username">
-          <TextInput value={form.smtpUser} onValueChange={(v) => patch({ smtpUser: v })} />
-        </Field>
-        <Field
-          label="Password"
-          hint={isNew ? undefined : 'Leave blank to keep the stored password.'}
-        >
+        <SettingsRow label="Server">
+          <TextInput
+            value={form.smtpHost}
+            onValueChange={(v) => patch({ smtpHost: v })}
+            placeholder="smtp.example.com"
+            aria-label="SMTP server"
+            className="set-w-text"
+          />
+        </SettingsRow>
+        <SettingsRow label="Port">
+          <NumberInput
+            value={form.smtpPort}
+            onValueChange={(v) => patch({ smtpPort: v })}
+            min={1}
+            max={65535}
+            aria-label="SMTP port"
+            className="set-w-num"
+          />
+        </SettingsRow>
+        <SettingsRow label="Username">
+          <TextInput
+            value={form.smtpUser}
+            onValueChange={(v) => patch({ smtpUser: v })}
+            aria-label="SMTP username"
+            className="set-w-text"
+          />
+        </SettingsRow>
+        <SettingsRow label="Password">
           <TextInput
             type="password"
             value={form.smtpPassword}
             onValueChange={(v) => patch({ smtpPassword: v })}
             placeholder={isNew ? '' : '••••••••'}
             autoComplete="off"
+            aria-label="SMTP password"
+            className="set-w-text"
           />
-        </Field>
-        <Toggle
-          checked={form.smtpSecure}
-          onCheckedChange={(v) => patch({ smtpSecure: v })}
-          label="Use TLS"
-          hint="On for port 465. Off for STARTTLS on 587."
-        />
+        </SettingsRow>
+        <SettingsRow label="Use TLS" description="On for port 465. Off for STARTTLS on 587.">
+          <Toggle
+            checked={form.smtpSecure}
+            onCheckedChange={(v) => patch({ smtpSecure: v })}
+            label="Use TLS for SMTP"
+          />
+        </SettingsRow>
         <TestRow
           protocol="smtp"
           state={tests.smtp}
           canTest={Boolean(form.smtpHost && form.smtpPort && form.smtpUser && form.smtpPassword)}
           onTest={() => void runTest('smtp')}
+          onExplain={() => guide.open('trouble')}
         />
-      </FormSection>
+      </SettingsBlock>
 
-      <FormSection>
-        {saveError ? <div className="field-error" style={{ marginBottom: 10 }}>{saveError}</div> : null}
-        <div className="row">
-          <Button variant="primary" onClick={() => void save()} busy={saving}>
-            {isNew ? 'Add account' : 'Save changes'}
+      <SettingsBlock footnote="Servers, app passwords, and what each connection error means.">
+        <SettingsRow
+          label="Setup guide"
+          description={guide.base ? displayUrl(guide.base, provider ?? 'custom') : undefined}
+        >
+          <Button size="sm" icon="external" onClick={() => guide.open(provider ?? 'custom')}>
+            Open
           </Button>
-          {onCancel ? <Button onClick={onCancel}>Cancel</Button> : null}
-          <div style={{ flex: 1 }} />
-          {account && onDeleted ? (
-            confirmDelete ? (
-              <ButtonGroup>
-                <span className="field-hint">Remove this account and its mail?</span>
-                <Button variant="danger" size="sm" onClick={() => void remove()}>
-                  Remove
-                </Button>
-                <Button size="sm" onClick={() => setConfirmDelete(false)}>
-                  Keep
-                </Button>
-              </ButtonGroup>
-            ) : (
-              <Button variant="subtle" size="sm" icon="trash" onClick={() => setConfirmDelete(true)}>
-                Remove account
+        </SettingsRow>
+      </SettingsBlock>
+
+      {saveError ? <p className="set-form-error">{saveError}</p> : null}
+
+      <div className="set-actions">
+        <Button variant="primary" onClick={() => void save()} busy={saving}>
+          {isNew ? 'Add account' : 'Save changes'}
+        </Button>
+        <div className="set-actions-spacer" />
+      </div>
+
+      {account && onDeleted ? (
+        <SettingsBlock>
+          {confirmDelete ? (
+            <SettingsRow
+              label="Remove this account and its mail?"
+              description="Its stored passwords are deleted from your Keychain too."
+            >
+              <Button variant="danger" size="sm" onClick={() => void remove()}>
+                Remove
               </Button>
-            )
-          ) : null}
-        </div>
-      </FormSection>
+              <Button size="sm" onClick={() => setConfirmDelete(false)}>
+                Keep
+              </Button>
+            </SettingsRow>
+          ) : (
+            <SettingsRow label="Remove account…" destructive onClick={() => setConfirmDelete(true)} />
+          )}
+        </SettingsBlock>
+      ) : null}
     </>
   )
 }
@@ -547,38 +699,52 @@ function TestRow({
   protocol,
   state,
   canTest,
-  onTest
+  onTest,
+  onExplain
 }: {
   protocol: ConnectionProtocol
   state: ConnectionTestResult | 'busy' | undefined
   canTest: boolean
   onTest: () => void
+  onExplain: () => void
 }): JSX.Element {
   const label = protocol === 'imap' ? 'Test IMAP connection' : 'Test SMTP connection'
+  const result = state && state !== 'busy' ? state : null
+
   return (
-    <>
-      {state && state !== 'busy' ? (
-        <div className={'test-result ' + (state.ok ? 'is-ok' : 'is-fail')}>
-          <span className="test-result-icon">
-            <Icon name={state.ok ? 'checkCircle' : 'xCircle'} size={14} />
+    <SettingsRow
+      label="Connection"
+      description={
+        result?.ok && result.capabilities.length > 0
+          ? `${result.capabilities.length} capabilities: ${result.capabilities.slice(0, 4).join(', ')}${
+              result.capabilities.length > 4 ? '…' : ''
+            }`
+          : undefined
+      }
+    >
+      {result ? (
+        result.ok ? (
+          <span className="set-test is-ok">
+            <Icon name="checkCircle" size={13} />
+            Connected in {result.durationMs}ms
           </span>
-          <div className="test-result-body">
-            {state.ok ? (
-              <>
-                <strong>Connected</strong> in {state.durationMs}ms
-                {state.greeting ? <> · {state.greeting}</> : null}
-                {state.capabilities.length > 0 ? (
-                  <div className="tertiary" style={{ marginTop: 2 }}>
-                    {state.capabilities.length} capabilities: {state.capabilities.slice(0, 6).join(', ')}
-                    {state.capabilities.length > 6 ? '…' : ''}
-                  </div>
-                ) : null}
-              </>
-            ) : (
-              state.error ?? 'Connection failed'
-            )}
-          </div>
-        </div>
+        ) : (
+          <>
+            <span className="set-test is-fail">
+              <Icon name="xCircle" size={13} />
+              {result.error ?? 'Connection failed'}
+            </span>
+            <Button
+              size="sm"
+              variant="subtle"
+              icon="external"
+              aria-label={`Explain this ${protocol.toUpperCase()} error`}
+              onClick={onExplain}
+            >
+              Explain
+            </Button>
+          </>
+        )
       ) : null}
       <Button
         size="sm"
@@ -586,10 +752,11 @@ function TestRow({
         busy={state === 'busy'}
         disabled={!canTest}
         onClick={onTest}
+        aria-label={label}
         title={canTest ? label : 'Enter the server, username and password first'}
       >
-        {label}
+        Test
       </Button>
-    </>
+    </SettingsRow>
   )
 }

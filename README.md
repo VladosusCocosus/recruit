@@ -31,7 +31,7 @@ npm run rebuild    # only if better-sqlite3/keytar need an Electron-ABI rebuild
 The agent bridge shells out to the `claude` binary. A GUI-launched `.app` does not
 inherit your login shell's PATH, so Jobbox looks in `~/.local/bin`, `~/.claude/local`,
 `/opt/homebrew/bin`, `/usr/local/bin`, `~/.bun/bin` and `~/.volta/bin` before giving up;
-you can also set an explicit path in Settings. **If Claude Code isn't signed in, runs fail
+you can also set an explicit path in **Settings → Agent**. **If Claude Code isn't signed in, runs fail
 with a dedicated banner** telling you to run `claude` in a terminal to log in — that is a
 first-class state, not a generic error.
 
@@ -42,13 +42,13 @@ Set `RECRUIT_DB_PATH` to point the database somewhere else.
 
 First launch shows a setup checklist: **add account → sync → first scan → review.**
 
-1. **Settings → Account.** Pick a provider preset or enter IMAP manually: server, port,
+1. **Settings → Accounts → Add an account.** Pick a provider preset or enter IMAP manually: server, port,
    username, password, TLS. Fill in SMTP too — it is stored and connection-tested, but v1
    never sends with it.
 2. **Test connection.** This proves the credentials before anything is saved. Passwords go
    to the macOS Keychain; only a keychain reference is written to SQLite.
-3. **Sync.** Pulls the INBOX and runs the prefilter over it. Anything scoring >= 0.5
-   (tunable in Settings) becomes a *candidate*.
+3. **Sync.** Pulls the INBOX and runs the prefilter over it. Anything scoring >= 0.35
+   (tunable in **Settings → Triage**) becomes a *candidate*.
 4. **Run.** The `▶ Run · N` button in the toolbar spawns a triage run over the candidates.
    The same button turns into a live status — elapsed time, current tool call, Stop.
 5. **Review.** Accept or reject each proposal. Every card shows the prefilter reason that
@@ -59,10 +59,16 @@ Gmail and other 2FA providers need an app-specific password, not your account pa
 IMAP and SMTP, and Jobbox has no OAuth client. The preset is kept, with a warning in the form.
 
 The per-provider guide is the static site in [site/](site/), deployed to
-`https://jobbox.fline.sh`. The **Setup help** button in the account form opens it at the
-anchor for the configured provider; `RECRUIT_SETUP_URL` overrides the origin in dev. It is
-deliberately not served by the update service — a mail-setup problem should stay readable
-when that host is down.
+`https://jobbox.fline.sh`; the guide itself is `/setup`. The **Setup guide** button in
+Settings → Accounts opens it at the anchor for the configured provider (`#gmail`,
+`#icloud`, `#fastmail`, `#outlook`, or `#custom`), and a failed connection test links
+straight to `#trouble`.
+
+`RECRUIT_SETUP_URL` overrides the **full guide URL** in dev — e.g.
+`RECRUIT_SETUP_URL=http://localhost:8080/setup`, not just the origin. It must be
+`http(s)`: `openExternal` refuses every other scheme, so a `file://` path silently does
+nothing. The site is deliberately not served by the update service — a mail-setup problem
+should stay readable when that host is down.
 
 ## How the agent is sandboxed
 

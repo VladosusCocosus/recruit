@@ -769,6 +769,14 @@ export interface AppSettings {
   maxCandidatesPerRun: number
   theme: ThemePreference
   setupDismissed: boolean
+  /**
+   * 'claude' means "find it on PATH and in the usual install dirs"; an absolute path
+   * pins it. A GUI-launched .app does not inherit the login shell's PATH, so this is
+   * the escape hatch when resolution fails. See resolveClaudeBinary() in main.
+   */
+  claudeBinaryPath: string
+  /** How far back the first sync of an account reaches. Applied on reconnect. */
+  syncBackfillDays: number
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -779,7 +787,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   syncIntervalMinutes: 10,
   maxCandidatesPerRun: 250,
   theme: 'system',
-  setupDismissed: false
+  setupDismissed: false,
+  claudeBinaryPath: 'claude',
+  syncBackfillDays: 90
 }
 
 export interface AppInfo {
@@ -790,7 +800,11 @@ export interface AppInfo {
   dbPath: string
   /** false => the agent bridge cannot run at all; show the sign-in / install state. */
   claudeCliAvailable: boolean
-  /** Account-setup guide. Per-provider anchors: `${setupGuideUrl}#gmail`. */
+  /**
+   * The account-setup guide page itself, NOT the site origin — the per-provider
+   * anchors live on /setup and nowhere else, so `${setupGuideUrl}#gmail` only
+   * resolves if this already points at the guide.
+   */
   setupGuideUrl: string
 }
 
@@ -919,6 +933,13 @@ export interface RecruitApi {
   getRun(runId: number): Promise<AgentRun | null>
   listRuns(limit?: number): Promise<AgentRunSummary[]>
 
+  /**
+   * Shows the SQLite file in Finder. Deliberately takes no path: `openExternal`
+   * refuses file: URLs because mail bodies are hostile input, and a renderer that
+   * cannot name a path cannot be talked into revealing an arbitrary one.
+   */
+  revealDatabase(): Promise<void>
+
   // ── updates ───────────────────────────────────────────────────────────────
   getUpdateStatus(): Promise<UpdateStatus>
   checkForUpdate(): Promise<UpdateStatus>
@@ -989,6 +1010,7 @@ export const IPC_METHODS = [
   'getActiveRun',
   'getRun',
   'listRuns',
+  'revealDatabase',
   'getUpdateStatus',
   'checkForUpdate',
   'openDownload'

@@ -2,8 +2,9 @@
  * App settings: a small JSON file in userData, read once and cached.
  *
  * The stored shape is a superset of the shared `AppSettings` (which is what
- * crosses IPC) plus three main-process-only keys the agent bridge needs:
- * claudeBinaryPath, syncBackfillDays, agentCommandTemplate.
+ * crosses IPC) plus one main-process-only key: agentCommandTemplate, the argv the
+ * agent bridge spawns. claudeBinaryPath and syncBackfillDays used to live here too;
+ * both are on `AppSettings` now that Settings has controls for them.
  */
 import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { constants as FS, accessSync } from 'node:fs'
@@ -51,17 +52,17 @@ export const DEFAULT_AGENT_COMMAND_TEMPLATE: AgentCommandTemplate = {
   ]
 }
 
+/**
+ * The renderer now owns claudeBinaryPath and syncBackfillDays (they are on
+ * AppSettings), so the only thing left that main keeps to itself is the argv
+ * template — the seam for pointing the bridge at something other than `claude`.
+ */
 export interface MainSettings extends AppSettings {
-  /** 'claude' means "find it"; an absolute path pins it. See resolveClaudeBinary(). */
-  claudeBinaryPath: string
-  syncBackfillDays: number
   agentCommandTemplate: AgentCommandTemplate
 }
 
 export const DEFAULT_MAIN_SETTINGS: MainSettings = {
   ...DEFAULT_SETTINGS,
-  claudeBinaryPath: 'claude',
-  syncBackfillDays: 90,
   agentCommandTemplate: DEFAULT_AGENT_COMMAND_TEMPLATE
 }
 

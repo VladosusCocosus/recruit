@@ -33,7 +33,7 @@ import {
   useSync,
   useTheme
 } from '@renderer/components'
-import SettingsView from './views/Settings/SettingsView'
+import SettingsView from './views/Settings'
 import OnboardingView, { SetupChecklist } from './views/Onboarding/OnboardingView'
 import InboxView from './views/Mail/InboxView'
 import CandidatesView from './views/Mail/CandidatesView'

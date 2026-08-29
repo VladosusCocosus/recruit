@@ -417,11 +417,14 @@ export function useRun(): RunState {
 export function useUpdate(): {
   status: UpdateStatus | null
   dismissed: boolean
+  checking: boolean
   download: () => void
   dismiss: () => void
+  check: () => void
 } {
   const [status, setStatus] = useState<UpdateStatus | null>(null)
   const [dismissedVersion, setDismissedVersion] = useState<string | null>(null)
+  const [checking, setChecking] = useState(false)
 
   useEffect(() => {
     if (!hasBridge()) return
@@ -437,11 +440,26 @@ export function useUpdate(): {
     setDismissedVersion(status?.latestVersion ?? null)
   }, [status?.latestVersion])
 
+  // The 6h timer covers the passive case; this is the "check now" Settings offers.
+  // checkForUpdate resolves with the new status AND broadcasts it, so the state set
+  // here and the one the push delivers are the same object.
+  const check = useCallback(() => {
+    if (!hasBridge()) return
+    setChecking(true)
+    void window.recruit
+      .checkForUpdate()
+      .then(setStatus)
+      .catch(() => undefined)
+      .finally(() => setChecking(false))
+  }, [])
+
   return {
     status,
     // Dismissal is per-version: a newer release surfaces the banner again.
     dismissed: Boolean(status?.latestVersion && status.latestVersion === dismissedVersion),
+    checking,
     download,
-    dismiss
+    dismiss,
+    check
   }
 }
