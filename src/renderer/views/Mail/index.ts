@@ -21,6 +21,9 @@ export type { MessageReaderProps } from './MessageReader'
 export { MessageRow } from './MessageRow'
 export type { MessageRowProps } from './MessageRow'
 
+export { MessageMenu, messageMenuTargetFromEvent } from './MessageMenu'
+export type { MessageMenuActions, MessageMenuTarget } from './MessageMenu'
+
 export { WhyFlagged } from './WhyFlagged'
 export { AttachmentChips } from './AttachmentChips'
 

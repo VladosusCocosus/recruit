@@ -19,6 +19,10 @@ export interface MessageRowProps {
   message: MessageSummary
   selected: boolean
   onSelect: (messageId: number) => void
+  /** Right-click. The list mounts one menu for every row and anchors it at the pointer. */
+  onContextMenu: (message: MessageSummary, e: { clientX: number; clientY: number }) => void
+  /** The open menu belongs to this row — see `.list-row.is-menu-target`. */
+  menuOpen: boolean
   /** Starts a single-message triage run. Omit to hide the inline action entirely. */
   onRun?: (messageId: number) => void
   /** A run is already in flight — the inline action is disabled app-wide, not per row. */
@@ -33,6 +37,8 @@ function MessageRowImpl({
   message,
   selected,
   onSelect,
+  onContextMenu,
+  menuOpen,
   onRun,
   runDisabled,
   running,
@@ -49,6 +55,7 @@ function MessageRowImpl({
   // "why flagged" line. Reserved always, not on hover, or the text reflows under the cursor.
   if (showRun) classes.push('has-run-action')
   if (selected) classes.push('is-selected')
+  if (menuOpen) classes.push('is-menu-target')
   if (message.isUnread) classes.push('is-unread')
   if (dismissed) classes.push('is-dismissed')
 
@@ -67,8 +74,16 @@ function MessageRowImpl({
       role="option"
       aria-selected={selected}
       tabIndex={0}
+      data-message-focus={message.id}
       onClick={() => onSelect(message.id)}
       onKeyDown={onKeyDown}
+      /* Right-click acts on the row without selecting it — selecting would start the
+         dwell timer that marks a message read, which is not what someone reaching for
+         "Mark as unread" or "Delete" asked for. */
+      onContextMenu={(e) => {
+        e.preventDefault()
+        onContextMenu(message, e)
+      }}
     >
       <span className="list-row-lead">{message.isUnread ? <Dot unread /> : null}</span>
 

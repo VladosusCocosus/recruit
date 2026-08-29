@@ -7,7 +7,7 @@
  * Presentational — MailView owns the data hook.
  */
 
-import { useEffect, useRef, type UIEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type UIEvent } from 'react'
 import type { MessageSummary } from '@shared/types'
 import {
   CountBadge,
@@ -22,6 +22,12 @@ import {
   TextInput
 } from '@renderer/components'
 import { MessageRow } from './MessageRow'
+import {
+  MessageMenu,
+  messageMenuTargetFromEvent,
+  type MessageMenuActions,
+  type MessageMenuTarget
+} from './MessageMenu'
 import type { MailMode } from './useMessages'
 
 /** Fetch the next page once the viewport is within this many px of the bottom. */
@@ -47,6 +53,9 @@ export interface MessageListProps {
   onRun: (messageId: number) => void
   runDisabled: boolean
   runningMessageId: number | null
+
+  /** Everything the row's contextual menu can do. MailView owns all of it. */
+  menuActions: Omit<MessageMenuActions, 'onOpen' | 'onRun' | 'runDisabled'>
 }
 
 export function MessageList({
@@ -65,10 +74,20 @@ export function MessageList({
   onSelect,
   onRun,
   runDisabled,
-  runningMessageId
+  runningMessageId,
+  menuActions
 }: MessageListProps): JSX.Element {
   const bodyRef = useRef<HTMLDivElement | null>(null)
   const scrolledFor = useRef<number | null>(null)
+  const [menu, setMenu] = useState<MessageMenuTarget | null>(null)
+
+  // Stable, because MessageRow is memoized and a fresh closure here would re-render
+  // every row in a list that pages into the hundreds.
+  const openMenu = useCallback(
+    (row: MessageSummary, e: { clientX: number; clientY: number }) =>
+      setMenu(messageMenuTargetFromEvent(row, e)),
+    []
+  )
 
   const onScroll = (event: UIEvent<HTMLDivElement>): void => {
     if (!hasMore || loadingMore || loading) return
@@ -162,7 +181,9 @@ export function MessageList({
                 key={message.id}
                 message={message}
                 selected={message.id === selectedId}
+                menuOpen={menu?.message.id === message.id}
                 onSelect={onSelect}
+                onContextMenu={openMenu}
                 onRun={onRun}
                 runDisabled={runDisabled}
                 running={runningMessageId === message.id}
@@ -183,6 +204,17 @@ export function MessageList({
           </List>
         )}
       </div>
+
+      {menu ? (
+        <MessageMenu
+          /* Remounted per row, so the highlighted item never carries over from the
+             message you right-clicked before this one. */
+          key={menu.message.id}
+          target={menu}
+          actions={{ ...menuActions, onOpen: onSelect, onRun, runDisabled }}
+          onClose={() => setMenu(null)}
+        />
+      ) : null}
     </Pane>
   )
 }

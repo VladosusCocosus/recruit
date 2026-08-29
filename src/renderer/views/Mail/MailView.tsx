@@ -314,6 +314,14 @@ export function MailView({
           onRun={runOnMessage}
           runDisabled={isRunning}
           runningMessageId={runningMessageId}
+          /* The row menu and the reader's button row make the same calls, so the two
+             places you can dismiss or delete a message cannot drift apart. */
+          menuActions={{
+            onMarkRead: setRead,
+            onTriage,
+            onDelete,
+            ...(onOpenItem ? { onOpenItem } : {})
+          }}
         />
 
         <MessageReader
