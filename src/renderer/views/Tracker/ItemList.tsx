@@ -21,7 +21,12 @@ import {
   lastMessageAt,
   staleness
 } from './format'
-import { StatusMenu, menuTargetFromElement, menuTargetFromEvent, type StatusMenuTarget } from './StatusMenu'
+import {
+  ItemMenu,
+  itemMenuTargetFromElement,
+  itemMenuTargetFromEvent,
+  type ItemMenuTarget
+} from './ItemMenu'
 import type { StatusIndex } from './useTracker'
 
 type SortKey = 'company' | 'role' | 'status' | 'next' | 'lastMessage'
@@ -79,6 +84,7 @@ export function ItemList({
   selectedItemId,
   onOpenItem,
   onChangeStatus,
+  onArchiveItem,
   onCreateItem
 }: {
   items: ItemSummary[]
@@ -87,11 +93,13 @@ export function ItemList({
   selectedItemId?: number | null
   onOpenItem: (itemId: number) => void
   onChangeStatus: (itemId: number, statusKey: string, closeReason: CloseReason | null) => void
+  /** Omit and the row menu leaves its archive row out. */
+  onArchiveItem?: (itemId: number, archived: boolean) => void
   onCreateItem?: (statusKey: string) => void
 }): JSX.Element {
   const [sort, setSort] = useState<SortKey>('lastMessage')
   const [desc, setDesc] = useState(false)
-  const [menu, setMenu] = useState<StatusMenuTarget | null>(null)
+  const [menu, setMenu] = useState<ItemMenuTarget | null>(null)
 
   const rows = useMemo(() => {
     const sorted = [...items].sort((a, b) => compare(a, b, sort, statusIndex))
@@ -151,7 +159,7 @@ export function ItemList({
               </th>
             ))}
             <th className="col-actions">
-              <span className="sr-only">Change status</span>
+              <span className="sr-only">Actions</span>
             </th>
           </tr>
         </thead>
@@ -168,13 +176,17 @@ export function ItemList({
             return (
               <tr
                 key={item.id}
-                className={`item-row${item.id === selectedItemId ? ' is-selected' : ''}`}
+                className={
+                  'item-row' +
+                  (item.id === selectedItemId ? ' is-selected' : '') +
+                  (menu?.item.id === item.id ? ' is-menu-target' : '')
+                }
                 data-item-focus={item.id}
                 tabIndex={0}
                 onClick={() => onOpenItem(item.id)}
                 onContextMenu={(e) => {
                   e.preventDefault()
-                  setMenu(menuTargetFromEvent(item, e))
+                  setMenu(itemMenuTargetFromEvent(item, e))
                 }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') onOpenItem(item.id)
@@ -230,9 +242,9 @@ export function ItemList({
                   <button
                     type="button"
                     className="item-row-menu"
-                    aria-label={`Change status of ${item.company}`}
+                    aria-label={`More actions for ${item.company}`}
                     aria-haspopup="menu"
-                    onClick={(e) => setMenu(menuTargetFromElement(item, e.currentTarget))}
+                    onClick={(e) => setMenu(itemMenuTargetFromElement(item, e.currentTarget))}
                   >
                     <Icon name="ellipsis" size={13} />
                   </button>
@@ -244,10 +256,16 @@ export function ItemList({
       </table>
 
       {menu ? (
-        <StatusMenu
+        <ItemMenu
+          /* Remounted per row — see the note in Board.tsx. */
+          key={menu.item.id}
           target={menu}
           statusIndex={statusIndex}
-          onChange={onChangeStatus}
+          actions={{
+            onOpen: onOpenItem,
+            onChangeStatus,
+            ...(onArchiveItem ? { onArchive: onArchiveItem } : {})
+          }}
           onClose={() => setMenu(null)}
         />
       ) : null}

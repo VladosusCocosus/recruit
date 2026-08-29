@@ -20,8 +20,8 @@ export { Timeline } from './Timeline'
 export { Description } from './Description'
 export { Markdown } from './Markdown'
 export { StatusSelect } from './StatusSelect'
-export { StatusMenu, menuTargetFromElement, menuTargetFromEvent } from './StatusMenu'
-export type { StatusMenuTarget } from './StatusMenu'
+export { ItemMenu, itemMenuTargetFromElement, itemMenuTargetFromEvent } from './ItemMenu'
+export type { ItemMenuActions, ItemMenuTarget } from './ItemMenu'
 export { AddEntry, type NewEntry } from './AddEntry'
 
 export {

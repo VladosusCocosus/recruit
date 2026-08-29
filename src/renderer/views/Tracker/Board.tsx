@@ -8,7 +8,7 @@
  * separates *panes* — and made six columns read as six windows.
  *
  * Cards move by drag, or through the contextual menu on the card, which is the control
- * that carries close reasons and works from the keyboard.
+ * that carries close reasons, archiving and the keyboard path.
  */
 
 import { useCallback, useMemo, useState } from 'react'
@@ -16,7 +16,7 @@ import type { CloseReason, ItemSummary, Status } from '@shared/types'
 import type { DragEvent, JSX, KeyboardEvent } from 'react'
 import { Button, EmptyState, Icon } from '@renderer/components'
 import { ITEM_DRAG_TYPE, ItemCard } from './ItemCard'
-import { StatusMenu, type StatusMenuTarget } from './StatusMenu'
+import { ItemMenu, type ItemMenuTarget } from './ItemMenu'
 import type { StatusIndex } from './useTracker'
 
 interface Column {
@@ -118,6 +118,7 @@ export function Board({
   selectedItemId,
   onOpenItem,
   onChangeStatus,
+  onArchiveItem,
   onCreateItem
 }: {
   items: ItemSummary[]
@@ -126,12 +127,14 @@ export function Board({
   selectedItemId?: number | null
   onOpenItem: (itemId: number) => void
   onChangeStatus: (itemId: number, statusKey: string, closeReason: CloseReason | null) => void
+  /** Omit and the card menu leaves its archive row out. */
+  onArchiveItem?: (itemId: number, archived: boolean) => void
   /** Creates an application already in that column, so the header's + lands where it says. */
   onCreateItem?: (statusKey: string) => void
 }): JSX.Element {
   const [dragItemId, setDragItemId] = useState<number | null>(null)
   const [dropTarget, setDropTarget] = useState<string | null>(null)
-  const [menu, setMenu] = useState<StatusMenuTarget | null>(null)
+  const [menu, setMenu] = useState<ItemMenuTarget | null>(null)
 
   const onKeyDown = useCallback((e: KeyboardEvent<HTMLDivElement>) => {
     const from = e.target as HTMLElement
@@ -236,6 +239,7 @@ export function Board({
                   statusIndex={statusIndex}
                   now={now}
                   selected={item.id === selectedItemId}
+                  menuOpen={menu?.item.id === item.id}
                   dragging={item.id === dragItemId}
                   onOpen={onOpenItem}
                   onRequestMenu={setMenu}
@@ -255,10 +259,18 @@ export function Board({
       })}
 
       {menu ? (
-        <StatusMenu
+        <ItemMenu
+          /* Keyed by the subject: right-clicking a second card while the first card's
+             menu is open re-anchors the same component, and without a remount the
+             highlighted row carries over from the application you just left. */
+          key={menu.item.id}
           target={menu}
           statusIndex={statusIndex}
-          onChange={onChangeStatus}
+          actions={{
+            onOpen: onOpenItem,
+            onChangeStatus,
+            ...(onArchiveItem ? { onArchive: onArchiveItem } : {})
+          }}
           onClose={() => setMenu(null)}
         />
       ) : null}

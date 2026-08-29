@@ -208,7 +208,7 @@
 
 /* Three lines and no status control. The card sits in the column that names its status,
    so the popup button the old card carried spent its loudest element restating the
-   layout — see StatusMenu.tsx. */
+   layout — see ItemMenu.tsx. */
 .item-card {
   position: relative;
   display: flex;
@@ -252,6 +252,13 @@
 .item-card.is-selected {
   border-color: var(--accent);
   box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+/* The card an open menu belongs to. The menu covers a good part of the board, so the
+   card underneath has to keep saying which application you are acting on. */
+.item-card.is-menu-target {
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
 }
 
 .item-card.is-dragging {
@@ -389,69 +396,6 @@
   flex: 0 0 auto;
 }
 
-/* ── status menu ───────────────────────────────────────────────────────────── */
-
-/* The app bans shadows, and this is the one exception: a menu floats over arbitrary
-   content and has to detach from it. macOS menus carry a shadow for exactly this
-   reason. Nothing inline may borrow this rule. */
-.st-menu {
-  position: fixed;
-  z-index: 50;
-  min-width: 184px;
-  max-height: calc(100vh - 24px);
-  overflow-y: auto;
-  padding: 4px;
-  border: var(--hairline) solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--bg-elevated);
-  box-shadow: 0 10px 28px var(--overlay);
-}
-
-.st-menu:focus {
-  outline: none;
-}
-
-.st-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  height: 22px;
-  padding: 0 8px 0 4px;
-  border-radius: 4px;
-  font-size: var(--fs-md);
-  white-space: nowrap;
-}
-
-/* A solid accent fill is how a macOS menu marks the row under the pointer or the
-   selection ring — not a tint, which reads as "disabled" beside real menus. */
-.st-menu-item.is-active {
-  background: var(--bg-selected-strong);
-  color: var(--text-inverse);
-}
-
-.st-menu-check {
-  flex: 0 0 auto;
-  width: 12px;
-  text-align: center;
-  font-size: var(--fs-xs);
-}
-
-.st-menu-label {
-  flex: 1;
-  min-width: 0;
-}
-
-/* Section header with its own separator, the way a macOS menu groups a submenu's worth
-   of choices inline. The first one never draws a rule against the menu's own edge. */
-.st-menu-section {
-  margin-top: 4px;
-  padding: 6px 8px 3px;
-  border-top: var(--hairline) solid var(--border);
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  color: var(--text-tertiary);
-}
-
 /* ── status popup (detail inspector) ───────────────────────────────────────── */
 
 /* The shared `.input` is width:100% for stacked forms. A popup button is sized to its
@@ -505,7 +449,9 @@
   vertical-align: middle;
 }
 
-.item-row:hover {
+.item-row:hover,
+/* The row an open menu belongs to — see `.item-card.is-menu-target`. */
+.item-row.is-menu-target {
   background: var(--bg-hover);
 }
 

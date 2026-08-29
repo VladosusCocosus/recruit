@@ -13,8 +13,8 @@ import { Icon } from '@renderer/components'
 import type { ItemSummary } from '@shared/types'
 import type { DragEvent, JSX } from 'react'
 import { itemSignal } from './format'
-import type { StatusMenuTarget } from './StatusMenu'
-import { menuTargetFromElement, menuTargetFromEvent } from './StatusMenu'
+import type { ItemMenuTarget } from './ItemMenu'
+import { itemMenuTargetFromElement, itemMenuTargetFromEvent } from './ItemMenu'
 import type { StatusIndex } from './useTracker'
 
 export const ITEM_DRAG_TYPE = 'application/x-recruit-item'
@@ -25,6 +25,7 @@ export function ItemCard({
   now,
   selected,
   dragging,
+  menuOpen,
   onOpen,
   onRequestMenu,
   onDragStateChange
@@ -34,9 +35,11 @@ export function ItemCard({
   now: number
   selected?: boolean
   dragging?: boolean
+  /** The open menu belongs to this card — see `.is-menu-target`. */
+  menuOpen?: boolean
   onOpen: (itemId: number) => void
   /** Opens the shared contextual menu the board mounts once for every card. */
-  onRequestMenu: (target: StatusMenuTarget) => void
+  onRequestMenu: (target: ItemMenuTarget) => void
   onDragStateChange?: (itemId: number | null) => void
 }): JSX.Element {
   const menuButton = useRef<HTMLButtonElement | null>(null)
@@ -55,6 +58,7 @@ export function ItemCard({
       className={
         'item-card' +
         (selected ? ' is-selected' : '') +
+        (menuOpen ? ' is-menu-target' : '') +
         (dragging ? ' is-dragging' : '') +
         (item.archivedAt ? ' is-archived' : '')
       }
@@ -64,7 +68,7 @@ export function ItemCard({
       onClick={() => onOpen(item.id)}
       onContextMenu={(e) => {
         e.preventDefault()
-        onRequestMenu(menuTargetFromEvent(item, e))
+        onRequestMenu(itemMenuTargetFromEvent(item, e))
       }}
     >
       {/* The card used to be a div with role="button" holding its own controls. ARIA
@@ -93,11 +97,11 @@ export function ItemCard({
           ref={menuButton}
           type="button"
           className="item-card-menu"
-          aria-label={`Change status of ${item.company}`}
+          aria-label={`More actions for ${item.company}`}
           aria-haspopup="menu"
           onClick={(e) => {
             e.stopPropagation()
-            if (menuButton.current) onRequestMenu(menuTargetFromElement(item, menuButton.current))
+            if (menuButton.current) onRequestMenu(itemMenuTargetFromElement(item, menuButton.current))
           }}
         >
           <Icon name="ellipsis" size={13} />

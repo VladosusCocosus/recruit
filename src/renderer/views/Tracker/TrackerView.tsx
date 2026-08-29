@@ -100,6 +100,14 @@ export function TrackerView({
     [store]
   )
 
+  // Archiving is how an application leaves the board reversibly, so it belongs on the
+  // card's own menu rather than only in the inspector. Deleting stays in the inspector:
+  // it cannot be undone, and a menu row has nowhere to say so.
+  const archiveItem = useCallback(
+    (id: number, archived: boolean) => void store.archiveItem(id, archived),
+    [store]
+  )
+
   const showBoard = mode === 'board'
   const empty = store.loading && store.items.length === 0
   const firstOpen = store.statusIndex.open[0]?.key ?? 'saved'
@@ -152,6 +160,7 @@ export function TrackerView({
               selectedItemId={selectedItemId}
               onOpenItem={setSelectedItemId}
               onChangeStatus={changeStatus}
+              onArchiveItem={archiveItem}
               onCreateItem={(statusKey) => void handleCreate(statusKey)}
             />
           ) : (
@@ -163,6 +172,7 @@ export function TrackerView({
                 selectedItemId={selectedItemId}
                 onOpenItem={setSelectedItemId}
                 onChangeStatus={changeStatus}
+                onArchiveItem={archiveItem}
                 onCreateItem={(statusKey) => void handleCreate(statusKey)}
               />
             </PaneBody>
