@@ -1240,6 +1240,14 @@ figcaption {
   line-height: 1.7;
 }
 
+/* The hosting credit sits on its own line rather than joining the run of
+   dot-separated facts above it -- those are claims about what the app does,
+   and this is not one of them. The link takes the accent because it is a path
+   that works, which is the only thing the accent is allowed to mean here. */
+.foot-by {
+  margin-top: 12px;
+}
+
 /* ------------------------------------------------------------- responsive - */
 
 @media (max-width: 900px) {

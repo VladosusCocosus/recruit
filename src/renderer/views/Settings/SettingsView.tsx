@@ -407,12 +407,21 @@ function updateLabel(state: string | undefined): string {
   }
 }
 
+/** Where the site and the DMGs it serves are deployed. */
+const FLINE_URL = 'https://dev.fline.sh'
+
 function AboutSection(): JSX.Element {
   const appInfo = useAppInfo()
   const update = useUpdate()
 
   const reveal = useCallback(() => {
     void window.recruit.revealDatabase().catch(() => undefined)
+  }, [])
+
+  // Through main, like every other outbound link: the renderer must never navigate
+  // itself, and `openExternal` hands the URL to the OS browser.
+  const openFline = useCallback(() => {
+    void window.recruit.openExternal(FLINE_URL).catch(() => undefined)
   }, [])
 
   if (!appInfo.data) {
@@ -460,6 +469,20 @@ function AboutSection(): JSX.Element {
         >
           <Button size="sm" onClick={reveal}>
             Reveal
+          </Button>
+        </SettingsRow>
+      </SettingsBlock>
+
+      {/* Scoped on purpose: the app is Electron on your own machine, and claiming it
+          runs on a deployment platform would not be true. What fline carries is the
+          site and the builds you downloaded from it. */}
+      <SettingsBlock
+        title="Powered by"
+        footnote="The Jobbox site and the builds it serves are deployed on fline."
+      >
+        <SettingsRow label="fline" description={FLINE_URL.replace(/^https?:\/\//, '')}>
+          <Button size="sm" icon="external" onClick={openFline}>
+            Open
           </Button>
         </SettingsRow>
       </SettingsBlock>

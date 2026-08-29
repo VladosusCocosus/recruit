@@ -919,6 +919,14 @@ h3.sub {
   line-height: 1.8;
 }
 
+/* The hosting credit sits on its own line rather than joining the run of
+   dot-separated facts above it -- those are claims about what the app does,
+   and this is not one of them. The link takes the accent because it is a path
+   that works, which is the only thing the accent is allowed to mean here. */
+.foot-by {
+  margin-top: 12px;
+}
+
 /* ------------------------------------------------------------- responsive - */
 
 @media (max-width: 940px) {
@@ -1389,6 +1397,7 @@ h3.sub {
       passwords in the macOS Keychain, never in the database<br>
       Every company, role and address in the screenshots is invented.
       <a href="/setup">Connecting your mailbox →</a></p>
+    <p class="foot-by">Powered by <a href="https://dev.fline.sh">fline</a></p>
   </div>
 </footer>
 
