@@ -188,7 +188,14 @@ export function buildTriageArgv(input: {
   ]
 }
 
-/** Enrich: WebSearch and nothing else. The empty mcp config is the isolation. */
+/**
+ * The only two built-ins an enrich run gets. WebSearch alone returns result snippets,
+ * which is not enough to read a careers page or a job posting — WebFetch is what makes
+ * the "Hiring" section of the brief possible. Neither tool can reach anything local.
+ */
+export const ENRICH_TOOLS = 'WebSearch,WebFetch'
+
+/** Enrich: web reads and nothing else. The empty mcp config is the isolation. */
 export function buildEnrichArgv(input: { taskPrompt: string; model: string }): string[] {
   return [
     '-p',
@@ -196,12 +203,12 @@ export function buildEnrichArgv(input: { taskPrompt: string; model: string }): s
     '--system-prompt',
     ENRICH_SYSTEM_PROMPT,
     '--tools',
-    'WebSearch',
+    ENRICH_TOOLS,
     '--strict-mcp-config',
     '--mcp-config',
     '{"mcpServers":{}}',
     '--allowedTools',
-    'WebSearch',
+    ENRICH_TOOLS,
     '--permission-mode',
     'bypassPermissions',
     '--output-format',

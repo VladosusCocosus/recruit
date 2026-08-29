@@ -56,7 +56,7 @@ private.
 |---|---|---|
 | tracker MCP tools | yes, allowlisted | **no server configured at all** |
 | email | this run's allowlist only | never — input is a company name string |
-| web | Claude Code: no. Codex: **yes, see below** | yes |
+| web | Claude Code: no. Codex: **yes, see below** | yes — `WebSearch` + `WebFetch` |
 | shell / files / subagents | no | no |
 
 On Claude Code that is `--tools ""` (no built-ins whatsoever) plus `--strict-mcp-config`.
@@ -93,6 +93,19 @@ First launch shows a setup checklist: **add account → sync → first scan → 
 5. **Review.** Accept or reject each proposal. Every card shows the prefilter reason that
    flagged the message, so you can see why the agent was looking at it.
 
+### Researching a company
+
+With **Settings → Agent → Enrichment** on, an item's Description block grows a **Research**
+button. It spawns an enrich run over the item's company name and the run writes a sourced
+brief: what the company does, what their live job postings ask for, how their careers page
+describes them, and what review sites say — each section dropped rather than padded when
+it can't be sourced, and every claim carrying a link.
+
+The brief does **not** land on the item directly. An enrich run has no tracker tools, so
+the result arrives as a proposal in the Review queue like everything else; the button says
+so once the run finishes. Accepting it replaces an agent-written description and never a
+description you wrote yourself.
+
 Gmail and other 2FA providers need an app-specific password, not your account password.
 **Outlook and Microsoft 365 cannot connect at all** — Microsoft removed password sign-in from
 IMAP and SMTP, and Jobbox has no OAuth client. The preset is kept, with a warning in the form.
@@ -126,10 +139,15 @@ Worth knowing before you point it at real mail:
   tracker tables is only reachable from the Accept button.
 - Email text is untrusted input. Tool results say so explicitly, but treat the triage
   prompt's injection resistance as unproven until you have watched a few real runs.
-- **Enrichment** (a separate run kind that may search the web) is **off by default** and,
+- **Enrichment** (a separate run kind that reaches the web) is **off by default** and,
   when on, gets a company name string and no tracker access at all — no MCP server is
   configured for it, so the tracker listener is not merely un-allowed, it is
-  unaddressable.
+  unaddressable. Its whole tool surface is `WebSearch,WebFetch`, on both `--tools` and
+  `--allowedTools`.
+- The isolation only holds while the input stays a bare company name. Feeding an enrich
+  run the user's CV or their mail to get a "how well do I fit" answer would hand a
+  web-enabled process private data to exfiltrate — that comparison belongs in a second,
+  local, web-less step, not in this one.
 
 ## Known gaps
 

@@ -3,8 +3,10 @@ import { TRACKER_TOOL_NAMES } from '@main/agent/schemas'
 import {
   buildCodexEnrichArgv,
   buildCodexTriageArgv,
+  buildEnrichArgv,
   codexAdapter,
   CODEX_TOKEN_ENV_VAR,
+  ENRICH_TOOLS,
   parseCodexEvents
 } from '@main/agent/engines'
 import { redactArgv } from '@main/agent/runner'
@@ -109,6 +111,25 @@ describe('codex enrich argv', () => {
   it('is the only run kind that asks for the web', () => {
     expect(override(enrich(), 'tools.web_search')).toBe('true')
     expect(override(triage(), 'tools.web_search')).toBe('false')
+  })
+})
+
+describe('claude enrich argv', () => {
+  const argv = buildEnrichArgv({ taskPrompt: 'Write the brief for: Acme', model: 'sonnet' })
+  const flag = (name: string): string | undefined => argv[argv.indexOf(name) + 1]
+
+  it('grants web reads and nothing else, on both the tool and the permission flag', () => {
+    expect(ENRICH_TOOLS).toBe('WebSearch,WebFetch')
+    expect(flag('--tools')).toBe(ENRICH_TOOLS)
+    expect(flag('--allowedTools')).toBe(ENRICH_TOOLS)
+    for (const forbidden of ['Bash', 'Read', 'Write', 'Edit', 'Task']) {
+      expect(ENRICH_TOOLS.split(',')).not.toContain(forbidden)
+    }
+  })
+
+  it('configures no MCP server at all, so the tracker is unaddressable', () => {
+    expect(flag('--mcp-config')).toBe('{"mcpServers":{}}')
+    expect(argv).toContain('--strict-mcp-config')
   })
 })
 

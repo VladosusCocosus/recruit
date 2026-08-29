@@ -685,6 +685,18 @@
   font-size: var(--fs-xs);
 }
 
+/* Filed / failed are transient run outcomes, not authorship — they read as status,
+   so they take the semantic colours rather than the accent the authorship note uses. */
+.description-note.is-filed {
+  background: var(--success-tint);
+  color: var(--success);
+}
+
+.description-note.is-error {
+  background: var(--danger-tint);
+  color: var(--danger);
+}
+
 .description-editor {
   min-height: 160px;
   margin-bottom: 8px;
