@@ -1,7 +1,8 @@
 import { resolve } from 'node:path'
 import { defineConfig } from 'vitest/config'
 
-// Unit tests exist ONLY for the prefilter and the .ics parser. Keep it that way.
+// Unit tests exist ONLY for pure functions — the prefilter, the .ics parser, the hash
+// route's parse/format pair. Keep it that way: no component tests, no DOM environment.
 export default defineConfig({
   resolve: {
     alias: {

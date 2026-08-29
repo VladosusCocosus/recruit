@@ -7,7 +7,8 @@
  * IPC handlers.
  */
 import { createAgentRunner, type AgentRunner } from '@main/agent'
-import { getSettings, resolveClaudeBinary } from '@main/settings'
+import { getSettings, resolveAgentBinary } from '@main/settings'
+import type { AgentEngine } from '@shared/types'
 import { createAgentRepo } from './agentRepo'
 import { broadcast } from './bridge'
 import { createMailService, type MailService } from './mail'
@@ -35,10 +36,13 @@ export function createServices(): AppServices {
 
     onRunUpdate: (update) => broadcast('runUpdate', update),
 
-    // Getters, not values: Settings can change the model / enrichment toggle / CLI path
-    // while the app is running, and the runner reads these at spawn time.
-    get claudeBin(): string | undefined {
-      const resolved = resolveClaudeBinary()
+    // Getters, not values: Settings can change the engine / model / enrichment toggle /
+    // CLI path while the app is running, and the runner reads these at spawn time.
+    get engine(): AgentEngine {
+      return getSettings().agentEngine
+    },
+    get agentBin(): string | undefined {
+      const resolved = resolveAgentBinary(getSettings().agentEngine)
       return resolved.available ? resolved.path : undefined
     },
     get model(): string {

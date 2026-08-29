@@ -5,7 +5,7 @@
  * instant, and a status change made in one is already applied in the other.
  */
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Button,
   ErrorBanner,
@@ -34,16 +34,34 @@ const MODES = [
 export function TrackerView({
   initialItemId = null,
   initialMode = 'board',
+  focusItemId = null,
+  focusNonce = 0,
   onOpenMessage
 }: {
   initialItemId?: number | null
   initialMode?: TrackerMode
+  /**
+   * Open this item on arrival — a cross-view link landed here. The id need not be on the
+   * board: ItemDetail reads by id, so an item hidden by the search box or the archived
+   * filter still opens.
+   */
+  focusItemId?: number | null
+  /** Bumped by the router per navigation, so following the same link twice still opens it. */
+  focusNonce?: number
   onOpenMessage?: (messageId: number) => void
 } = {}): JSX.Element {
   const [mode, setMode] = useState<TrackerMode>(initialMode)
   const [search, setSearch] = useState('')
   const [includeArchived, setIncludeArchived] = useState(false)
   const [selectedItemId, setSelectedItemId] = useState<number | null>(initialItemId)
+
+  // A deep link opens its item and then gets out of the way. Keyed on the nonce alone, or
+  // every re-render would drag the detail pane back off whatever card the user clicked next.
+  const focusRef = useRef(focusItemId)
+  focusRef.current = focusItemId
+  useEffect(() => {
+    if (focusRef.current != null) setSelectedItemId(focusRef.current)
+  }, [focusNonce])
 
   const query = useMemo<ItemQuery>(
     () => ({

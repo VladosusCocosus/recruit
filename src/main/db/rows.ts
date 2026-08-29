@@ -170,6 +170,14 @@ export interface MessageRow {
   prefilter_score: number | null
   prefilter_reasons_json: string | null
   triage_state: string
+  /** Local read state (migration 002). Never round-trips to IMAP — v1 writes no flags. */
+  read_at: string | null
+  /**
+   * Local soft delete (migration 003). Also never round-trips to IMAP: the message is still
+   * on the server, it just stops existing for this app. Filtered in the repo, so a row that
+   * reaches a mapper here is by definition not deleted — no domain field mirrors it.
+   */
+  deleted_at: string | null
   fetched_at: string
   /** group_concat(item_messages.item_id) — always selected by the message queries. */
   linked_item_ids?: string | null
@@ -192,7 +200,9 @@ export function rowToMessageSummary(row: MessageRow): MessageSummary {
     snippet: row.snippet,
     hasAttachments: row.has_attachments !== 0,
     flags,
-    isUnread: !flags.includes('\\Seen'),
+    // Two sources, either of which can mark it read: the server's \Seen flag, and read_at,
+    // which is the only one this app ever writes.
+    isUnread: !flags.includes('\\Seen') && row.read_at == null,
     prefilterScore: row.prefilter_score,
     prefilterReasons: parseJson<PrefilterReason[]>(row.prefilter_reasons_json, []),
     triageState: row.triage_state as TriageState,

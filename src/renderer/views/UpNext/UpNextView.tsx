@@ -4,8 +4,9 @@ import { UpNext } from './UpNext'
 
 export interface UpNextViewProps extends ViewProps {
   /**
-   * Deep-link to one item. The shell's `navigate` only carries a NavKey, so by default a row
-   * lands the user on the Board. Pass this once a row-level selection channel exists.
+   * Override where a row goes. By default `navigate` carries the id in the hash and the
+   * Board opens that item; this exists for embedding the list somewhere that owns its own
+   * selection.
    */
   onOpenItem?: (itemId: number) => void
   limit?: number
@@ -19,7 +20,7 @@ export default function UpNextView({ navigate, onOpenItem, limit }: UpNextViewPr
   const openItem = useCallback(
     (itemId: number) => {
       if (onOpenItem) onOpenItem(itemId)
-      else navigate('board')
+      else navigate('board', { item: itemId })
     },
     [navigate, onOpenItem]
   )

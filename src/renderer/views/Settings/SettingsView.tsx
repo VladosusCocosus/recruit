@@ -1,6 +1,10 @@
 import { useCallback, useState } from 'react'
 import {
+  AGENT_ENGINES,
+  AGENT_ENGINE_BINARY,
+  AGENT_ENGINE_LABEL,
   AGENT_MODELS,
+  type AgentEngine,
   type AppSettings,
   type ThemePreference
 } from '@shared/types'
@@ -70,6 +74,14 @@ const MODEL_OPTIONS = AGENT_MODELS.map((m) => ({
   value: m as string,
   label: m.charAt(0).toUpperCase() + m.slice(1)
 }))
+
+const ENGINE_OPTIONS = AGENT_ENGINES.map((e) => ({ value: e, label: AGENT_ENGINE_LABEL[e] }))
+
+/** Which settings key the path field writes, for the engine currently selected. */
+const BINARY_PATH_KEY: Record<AgentEngine, 'claudeBinaryPath' | 'codexBinaryPath'> = {
+  claude: 'claudeBinaryPath',
+  codex: 'codexBinaryPath'
+}
 
 /** Just the unit word — `pluralize` prefixes the count, which the field already shows. */
 const unit = (n: number, one: string): string => (n === 1 ? one : `${one}s`)
@@ -228,7 +240,7 @@ function TriageSection({ settings, onUpdate }: SectionProps): JSX.Element {
     <SettingsBlock
       footnote={
         <>
-          The prefilter scores every message locally before Claude sees anything. Only
+          The prefilter scores every message locally before the agent sees anything. Only
           messages at or above the threshold become candidates — a lower threshold catches
           more mail and costs more per run. 0.35 is the default.
         </>
@@ -270,19 +282,36 @@ function TriageSection({ settings, onUpdate }: SectionProps): JSX.Element {
 
 function AgentSection({ settings, onUpdate }: SectionProps): JSX.Element {
   const appInfo = useAppInfo()
-  const available = appInfo.data?.claudeCliAvailable ?? false
+  const engine: AgentEngine = settings.agentEngine
+  const engineBinary = AGENT_ENGINE_BINARY[engine]
+  const engineLabel = AGENT_ENGINE_LABEL[engine]
+  const available = appInfo.data?.agentCliAvailable ?? false
 
   return (
     <>
-      <SettingsBlock footnote="Claude never writes to the tracker directly. Every change it wants to make lands in the Review queue for you to accept or reject.">
-        <SettingsRow label="Model">
+      <SettingsBlock footnote="The agent never writes to the tracker directly. Every change it wants to make lands in the Review queue for you to accept or reject.">
+        <SettingsRow
+          label="Engine"
+          description="Runs on that tool's own subscription — Jobbox never holds an API key."
+        >
           <Select
-            value={settings.model}
-            options={MODEL_OPTIONS}
-            aria-label="Model"
-            onValueChange={(v) => void onUpdate({ model: v })}
+            value={engine}
+            options={ENGINE_OPTIONS}
+            aria-label="Agent engine"
+            onValueChange={(v) => void onUpdate({ agentEngine: v as AgentEngine })}
           />
         </SettingsRow>
+        {/* Codex is given no model and uses its own default, so the row would be a lie. */}
+        {engine === 'claude' ? (
+          <SettingsRow label="Model">
+            <Select
+              value={settings.model}
+              options={MODEL_OPTIONS}
+              aria-label="Model"
+              onValueChange={(v) => void onUpdate({ model: v })}
+            />
+          </SettingsRow>
+        ) : null}
         <SettingsRow
           label="Look up company descriptions on the web"
           description="A separate, isolated agent that receives only a company name — no message data, no tracker access."
@@ -295,9 +324,21 @@ function AgentSection({ settings, onUpdate }: SectionProps): JSX.Element {
         </SettingsRow>
       </SettingsBlock>
 
+      {/* Not a preference — a capability difference the person choosing Codex has to
+          see at the moment they choose it. */}
+      {engine === 'codex' ? (
+        <Banner tone="warning" icon="alert" title="Codex triage runs can reach the web">
+          Triage reads your mail, so it is meant to have no way to send anything out. On
+          Claude Code that is enforced. Codex has no working switch for its web search, so
+          a message that manages to steer the agent could get text off this machine.
+          Everything else still holds: no shell, no files, read-only sandbox, and your own
+          Codex MCP servers are not loaded.
+        </Banner>
+      ) : null}
+
       <SettingsBlock
-        title="Claude Code"
-        footnote="A GUI-launched app does not inherit your login shell's PATH, so Jobbox also looks in ~/.local/bin, ~/.claude/local, /opt/homebrew/bin and a few more. Set an explicit path if it still can't find the binary; restart for a change to take effect."
+        title={engineLabel}
+        footnote={`A GUI-launched app does not inherit your login shell's PATH, so Jobbox searches the usual install locations — including the per-version bin directories of nvm, fnm, mise and asdf, which is where an npm-global ${engineBinary} usually lives. Set an absolute path if the search misses; restart for a change to take effect.`}
       >
         <SettingsRow label="Status">
           {available ? (
@@ -306,22 +347,24 @@ function AgentSection({ settings, onUpdate }: SectionProps): JSX.Element {
             <Badge tone="warning">Not found</Badge>
           )}
         </SettingsRow>
-        <SettingsRow label="Binary path">
+        <SettingsRow label={`Path to ${engineBinary}`}>
           <CommittedText
-            value={settings.claudeBinaryPath}
-            label="Claude binary path"
-            placeholder="claude"
-            fallback="claude"
+            key={engine}
+            value={settings[BINARY_PATH_KEY[engine]]}
+            label={`Path to the ${engineBinary} binary`}
+            placeholder={engineBinary}
+            fallback={engineBinary}
             className="set-w-path"
-            onCommit={(v) => void onUpdate({ claudeBinaryPath: v })}
+            onCommit={(v) => void onUpdate({ [BINARY_PATH_KEY[engine]]: v })}
           />
         </SettingsRow>
       </SettingsBlock>
 
       {!available && appInfo.data ? (
-        <Banner tone="warning" icon="terminal" title="Claude Code isn't installed">
-          Jobbox couldn&apos;t find the <code>claude</code> binary on this machine. Triage runs
-          are unavailable until it is installed.
+        <Banner tone="warning" icon="terminal" title={`${engineLabel} isn't installed`}>
+          Jobbox couldn&apos;t find the <code>{engineBinary}</code> binary on this machine.
+          Triage runs are unavailable until it is installed, or until you set its path
+          above.
         </Banner>
       ) : null}
     </>

@@ -32,7 +32,7 @@ export interface RunButtonProps {
   elapsedMs: number
   onStart: () => void
   onStop: () => void
-  /** Claude CLI missing / not signed in — the button explains itself instead of failing. */
+  /** Agent CLI missing / not signed in — the button explains itself instead of failing. */
   disabledReason?: string | null
 }
 
@@ -122,7 +122,7 @@ export function RunButton({
         className="run-trigger"
         onClick={onStart}
         disabled={reason !== null}
-        title={reason ?? `Scan ${candidateCount} candidate messages with Claude`}
+        title={reason ?? `Scan ${candidateCount} candidate messages`}
       >
         <span className="run-trigger-icon">
           <Icon name="play" size={11} />

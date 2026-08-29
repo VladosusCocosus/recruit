@@ -91,31 +91,105 @@ const NAV_KEYS: readonly NavKey[] = [
   'settings'
 ]
 
-function readHash(fallback: NavKey): NavKey {
-  const raw = window.location.hash.replace(/^#\/?/, '')
-  return (NAV_KEYS as readonly string[]).includes(raw) ? (raw as NavKey) : fallback
+/** What a cross-view link points at. A route carries at most one. */
+export type RouteTargetKind = 'message' | 'item'
+
+export interface RouteTarget {
+  kind: RouteTargetKind
+  id: number
+}
+
+const TARGET_KINDS: readonly RouteTargetKind[] = ['message', 'item']
+
+/** The object form callers write: `navigate('inbox', { message: 12 })`. */
+export type NavTarget = { message: number; item?: never } | { item: number; message?: never }
+
+export type Navigate = (key: NavKey, target?: NavTarget) => void
+
+export interface Route {
+  nav: NavKey
+  /** The deep-link target the hash carries, or null for a plain `#/inbox`. */
+  target: RouteTarget | null
+  /**
+   * Bumped on every navigation, including one that lands on the hash we are already on.
+   * Views honour `target` once per nonce, so clicking the same link twice opens it twice
+   * and clicking around afterwards is never yanked back.
+   */
+  nonce: number
+}
+
+/**
+ * `#/inbox/message/12` -> inbox, focused on message 12. Anything unrecognised — an unknown
+ * view, a kind we don't serve, a non-numeric id — degrades to a plain view rather than an
+ * error page, because a hash is user-editable and a typo must not strand the app.
+ */
+export function parseHash(
+  hash: string,
+  fallback: NavKey = 'inbox'
+): { nav: NavKey; target: RouteTarget | null } {
+  const parts = hash.replace(/^#\/?/, '').split('/')
+  const rawNav = parts[0] ?? ''
+  if (!(NAV_KEYS as readonly string[]).includes(rawNav)) return { nav: fallback, target: null }
+
+  const nav = rawNav as NavKey
+  const kind = parts[1] ?? ''
+  const id = Number(parts[2] ?? '')
+  if (!(TARGET_KINDS as readonly string[]).includes(kind)) return { nav, target: null }
+  if (!Number.isSafeInteger(id) || id <= 0) return { nav, target: null }
+  return { nav, target: { kind: kind as RouteTargetKind, id } }
+}
+
+/** The inverse. A targetless route keeps the short `#/inbox` form it has always had. */
+export function formatHash(nav: NavKey, target?: RouteTarget | null): string {
+  return target ? `#/${nav}/${target.kind}/${target.id}` : `#/${nav}`
+}
+
+function toTarget(target: NavTarget | undefined): RouteTarget | null {
+  if (!target) return null
+  if (target.message !== undefined) return { kind: 'message', id: target.message }
+  if (target.item !== undefined) return { kind: 'item', id: target.item }
+  return null
 }
 
 /**
  * Hash routing, deliberately not react-router. The hash is the single source of
- * truth, so back/forward work and a reload lands on the same view.
+ * truth, so back/forward work and a reload lands on the same view — and, now that it
+ * carries the target too, on the same message or item.
  */
-export function useHashRoute(fallback: NavKey = 'inbox'): [NavKey, (key: NavKey) => void] {
-  const [nav, setNav] = useState<NavKey>(() => readHash(fallback))
+export function useHashRoute(fallback: NavKey = 'inbox'): [Route, Navigate] {
+  const [route, setRoute] = useState<Route>(() => ({
+    ...parseHash(window.location.hash, fallback),
+    nonce: 0
+  }))
+
+  // The listener has to read the newest route to tell an outside change from our own echo,
+  // but must not be re-registered on every navigation.
+  const routeRef = useRef(route)
+  routeRef.current = route
 
   useEffect(() => {
-    const onChange = (): void => setNav(readHash(fallback))
+    const onChange = (): void => {
+      const next = parseHash(window.location.hash, fallback)
+      const current = routeRef.current
+      // Assigning window.location.hash fires this event a tick after `navigate` already
+      // applied the same route. Swallow that echo, or every deep-link effect runs twice.
+      if (formatHash(next.nav, next.target) === formatHash(current.nav, current.target)) return
+      setRoute({ ...next, nonce: current.nonce + 1 })
+    }
     window.addEventListener('hashchange', onChange)
     if (!window.location.hash) window.location.hash = `#/${fallback}`
     return () => window.removeEventListener('hashchange', onChange)
   }, [fallback])
 
-  const navigate = useCallback((key: NavKey) => {
-    window.location.hash = `#/${key}`
-    setNav(key)
+  const navigate = useCallback<Navigate>((key, target) => {
+    const next = toTarget(target)
+    window.location.hash = formatHash(key, next)
+    // Set state here rather than waiting for `hashchange`: re-following a link you are
+    // already on changes nothing in the URL, so no event would ever arrive.
+    setRoute((prev) => ({ nav: key, target: next, nonce: prev.nonce + 1 }))
   }, [])
 
-  return [nav, navigate]
+  return [route, navigate]
 }
 
 /* ── main -> renderer events ─────────────────────────────────────────────── */
@@ -138,8 +212,11 @@ export function useRecruitEvent<K extends RecruitEventName>(
 
 /* ── app-level reads ─────────────────────────────────────────────────────── */
 
+/** Self-refreshing: switching the agent engine changes which CLI this describes. */
 export function useAppInfo(): AsyncState<AppInfo> {
-  return useAsync(() => window.recruit.getAppInfo(), [])
+  const state = useAsync(() => window.recruit.getAppInfo(), [])
+  useRecruitEvent('settingsChanged', () => state.reload())
+  return state
 }
 
 export function useAccounts(): AsyncState<Account[]> {

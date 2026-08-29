@@ -31,6 +31,10 @@ export interface UseMessagesResult {
   refresh: () => void
   /** Optimistic local update after a setTriageState round-trip. */
   applyTriage: (messageIds: number[], state: TriageState) => void
+  /** Optimistic local update after a markMessagesRead round-trip. */
+  applyRead: (messageIds: number[], read: boolean) => void
+  /** Optimistic local update after a deleteMessages round-trip. */
+  applyDeleted: (messageIds: number[], deleted: boolean) => void
 }
 
 function errText(e: unknown): string {
@@ -145,6 +149,37 @@ export function useMessages({ mode, search, accountId }: UseMessagesOptions): Us
     [mode]
   )
 
+  // Read state never moves a row between the two lists, so unlike applyTriage this is only
+  // ever a patch — no row leaves, and the header count does not change.
+  const applyRead = useCallback((messageIds: number[], read: boolean) => {
+    const ids = new Set(messageIds)
+    setRows((prev) => prev.map((row) => (ids.has(row.id) ? { ...row, isUnread: !read } : row)))
+  }, [])
+
+  /**
+   * A deleted message leaves BOTH lists — main filters deleted_at out of every read — so this
+   * is applyTriage's removal branch without the mode check, `removed` counted out here for the
+   * same StrictMode reason.
+   *
+   * Undo goes the other way and cannot patch: the list is date-ordered and may be several pages
+   * deep, so there is no index to put the row back at. Refetch instead — the round-trip that
+   * cleared deleted_at has already landed, so the row is there to be found.
+   */
+  const applyDeleted = useCallback(
+    (messageIds: number[], deleted: boolean) => {
+      if (!deleted) {
+        refresh()
+        return
+      }
+      const ids = new Set(messageIds)
+      const removed = rowsRef.current.filter((row) => ids.has(row.id)).length
+      if (removed === 0) return
+      setRows((prev) => prev.filter((row) => !ids.has(row.id)))
+      setTotal((t) => Math.max(0, t - removed))
+    },
+    [refresh]
+  )
+
   return {
     rows,
     total,
@@ -154,6 +189,8 @@ export function useMessages({ mode, search, accountId }: UseMessagesOptions): Us
     hasMore: rows.length < total,
     loadMore,
     refresh,
-    applyTriage
+    applyTriage,
+    applyRead,
+    applyDeleted
   }
 }

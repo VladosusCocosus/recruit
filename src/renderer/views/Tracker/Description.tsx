@@ -1,7 +1,7 @@
 /**
  * The description block.
  *
- * When Claude wrote it, say so and say what editing means — the moment the user saves,
+ * When the agent wrote it, say so and say what editing means — the moment the user saves,
  * description_source flips to 'user' and enrichment stops overwriting it. That promise
  * is the whole reason the note exists, so it's stated in the note itself.
  */
@@ -96,10 +96,10 @@ export function Description({
       </div>
 
       {byAgent && hasText ? (
-        <div className="description-note" title="Enrichment overwrites Claude's text, never yours">
+        <div className="description-note" title="Enrichment overwrites the agent's text, never yours">
           <Icon name="sparkle" size={11} />
           <span>
-            written by Claude
+            written by Agent
             {item.descriptionUpdatedAt ? ` ${formatRelative(item.descriptionUpdatedAt, now)}` : ''} ·{' '}
             <button type="button" className="linklike" onClick={() => setEditing(true)}>
               edit to take ownership

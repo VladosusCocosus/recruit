@@ -15,6 +15,8 @@ import type { Message, SanitizedBody } from '@shared/types'
 
 export interface UseMessageBodyResult {
   message: Message | null
+  /** The fetch settled and main had no such row — a stale deep link, or a deleted message. */
+  notFound: boolean
   body: SanitizedBody | null
   loading: boolean
   error: string | null
@@ -29,6 +31,7 @@ export function useMessageBody(
   const [message, setMessage] = useState<Message | null>(null)
   const [body, setBody] = useState<SanitizedBody | null>(null)
   const [loading, setLoading] = useState(false)
+  const [notFound, setNotFound] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [override, setOverride] = useState<{ id: number; allow: boolean } | null>(null)
 
@@ -45,6 +48,7 @@ export function useMessageBody(
       setMessage(null)
       setBody(null)
       setLoading(false)
+      setNotFound(false)
       setError(null)
       return
     }
@@ -58,6 +62,7 @@ export function useMessageBody(
       setBody(null)
     }
     setLoading(true)
+    setNotFound(false)
     setError(null)
 
     Promise.all([
@@ -69,6 +74,7 @@ export function useMessageBody(
         loadedIdRef.current = messageId
         setMessage(loaded)
         setBody(sanitized)
+        setNotFound(loaded == null)
       })
       .catch((e: unknown) => {
         if (ticketRef.current !== ticket) return
@@ -85,5 +91,5 @@ export function useMessageBody(
     if (messageId != null) setOverride({ id: messageId, allow: true })
   }, [messageId])
 
-  return { message, body, loading, error, allowRemoteImages, loadRemoteImages }
+  return { message, body, notFound, loading, error, allowRemoteImages, loadRemoteImages }
 }

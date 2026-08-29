@@ -44,6 +44,14 @@ export interface MessageReaderProps {
   runDisabled: boolean
   running: boolean
   onTriage: (messageId: number, state: TriageState) => void
+  /**
+   * Read state for the open message. Owned by MailView, not read off `message`: the body was
+   * fetched before the dwell timer marked it read, so its copy goes stale immediately.
+   */
+  unread: boolean
+  onMarkRead: (messageId: number, read: boolean) => void
+  /** Local soft delete. MailView moves the selection on and offers the undo. */
+  onDelete: (messageId: number) => void
   onOpenItem?: (itemId: number) => void
 }
 
@@ -56,12 +64,13 @@ export function MessageReader({
   runDisabled,
   running,
   onTriage,
+  unread,
+  onMarkRead,
+  onDelete,
   onOpenItem
 }: MessageReaderProps): JSX.Element {
-  const { message, body, loading, error, allowRemoteImages, loadRemoteImages } = useMessageBody(
-    messageId,
-    blockRemoteImages
-  )
+  const { message, body, notFound, loading, error, allowRemoteImages, loadRemoteImages } =
+    useMessageBody(messageId, blockRemoteImages)
   const [showDetails, setShowDetails] = useState(false)
   const [pendingTriage, setPendingTriage] = useState<{ id: number; state: TriageState } | null>(
     null
@@ -119,10 +128,21 @@ export function MessageReader({
     )
   }
 
+  // Distinguish "still fetching" from "fetched, and main has no such row". The second is
+  // reachable from a hand-typed #/inbox/message/<id> and from a message deleted since the
+  // link was made; without this the reader would sit on the spinner forever.
   if (!message) {
     return (
       <Pane kind="detail">
-        <LoadingState label="Opening message…" />
+        {notFound ? (
+          <EmptyState
+            icon="mail"
+            title="Message not available"
+            message="It may have been deleted. Pick another message on the left."
+          />
+        ) : (
+          <LoadingState label="Opening message…" />
+        )}
       </Pane>
     )
   }
@@ -212,6 +232,20 @@ export function MessageReader({
                 Flag as candidate
               </Button>
             )}
+            {/* Local read state only — nothing here writes \Seen back to the server. */}
+            <Button
+              size="sm"
+              variant="subtle"
+              icon={unread ? 'check' : 'mail'}
+              onClick={() => onMarkRead(message.id, unread)}
+              title={
+                unread
+                  ? 'Mark this message as read here (the server is not told)'
+                  : 'Put this message back in the unread count'
+              }
+            >
+              {unread ? 'Mark as read' : 'Mark as unread'}
+            </Button>
             {triageState === 'dismissed' ? (
               <Button size="sm" variant="subtle" icon="refresh" onClick={() => triage('unseen')}>
                 Undismiss
@@ -227,6 +261,16 @@ export function MessageReader({
                 Dismiss
               </Button>
             )}
+            {/* No confirmation: the delete is local and the banner it raises offers undo. */}
+            <Button
+              size="sm"
+              variant="subtle"
+              icon="trash"
+              onClick={() => onDelete(message.id)}
+              title="Hide this message from the app (the server copy is left alone)"
+            >
+              Delete
+            </Button>
           </ButtonGroup>
         </div>
 

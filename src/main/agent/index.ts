@@ -26,15 +26,30 @@ export type {
 } from './deps'
 export { createMcpServer, type McpBridge } from './mcpServer'
 export {
+  adapterFor,
+  buildCodexEnrichArgv,
+  buildCodexTriageArgv,
   buildEnrichArgv,
   buildTriageArgv,
+  claudeAdapter,
+  codexAdapter,
+  codexPrompt,
+  CODEX_TOKEN_ENV_VAR,
+  findClaudeBin,
+  findCodexBin,
+  parseCodexEvents,
+  parseEnvelope,
+  type AgentEngineAdapter,
+  type CommandInput,
+  type EngineCommand,
+  type EngineOutput,
+  type McpTarget
+} from './engines'
+export {
   classifyAgentError,
   createAgentRunner,
-  findClaudeBin,
   looksLikeAuthFailure,
-  parseEnvelope,
   redactArgv,
-  resolveClaudeBin,
   type AgentRunner,
   type AgentRunResult,
   type RunOptions,

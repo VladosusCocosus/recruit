@@ -1,15 +1,22 @@
 /**
- * Spawns the `claude` CLI and turns its stdout envelope into a run row + a typed result.
+ * Spawns the agent CLI and turns its stdout into a run row + a typed result.
  *
  * The runner owns the MCP bridge: it starts the listener, mints a per-run bearer token,
  * writes the read allowlist BEFORE the child exists, and revokes the token in a finally
  * block. A run's token is dead the moment the run ends, whether it succeeded, failed,
  * timed out, or was stopped.
  *
+ * WHICH CLI is spawned is the only thing that varies, and all of it lives behind
+ * AgentEngineAdapter in ./engines — locate the binary, build argv for a run kind, hand
+ * back any environment that argv needs, read the output into an AgentEnvelope. Everything
+ * below this line is engine-agnostic and runs identically for Claude Code and Codex.
+ *
  * Two run kinds, deliberately non-overlapping:
- *   triage — tracker MCP tools, --tools "" (no built-ins, so no Bash/Read/Write/WebFetch).
- *   enrich — --tools "WebSearch" and an EMPTY mcp config, so it cannot reach the tracker
- *            at all. Its only input is a company name string; it never sees email.
+ *   triage — tracker MCP tools and nothing else. Sees email; must not be able to send.
+ *   enrich — web search, and an empty MCP config, so it cannot reach the tracker at all.
+ *            Its only input is a company name; it never sees email.
+ * See the header of ./engines for exactly how each engine enforces that, including the
+ * one place Codex currently cannot.
  */
 import { spawn, type ChildProcessByStdio } from 'node:child_process'
 import { existsSync } from 'node:fs'
@@ -18,21 +25,16 @@ import { join } from 'node:path'
 import type { Readable } from 'node:stream'
 import { classifyAgentErrorFacts, looksLikeAuthFailure } from '@shared/agentErrors'
 import {
-  CLAUDE_NOT_SIGNED_IN_MESSAGE,
+  AGENT_ENGINE_LABEL,
   type AgentEnvelope,
   type AgentErrorKind,
   type AgentRunKind,
   type AgentRunUpdate
 } from '@shared/types'
 import type { AgentDeps, AgentToolCallEvent } from './deps'
+import { adapterFor, type AgentEngineAdapter, type McpTarget } from './engines'
 import { createMcpServer, type McpBridge } from './mcpServer'
-import {
-  ENRICH_SYSTEM_PROMPT,
-  enrichTaskPrompt,
-  TRIAGE_SYSTEM_PROMPT,
-  triageTaskPrompt
-} from './prompts'
-import { TRACKER_ALLOWED_TOOLS } from './schemas'
+import { enrichTaskPrompt, triageTaskPrompt } from './prompts'
 
 /** spawn() with stdio ['ignore','pipe','pipe'] — stdin is null by construction. */
 type AgentChild = ChildProcessByStdio<null, Readable, Readable>
@@ -47,7 +49,6 @@ type AgentChild = ChildProcessByStdio<null, Readable, Readable>
  * nothing except a deadline to lose against. Set RunOptions.timeoutMs to re-arm one.
  */
 const DEFAULT_TIMEOUT_MS = 0
-const DEFAULT_MODEL = 'sonnet'
 const KILL_GRACE_MS = 3000
 const TICK_MS = 1000
 
@@ -68,7 +69,7 @@ export type AgentRunResult =
       envelope: AgentEnvelope
     }
   | {
-      /** FIRST-CLASS UI STATE. Show CLAUDE_NOT_SIGNED_IN_MESSAGE, not a generic failure. */
+      /** FIRST-CLASS UI STATE. Show the engine's signed-out copy, not a generic failure. */
       kind: 'auth'
       runId: number
       message: string
@@ -106,28 +107,15 @@ export interface AgentRunner {
   cancelRun(runId: number): void
   /** Newest in-flight run, for RecruitApi.getActiveRun(). */
   getActiveRun(): AgentRunUpdate | null
-  /** Whether the claude CLI can be found at all -> AppInfo.claudeCliAvailable. */
-  isClaudeAvailable(): boolean
+  /** Whether the SELECTED engine's CLI can be found -> AppInfo.agentCliAvailable. */
+  isAgentCliAvailable(): boolean
   /** Revoke every token and close the MCP listener. Call on before-quit. */
   dispose(): Promise<void>
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
- * locating the CLI
+ * spawn environment
  * ──────────────────────────────────────────────────────────────────────────── */
-
-/**
- * A GUI-launched .app does not inherit the login shell's PATH, so `claude` on
- * ~/.local/bin is invisible unless we look for it.
- */
-const CLI_CANDIDATES = (): string[] => [
-  join(homedir(), '.local', 'bin', 'claude'),
-  join(homedir(), '.claude', 'local', 'claude'),
-  '/opt/homebrew/bin/claude',
-  '/usr/local/bin/claude',
-  join(homedir(), '.bun', 'bin', 'claude'),
-  join(homedir(), '.volta', 'bin', 'claude')
-]
 
 const EXTRA_PATH = (): string =>
   [
@@ -140,26 +128,10 @@ const EXTRA_PATH = (): string =>
     '/sbin'
   ].join(':')
 
-/** Absolute path to the CLI, or null if we genuinely cannot find it. */
-export function findClaudeBin(): string | null {
-  for (const candidate of CLI_CANDIDATES()) {
-    if (existsSync(candidate)) return candidate
-  }
-  const dirs = `${process.env['PATH'] ?? ''}:${EXTRA_PATH()}`.split(':').filter(Boolean)
-  for (const dir of dirs) {
-    const candidate = join(dir, 'claude')
-    if (existsSync(candidate)) return candidate
-  }
-  return null
-}
-
-export function resolveClaudeBin(override?: string): string {
-  return override ?? findClaudeBin() ?? 'claude'
-}
-
-/** Child env: inherited, PATH widened, and Electron's own hooks stripped. */
-function childEnv(): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = { ...process.env }
+/** Child env: inherited, PATH widened, Electron's own hooks stripped, plus the
+ *  engine's extras (Codex reads the run's bearer token from one of these). */
+function childEnv(extra: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...process.env, ...extra }
   delete env['ELECTRON_RUN_AS_NODE']
   delete env['NODE_OPTIONS']
   env['PATH'] = `${env['PATH'] ?? ''}:${EXTRA_PATH()}`
@@ -167,103 +139,25 @@ function childEnv(): NodeJS.ProcessEnv {
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
- * argv
+ * argv redaction
  * ──────────────────────────────────────────────────────────────────────────── */
 
 /**
- * ORDER MATTERS. The prompt is a POSITIONAL argument and several flags here are
- * variadic (--tools, --mcp-config, --allowedTools). A variadic flag swallows every
- * following non-flag token, so the prompt must come first — immediately after the
- * boolean -p — and every variadic value must be followed by another flag.
+ * Never persist a live bearer token. Claude Code carries it inside the --mcp-config
+ * JSON blob; Codex never puts it in argv at all. The literal-token pass is the
+ * belt to that JSON pattern's braces — whatever shape a future engine chooses, the
+ * run's own secret cannot reach agent_runs.command_json.
  */
-export function buildTriageArgv(input: {
-  taskPrompt: string
-  mcpConfigJson: string
-  model: string
-}): string[] {
-  return [
-    '-p',
-    input.taskPrompt,
-    '--system-prompt',
-    TRIAGE_SYSTEM_PROMPT,
-    // "" is the documented way to disable the entire built-in tool set:
-    // no Bash, no Read, no Write, no WebFetch, no WebSearch.
-    '--tools',
-    '',
-    '--strict-mcp-config',
-    '--mcp-config',
-    input.mcpConfigJson,
-    '--allowedTools',
-    ...TRACKER_ALLOWED_TOOLS,
-    '--permission-mode',
-    'bypassPermissions',
-    '--output-format',
-    'json',
-    '--no-session-persistence',
-    '--model',
-    input.model
-  ]
-}
-
-/** Enrich: WebSearch and nothing else. The empty mcp config is the isolation. */
-export function buildEnrichArgv(input: { taskPrompt: string; model: string }): string[] {
-  return [
-    '-p',
-    input.taskPrompt,
-    '--system-prompt',
-    ENRICH_SYSTEM_PROMPT,
-    '--tools',
-    'WebSearch',
-    '--strict-mcp-config',
-    '--mcp-config',
-    '{"mcpServers":{}}',
-    '--allowedTools',
-    'WebSearch',
-    '--permission-mode',
-    'bypassPermissions',
-    '--output-format',
-    'json',
-    '--no-session-persistence',
-    '--model',
-    input.model
-  ]
-}
-
-/** Never persist a live bearer token. */
-export function redactArgv(argv: string[]): string[] {
-  return argv.map((a) => a.replace(/"Bearer [^"]+"/g, '"Bearer ***"'))
+export function redactArgv(argv: string[], token?: string | null): string[] {
+  return argv.map((a) => {
+    const masked = a.replace(/"Bearer [^"]+"/g, '"Bearer ***"')
+    return token ? masked.split(token).join('***') : masked
+  })
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
- * envelope parsing + error classification
+ * error classification
  * ──────────────────────────────────────────────────────────────────────────── */
-
-/** stdout is usually pure JSON, but a stray warning line before it is survivable. */
-export function parseEnvelope(stdout: string): AgentEnvelope | null {
-  const trimmed = stdout.trim()
-  if (!trimmed) return null
-  const attempt = (s: string): AgentEnvelope | null => {
-    try {
-      const parsed: unknown = JSON.parse(s)
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        return parsed as AgentEnvelope
-      }
-    } catch {
-      /* fall through */
-    }
-    return null
-  }
-  const direct = attempt(trimmed)
-  if (direct) return direct
-  // Re-try from each line that opens an object, newest-first.
-  const lines = trimmed.split('\n')
-  for (let i = 0; i < lines.length; i++) {
-    if (!lines[i].trimStart().startsWith('{')) continue
-    const candidate = attempt(lines.slice(i).join('\n'))
-    if (candidate) return candidate
-  }
-  return null
-}
 
 export { looksLikeAuthFailure }
 
@@ -302,6 +196,10 @@ export function createAgentRunner(deps: AgentDeps): AgentRunner {
   const { repo } = deps
   const active = new Map<number, ActiveRun>()
 
+  /** Read per call, not captured: Settings can switch engines while the app runs. */
+  const adapter = (): AgentEngineAdapter => adapterFor(deps.engine)
+  const cwd = (): string => deps.cwd ?? tmpdir()
+
   const bridge: McpBridge = createMcpServer({
     repo,
     onToolCall: (event: AgentToolCallEvent) => {
@@ -323,6 +221,10 @@ export function createAgentRunner(deps: AgentDeps): AgentRunner {
     }
   }
 
+  /**
+   * The live ticker is driven by the MCP server, not by CLI output, so it works for
+   * any engine that talks to the bridge at all — there is nothing per-engine here.
+   */
   function applyToolCall(event: AgentToolCallEvent): void {
     const run = active.get(event.runId)
     if (!run) return
@@ -342,14 +244,17 @@ export function createAgentRunner(deps: AgentDeps): AgentRunner {
   async function begin(
     kind: AgentRunKind,
     messageIds: number[],
-    argvFor: (mcpConfigJson: string) => string[],
+    taskPrompt: string,
     needsBridge: boolean,
     options: RunOptions | undefined
   ): Promise<StartedRun> {
-    const model = options?.model ?? deps.model ?? DEFAULT_MODEL
+    const engine = adapter()
+    const model = engine.resolveModel(options?.model ?? deps.model)
     const timeoutMs = options?.timeoutMs ?? deps.timeoutMs ?? DEFAULT_TIMEOUT_MS
 
-    const created = await repo.createRun({ kind, model })
+    // agent_runs.model is a record of what ran; '' would be a worse record than the
+    // engine's own name for "whatever this CLI defaults to".
+    const created = await repo.createRun({ kind, model: model ?? `${engine.engine}:default` })
     const runId = created.id
 
     const run: ActiveRun = {
@@ -381,16 +286,17 @@ export function createAgentRunner(deps: AgentDeps): AgentRunner {
     if (messageIds.length > 0) await repo.attachRunMessages(runId, messageIds)
 
     let token: string | null = null
-    let argv: string[]
+    let command: { argv: string[]; env: NodeJS.ProcessEnv }
     try {
+      let mcp: McpTarget | null = null
       if (needsBridge) {
         await bridge.start()
         token = bridge.mintToken(runId)
-        argv = argvFor(bridge.mcpConfigJson(token))
-      } else {
-        argv = argvFor('{"mcpServers":{}}')
+        mcp = { url: bridge.mcpUrl(), token, configJson: bridge.mcpConfigJson(token) }
       }
-      await repo.setRunCommand(runId, redactArgv(argv))
+      const input = { taskPrompt, mcp, model, cwd: cwd() }
+      command = kind === 'triage' ? engine.triageCommand(input) : engine.enrichCommand(input)
+      await repo.setRunCommand(runId, redactArgv(command.argv, token))
     } catch (err) {
       if (token) bridge.revokeToken(token)
       active.delete(runId)
@@ -412,18 +318,19 @@ export function createAgentRunner(deps: AgentDeps): AgentRunner {
       }
     }
 
-    const completed = execute(runId, run, argv, token, timeoutMs)
+    const completed = execute(runId, run, engine, command, token, timeoutMs)
     return { runId, kind, startedAt: created.startedAt, completed }
   }
 
   async function execute(
     runId: number,
     run: ActiveRun,
-    argv: string[],
+    engine: AgentEngineAdapter,
+    command: { argv: string[]; env: NodeJS.ProcessEnv },
     token: string | null,
     timeoutMs: number
   ): Promise<AgentRunResult> {
-    const bin = resolveClaudeBin(deps.claudeBin)
+    const bin = deps.agentBin ?? engine.findBin() ?? engine.binaryName
     const startedMs = Date.now()
 
     const raw = await new Promise<{
@@ -434,11 +341,11 @@ export function createAgentRunner(deps: AgentDeps): AgentRunner {
     }>((resolve) => {
       let child: AgentChild
       try {
-        child = spawn(bin, argv, {
+        child = spawn(bin, command.argv, {
           // stdin closed: the CLI warns and can hang if it stays open.
           stdio: ['ignore', 'pipe', 'pipe'],
-          cwd: deps.cwd ?? tmpdir(),
-          env: childEnv(),
+          cwd: cwd(),
+          env: childEnv(command.env),
           windowsHide: true
         })
       } catch (err) {
@@ -492,8 +399,13 @@ export function createAgentRunner(deps: AgentDeps): AgentRunner {
     active.delete(runId)
 
     const durationMs = Date.now() - startedMs
-    const envelope = parseEnvelope(raw.stdout)
+    const envelope = engine.parseResult({
+      stdout: raw.stdout,
+      stderr: raw.stderr,
+      exitCode: raw.code
+    })
     const combined = `${raw.stdout}\n${raw.stderr}`
+    const label = AGENT_ENGINE_LABEL[engine.engine]
 
     // ── spawn-level failures ────────────────────────────────────────────────
     if (raw.spawnError) {
@@ -503,7 +415,7 @@ export function createAgentRunner(deps: AgentDeps): AgentRunner {
         runId,
         errorKind: isEnoent ? 'cli_missing' : 'spawn_failed',
         message: isEnoent
-          ? `The claude CLI was not found (looked for "${bin}"). Install Claude Code, or set the CLI path in Settings.`
+          ? `The ${engine.binaryName} CLI was not found (looked for "${bin}"). Install ${label}, or set the CLI path in Settings.`
           : raw.spawnError.message,
         exitCode: null,
         envelope: null,
@@ -521,7 +433,7 @@ export function createAgentRunner(deps: AgentDeps): AgentRunner {
       return finish(runId, run, {
         kind: 'auth',
         runId,
-        message: CLAUDE_NOT_SIGNED_IN_MESSAGE,
+        message: engine.notSignedInMessage,
         envelope,
         raw: combined
       })
@@ -558,7 +470,7 @@ export function createAgentRunner(deps: AgentDeps): AgentRunner {
         errorKind: 'bad_output',
         message:
           raw.stderr.trim().slice(0, 2000) ||
-          `Could not parse a JSON envelope from the CLI (exit ${raw.code}).`,
+          `Could not parse a result from the ${engine.binaryName} CLI (exit ${raw.code}).`,
         exitCode: raw.code,
         envelope: null,
         raw: combined
@@ -570,7 +482,7 @@ export function createAgentRunner(deps: AgentDeps): AgentRunner {
         kind: 'error',
         runId,
         errorKind: classifyAgentError(envelope.result, envelope) ?? 'unknown',
-        message: envelope.result || `claude exited ${raw.code}`,
+        message: envelope.result || `${engine.binaryName} exited ${raw.code}`,
         exitCode: raw.code,
         envelope,
         raw: combined
@@ -637,36 +549,15 @@ export function createAgentRunner(deps: AgentDeps): AgentRunner {
 
   return {
     async spawnTriageRun(messageIds, options) {
-      return begin(
-        'triage',
-        messageIds,
-        (mcpConfigJson) =>
-          buildTriageArgv({
-            taskPrompt: triageTaskPrompt(messageIds.length),
-            mcpConfigJson,
-            model: options?.model ?? deps.model ?? DEFAULT_MODEL
-          }),
-        true,
-        options
-      )
+      return begin('triage', messageIds, triageTaskPrompt(messageIds.length), true, options)
     },
 
     async spawnEnrichRun(companyName, options) {
       if (deps.enrichmentEnabled === false) {
-        throw new Error('Enrichment is off. Turn it on in Settings to let Claude search the web.')
+        throw new Error('Enrichment is off. Turn it on in Settings to let the agent search the web.')
       }
       // No allowlist, no bridge, no tracker tools: the company name is the entire input.
-      return begin(
-        'enrich',
-        [],
-        () =>
-          buildEnrichArgv({
-            taskPrompt: enrichTaskPrompt(companyName),
-            model: options?.model ?? deps.model ?? DEFAULT_MODEL
-          }),
-        false,
-        options
-      )
+      return begin('enrich', [], enrichTaskPrompt(companyName), false, options)
     },
 
     cancelRun(runId) {
@@ -687,9 +578,9 @@ export function createAgentRunner(deps: AgentDeps): AgentRunner {
       return newest
     },
 
-    isClaudeAvailable() {
-      if (deps.claudeBin) return existsSync(deps.claudeBin)
-      return findClaudeBin() != null
+    isAgentCliAvailable() {
+      if (deps.agentBin) return existsSync(deps.agentBin)
+      return adapter().findBin() != null
     },
 
     async dispose() {

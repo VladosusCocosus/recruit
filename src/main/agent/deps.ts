@@ -8,6 +8,7 @@
  * Every method may be sync (better-sqlite3) or async — the bridge awaits all of them.
  */
 import type {
+  AgentEngine,
   AgentEnvelope,
   AgentRunKind,
   AgentRunUpdate,
@@ -130,8 +131,10 @@ export interface AgentDeps {
   onToolCall?: (event: AgentToolCallEvent) => void
   /** Fired on every run state change. Forward straight to broadcast('runUpdate', u). */
   onRunUpdate?: (update: AgentRunUpdate) => void
-  /** claude CLI binary. Default 'claude' (resolved on PATH). */
-  claudeBin?: string
+  /** Which CLI to spawn. Default 'claude'. */
+  engine?: AgentEngine
+  /** Path to the SELECTED engine's binary. Omit to let the runner search PATH. */
+  agentBin?: string
   /** cwd for the child process. Default os.tmpdir() — never the user's repo. */
   cwd?: string
   /** Hard wall-clock cap per run. Default 5 minutes. */

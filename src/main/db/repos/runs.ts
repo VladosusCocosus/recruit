@@ -169,11 +169,19 @@ export function listRunMessageIds(runId: number): number[] {
   ).map((r) => r.message_id)
 }
 
-/** Gate for every run-scoped MCP read tool. */
+/**
+ * Gate for every run-scoped MCP read tool.
+ *
+ * The allowlist is written before the child is spawned, so a message the user deletes while the
+ * run is in flight is still in it. Joining `messages` closes the gate on it there and then —
+ * which also stops propose_link_message naming a message the app no longer shows.
+ */
 export function isMessageAllowed(runId: number, messageId: number): boolean {
   return (
     count(
-      'SELECT count(*) FROM agent_run_messages WHERE run_id = ? AND message_id = ?',
+      `SELECT count(*) FROM agent_run_messages arm
+       JOIN messages m ON m.id = arm.message_id
+       WHERE arm.run_id = ? AND arm.message_id = ? AND m.deleted_at IS NULL`,
       runId,
       messageId
     ) > 0
@@ -184,8 +192,10 @@ export function isMessageAllowed(runId: number, messageId: number): boolean {
 export function filterAllowedMessages(runId: number, messageIds: number[]): number[] {
   if (!messageIds.length) return []
   return queryAll<{ message_id: number }>(
-    `SELECT message_id FROM agent_run_messages
-     WHERE run_id = ? AND message_id IN (${placeholders(messageIds.length)})`,
+    `SELECT arm.message_id FROM agent_run_messages arm
+     JOIN messages m ON m.id = arm.message_id
+     WHERE arm.run_id = ? AND arm.message_id IN (${placeholders(messageIds.length)})
+       AND m.deleted_at IS NULL`,
     runId,
     ...messageIds
   ).map((r) => r.message_id)

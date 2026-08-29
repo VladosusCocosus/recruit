@@ -15,7 +15,7 @@ export interface SetupActions {
   onRun: () => void
   syncing?: boolean
   running?: boolean
-  /** Disables the "first scan" action and explains why (no candidates, no Claude). */
+  /** Disables the "first scan" action and explains why (no candidates, no agent CLI). */
   runDisabledReason?: string | null
 }
 
@@ -51,7 +51,7 @@ function buildSteps(setup: SetupState, actions: SetupActions): Step[] {
     {
       title: 'Run the first scan',
       description:
-        'Claude reads only the flagged candidates and proposes tracker entries. It cannot change anything by itself.',
+        'The agent reads only the flagged candidates and proposes tracker entries. It cannot change anything by itself.',
       done: setup.hasRun,
       actionLabel: 'Run scan',
       onAction: actions.onRun,
@@ -59,7 +59,7 @@ function buildSteps(setup: SetupState, actions: SetupActions): Step[] {
       disabledReason: setup.hasSynced ? actions.runDisabledReason ?? null : 'Sync your inbox first'
     },
     {
-      title: 'Review what Claude found',
+      title: 'Review what the agent found',
       description: 'Accept or reject each proposal. Nothing lands in the tracker until you say so.',
       done: setup.hasReviewed,
       actionLabel: 'Open review',
@@ -162,7 +162,7 @@ export default function OnboardingView({
         <h1 className="onboarding-title">Turn your inbox into a job tracker</h1>
         <p className="onboarding-lede">
           Recruit reads your mail, flags the messages that look like applications and interviews,
-          and lets Claude propose tracker entries — which you approve one at a time.
+          and lets the agent propose tracker entries — which you approve one at a time.
         </p>
         <Checklist setup={setup} {...actions} />
         <div className="onboarding-footer">

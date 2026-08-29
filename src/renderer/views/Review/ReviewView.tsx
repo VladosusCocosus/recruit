@@ -4,9 +4,9 @@ import { ReviewQueue } from './ReviewQueue'
 
 export interface ReviewViewProps extends ViewProps {
   /**
-   * Deep-link to one message / item. The shell's `navigate` only carries a NavKey, so by
-   * default we land the user on the right view and stop there. Pass these once a row-level
-   * selection channel exists and the cards become click-through.
+   * Override where a source-message / item link goes. By default `navigate` carries the id
+   * in the hash and the destination view opens that row, which is what the shell wants;
+   * these exist for embedding the queue somewhere that owns its own selection.
    */
   onOpenMessage?: (messageId: number) => void
   onOpenItem?: (itemId: number) => void
@@ -27,7 +27,9 @@ export default function ReviewView({
   const openMessage = useCallback(
     (messageId: number) => {
       if (onOpenMessage) onOpenMessage(messageId)
-      else navigate('candidates')
+      // Candidates, because that is the list a proposal's source message came from — and the
+      // reader opens by id anyway, so one that has since been triaged out still shows.
+      else navigate('candidates', { message: messageId })
     },
     [navigate, onOpenMessage]
   )
@@ -35,7 +37,7 @@ export default function ReviewView({
   const openItem = useCallback(
     (itemId: number) => {
       if (onOpenItem) onOpenItem(itemId)
-      else navigate('board')
+      else navigate('board', { item: itemId })
     },
     [navigate, onOpenItem]
   )
