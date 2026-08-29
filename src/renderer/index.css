@@ -1006,6 +1006,14 @@ a {
   background: var(--bg-hover);
 }
 
+/* The row an open contextual menu belongs to. Finder marks it the same way: with the
+   menu covering half the list, this is the only thing still saying which object you are
+   about to act on. Every surface that opens a menu marks its own row — `.item-card` and
+   `.item-row` carry their own version in tracker.css. */
+.list-row.is-menu-target {
+  background: var(--bg-hover);
+}
+
 .list-row.is-selected {
   background: var(--bg-selected);
 }
@@ -1082,6 +1090,142 @@ a {
   gap: 5px;
   margin-top: 3px;
   flex-wrap: wrap;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MENUS
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* A macOS contextual menu: a small floating panel with a real shadow — the one place in
+   this app that gets one, because it is the one thing genuinely above the window rather
+   than part of it.
+
+   `position: fixed` is load-bearing twice over. The menu is portalled out to <body> so no
+   `overflow` container can clip it, and a submenu is a DOM child of its parent panel so
+   that one "was the click inside?" test covers the whole stack — which only works because
+   a fixed element's containing block is the viewport, not its scrolling ancestor. Nothing
+   in this block may introduce a `transform` or `filter`: either one would make the panel
+   the containing block for its own submenu and drop it in the wrong place. That is also
+   why the entrance animates opacity alone and never a translate. */
+.menu {
+  position: fixed;
+  z-index: 50;
+  min-width: 184px;
+  max-width: 320px;
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+  padding: 4px;
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  box-shadow: 0 10px 28px var(--overlay);
+  transition: opacity 80ms ease-out;
+}
+
+/* Focus lives on the panel — the rows are not focusable — so the ring would frame the
+   whole menu and say nothing. The highlighted row is the real focus indicator. */
+.menu:focus {
+  outline: none;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 8px 0 4px;
+  border-radius: 4px;
+  font-size: var(--fs-md);
+  white-space: nowrap;
+}
+
+/* A solid accent fill is how a macOS menu marks the row under the pointer or the
+   keyboard selection — not a tint, which reads as "disabled" beside real menus. */
+.menu-item.is-active {
+  background: var(--bg-selected-strong);
+  color: var(--text-inverse);
+}
+
+/* Destructive rows are red until they are highlighted, and then they are white on the
+   accent fill like every other row. macOS does not paint the highlight red: the colour
+   is a property of the action, and the highlight is a property of the pointer.
+
+   Spelled out as a two-class selector rather than left to source order — `.is-active`
+   and `.is-danger` are the same specificity, so whichever came second would silently
+   win, and the one that lost here was legibility: red text on a blue fill. */
+.menu-item.is-danger {
+  color: var(--danger);
+}
+
+.menu-item.is-danger.is-active {
+  color: var(--text-inverse);
+}
+
+.menu-item.is-disabled {
+  color: var(--text-tertiary);
+}
+
+/* Reserved on every row, present or not, so labels line up whether or not anything in
+   the menu is checkable. */
+.menu-check {
+  flex: 0 0 auto;
+  width: 12px;
+  text-align: center;
+  font-size: var(--fs-xs);
+}
+
+.menu-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Key equivalents sit hard against the trailing edge, quieter than the label — they are
+   the answer to "next time", not part of the choice you are making now. */
+.menu-shortcut {
+  flex: 0 0 auto;
+  margin-left: 14px;
+  color: var(--text-tertiary);
+  font-size: var(--fs-sm);
+}
+
+.menu-item.is-active .menu-shortcut,
+.menu-item.is-active .menu-arrow {
+  color: var(--text-inverse);
+  opacity: 0.8;
+}
+
+.menu-arrow {
+  flex: 0 0 auto;
+  display: flex;
+  margin-left: 10px;
+  color: var(--text-tertiary);
+}
+
+/* Inset from the panel edge, matching the rows' own rounded fill rather than cutting the
+   panel in half. */
+.menu-sep {
+  height: 0;
+  margin: 5px 7px;
+  border-top: var(--hairline) solid var(--border);
+}
+
+/* Section header with its own separator, the way a macOS menu groups a submenu's worth
+   of choices inline. The first one never draws a rule against the panel's own edge. */
+.menu-section {
+  margin-top: 4px;
+  padding: 6px 8px 3px;
+  border-top: var(--hairline) solid var(--border);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--text-tertiary);
+}
+
+.menu-section:first-child {
+  margin-top: 0;
+  border-top: 0;
+  padding-top: 3px;
 }
 
 /* ══════════════════════════════════════════════════════════════════════════

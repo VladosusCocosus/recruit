@@ -32,6 +32,18 @@ export type { EmptyStateProps } from './EmptyState'
 export { ListRow, List } from './ListRow'
 export type { ListRowProps } from './ListRow'
 
+export { Menu, anchorFromElement, anchorFromEvent } from './Menu'
+export type {
+  MenuAction,
+  MenuAnchor,
+  MenuNode,
+  MenuNodeList,
+  MenuProps,
+  MenuSection,
+  MenuSeparator,
+  MenuSubmenu
+} from './Menu'
+
 export { SplitView, Pane, PaneHeader, PaneBody, Toolbar, ToolbarSpacer } from './Pane'
 export type { PaneProps, PaneHeaderProps } from './Pane'
 
@@ -64,6 +76,8 @@ export type { RunButtonProps } from './RunButton'
 
 export { Rail, RAIL_SECTIONS } from './Rail'
 export type { RailProps } from './Rail'
+
+export { copyText } from './clipboard'
 
 export * from './format'
 export * from './hooks'
