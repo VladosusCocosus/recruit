@@ -17,10 +17,10 @@ import {
   useRecruitEvent,
   useStatuses
 } from '@renderer/components'
-import type { Status } from '@shared/types'
-import { buildRunGroups, type ProposalGroup } from './format'
+import type { JSX } from 'react'
+import type { AgentRunSummary, Status } from '@shared/types'
+import { buildGroups, type ProposalGroup } from './format'
 import { ProposalGroupCard, type PendingAction } from './ProposalGroupCard'
-import { RunHistoryStrip } from './RunHistoryStrip'
 import './review.css'
 
 export interface ReviewQueueProps {
@@ -42,6 +42,12 @@ const RUN_HISTORY_LIMIT = 24
  * the decision cheap and honest — what changes, why the agent thinks so, and which email it
  * read to get there.
  *
+ * One card per application per run (see `buildGroups`), grouped under the run that
+ * produced them. The run history strip that used to sit above all this is gone: it printed
+ * the same six facts the run heading below it already printed, forty pixels apart, and its
+ * one unique job — filtering to a single run — was scrolling with extra steps once the
+ * list was already ordered by run.
+ *
  * The agent-failure banner is deliberately NOT rendered here; the shell already shows
  * AgentErrorBanner above every view. An empty queue explains itself in its empty state
  * instead, so a failed run never reads as "no news".
@@ -55,7 +61,6 @@ export function ReviewQueue({
   const runs = useAsync(() => window.recruit.listRuns(RUN_HISTORY_LIMIT), [])
   const statuses = useStatuses()
 
-  const [selectedRunId, setSelectedRunId] = useState<number | null>(null)
   const [busyKeys, setBusyKeys] = useState<ReadonlyMap<string, Exclude<PendingAction, null>>>(
     () => new Map()
   )
@@ -77,15 +82,26 @@ export function ReviewQueue({
     [statuses.data]
   )
 
-  const runGroups = useMemo(() => {
-    const cards = proposals.data
-    if (!cards) return []
-    const visible =
-      selectedRunId == null ? cards : cards.filter((c) => c.proposal.runId === selectedRunId)
-    return buildRunGroups(visible)
-  }, [proposals.data, selectedRunId])
-
+  const groups = useMemo(() => buildGroups(proposals.data ?? []), [proposals.data])
   const pendingTotal = proposals.data?.length ?? 0
+
+  /**
+   * Bucket the flat list back into one section per run.
+   *
+   * Not just cosmetic grouping: the run heading is `position: sticky`, and a sticky
+   * element only travels as far as its own containing block. With each heading sitting in
+   * a wrapper alongside a single card, it would unstick the moment that first card
+   * scrolled away — so the section that owns all of a run's cards has to be the parent.
+   */
+  const sections = useMemo(() => {
+    const out: { runId: number; run: ProposalGroup['run']; groups: ProposalGroup[] }[] = []
+    for (const group of groups) {
+      const last = out[out.length - 1]
+      if (last && last.runId === group.runId) last.groups.push(group)
+      else out.push({ runId: group.runId, run: group.run, groups: [group] })
+    }
+    return out
+  }, [groups])
 
   const setBusy = useCallback((keys: string[], action: PendingAction): void => {
     setBusyKeys((prev) => {
@@ -134,11 +150,11 @@ export function ReviewQueue({
   )
 
   const acceptGroup = useCallback(
-    (g: ProposalGroup) => void decide([g.key], g.proposalIds, true),
+    (g: ProposalGroup, ids: number[]) => void decide([g.key], ids, true),
     [decide]
   )
   const rejectGroup = useCallback(
-    (g: ProposalGroup) => void decide([g.key], g.proposalIds, false),
+    (g: ProposalGroup, ids: number[]) => void decide([g.key], ids, false),
     [decide]
   )
   const openUrl = useCallback((url: string) => {
@@ -153,23 +169,10 @@ export function ReviewQueue({
   let body: JSX.Element
   if (proposals.loading && proposals.data === null) {
     body = <LoadingState label="Loading proposals…" />
-  } else if (runGroups.length === 0 && selectedRunId != null) {
+  } else if (groups.length === 0) {
     body = (
       <EmptyState
-        icon="review"
-        title="Nothing pending from that run"
-        message="Its proposals have all been decided."
-        actions={
-          <Button variant="outline" size="sm" onClick={() => setSelectedRunId(null)}>
-            Show all runs
-          </Button>
-        }
-      />
-    )
-  } else if (runGroups.length === 0) {
-    body = (
-      <EmptyState
-        icon={lastRunFailed ? 'alert' : pendingTotal === 0 && runs.data?.length ? 'checkCircle' : 'review'}
+        icon={lastRunFailed ? 'alert' : runs.data?.length ? 'checkCircle' : 'review'}
         title={
           lastRunFailed
             ? 'The last run didn’t finish'
@@ -195,56 +198,38 @@ export function ReviewQueue({
     )
   } else {
     body = (
-      <div className="rq-list">
-        {runGroups.map((run) => {
-          const runKeys = run.groups.map((g) => g.key)
-          const runBusy = runKeys.some((k) => busyKeys.get(k) === 'accept')
-          const duration = formatDuration(run.run.durationMs)
-          const cost = formatCost(run.run.costUsd)
-          return (
-            <section className="rq-run-section" key={run.runId}>
-              <header className="rq-run-head">
-                <h2 className="rq-run-title">
-                  {run.run.kind === 'enrich' ? 'Enrich run' : 'Triage run'}
-                  <span className="rq-run-id tertiary"> #{run.runId}</span>
-                </h2>
-                <span className="rq-run-facts tertiary tabular">
-                  {formatRelative(run.run.startedAt)}
-                  {run.run.model ? ` · ${run.run.model}` : ''}
-                  {duration ? ` · ${duration}` : ''}
-                  {cost ? ` · ${cost}` : ''}
-                </span>
-                <span className="rq-spacer" />
-                <Badge>{run.groups.length}</Badge>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  icon="check"
-                  busy={runBusy}
-                  onClick={() => void decide(runKeys, run.proposalIds, true)}
-                  title={`Accept all ${pluralize(run.proposalIds.length, 'proposal')} from this run`}
-                >
-                  Accept all
-                </Button>
-              </header>
+      <div className="rq-col">
+        {sections.map((section) => (
+          <section className="rq-run" key={section.runId}>
+            <RunHeading
+              run={section.run}
+              count={section.groups.length}
+              busy={section.groups.some((g) => busyKeys.has(g.key))}
+              onAcceptAll={() =>
+                void decide(
+                  section.groups.map((g) => g.key),
+                  section.groups.flatMap((g) => g.proposalIds),
+                  true
+                )
+              }
+            />
 
-              {run.groups.map((group) => (
-                <ProposalGroupCard
-                  key={group.key}
-                  group={group}
-                  statuses={statusMap}
-                  busy={busyKeys.get(group.key) ?? null}
-                  error={groupErrors.get(group.key) ?? null}
-                  onAccept={acceptGroup}
-                  onReject={rejectGroup}
-                  onOpenMessage={onOpenMessage}
-                  onOpenItem={onOpenItem}
-                  onOpenUrl={openUrl}
-                />
-              ))}
-            </section>
-          )
-        })}
+            {section.groups.map((group) => (
+              <ProposalGroupCard
+                key={group.key}
+                group={group}
+                statuses={statusMap}
+                busy={busyKeys.get(group.key) ?? null}
+                error={groupErrors.get(group.key) ?? null}
+                onAccept={acceptGroup}
+                onReject={rejectGroup}
+                onOpenMessage={onOpenMessage}
+                onOpenItem={onOpenItem}
+                onOpenUrl={openUrl}
+              />
+            ))}
+          </section>
+        ))}
       </div>
     )
   }
@@ -253,34 +238,69 @@ export function ReviewQueue({
     <Pane kind="detail">
       <ErrorBanner error={proposals.error} onRetry={reloadProposals} />
 
-      <PaneHeader
-        title="Review"
-        actions={
-          <Button
-            variant="subtle"
-            size="sm"
-            icon="refresh"
-            busy={proposals.loading && proposals.data !== null}
-            onClick={() => {
-              reloadProposals()
-              reloadRuns()
-            }}
-          >
-            Refresh
-          </Button>
-        }
-      >
+      {/* No Refresh button: the queue reloads on proposalsChanged and on every run that
+          ends, and the error banner owns the one case where a manual retry is the answer. */}
+      <PaneHeader title="Review">
         {pendingTotal > 0 ? <Badge tone="accent">{pendingTotal}</Badge> : null}
       </PaneHeader>
 
-      <RunHistoryStrip
-        runs={runs.data ?? []}
-        selectedRunId={selectedRunId}
-        onSelect={setSelectedRunId}
-      />
-
-      <PaneBody padded>{body}</PaneBody>
+      <PaneBody>{body}</PaneBody>
     </Pane>
+  )
+}
+
+/**
+ * Which scan produced the cards below, and the one bulk action worth having.
+ *
+ * The run id is deliberately not shown. It is a database key the user cannot act on; when
+ * it mattered it was for telling two runs apart, and the time does that better.
+ */
+function RunHeading({
+  run,
+  count,
+  busy,
+  onAcceptAll
+}: {
+  run: AgentRunSummary
+  count: number
+  busy: boolean
+  onAcceptAll: () => void
+}): JSX.Element {
+  // A run with no finish stamp is still working, and the set below it is still growing.
+  // "Accept all" over a set that is not final is a blanket yes to proposals that have not
+  // been written yet, so the bulk action waits for the run to land. The per-card Accept
+  // stays available throughout: that one is a decision about a specific application the
+  // user has actually read.
+  const running = run.finishedAt === null
+
+  const facts = [
+    running ? 'running' : formatRelative(run.startedAt),
+    run.model,
+    formatDuration(run.durationMs),
+    formatCost(run.costUsd)
+  ].filter(Boolean)
+
+  return (
+    <div className="rq-run-head">
+      <h2 className="rq-run-title">{run.kind === 'enrich' ? 'Enrich run' : 'Triage run'}</h2>
+      <span className="rq-run-facts tertiary tabular">{facts.join(' · ')}</span>
+      <span className="rq-spacer" />
+      <Button
+        variant="outline"
+        size="sm"
+        icon="check"
+        busy={busy}
+        disabled={running}
+        onClick={onAcceptAll}
+        title={
+          running
+            ? 'This run is still going — wait for it to finish before accepting everything'
+            : `Accept every change from this run — ${pluralize(count, 'application')}`
+        }
+      >
+        Accept all
+      </Button>
+    </div>
   )
 }
 

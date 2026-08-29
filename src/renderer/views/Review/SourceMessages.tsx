@@ -1,6 +1,21 @@
-import { Icon, formatListDate, formatReasonCode, formatSender, formatWeight } from '@renderer/components'
+/**
+ * The evidence behind a card: which emails the agent was allowed to read.
+ *
+ * Still never collapsed away — a proposal without visible provenance is just an assertion,
+ * and the point of the review queue is that the user can check the work. What went is the
+ * prefilter arithmetic that used to sit under each one: "FLAGGED 0.71 +0.45 subject looks
+ * recruiting-related +0.26 sender is recruiter". Those weights answer "why did this email
+ * get scanned", which is a different question from "why does the agent believe this", and
+ * the Candidates list already answers it in the place where it is actionable. Here it was
+ * three rows of debugging output between the reviewer and the decision.
+ *
+ * The score and the reasons are kept on the row's tooltip, so nothing is lost — it just
+ * stops shouting.
+ */
+
+import { Icon, formatListDate, formatReasonCode, formatSender, formatScore, formatWeight } from '@renderer/components'
+import type { JSX } from 'react'
 import type { MessageSummary, PrefilterReason } from '@shared/types'
-import { ScorePill } from './ConfidenceMeter'
 
 interface Props {
   messages: MessageSummary[]
@@ -12,85 +27,53 @@ function reasonText(reason: PrefilterReason): string {
   return reason.detail ? `${base} · ${reason.detail}` : base
 }
 
-function ReasonChip({ reason }: { reason: PrefilterReason }): JSX.Element {
-  return (
-    <span
-      className={`rq-reason${reason.weight < 0 ? ' is-negative' : ''}`}
-      title={`${reasonText(reason)} (${formatWeight(reason.weight)})`}
-    >
-      <span className="rq-reason-weight tabular">{formatWeight(reason.weight)}</span>
-      <span className="rq-reason-label">{reasonText(reason)}</span>
-    </span>
-  )
+/** The prefilter's whole case for this email, on one line, for the native tooltip. */
+function whyTooltip(message: MessageSummary): string {
+  const head = 'Open in Mail'
+  if (message.prefilterScore == null && message.prefilterReasons.length === 0) return head
+  const score = message.prefilterScore != null ? `flagged ${formatScore(message.prefilterScore)}` : 'flagged'
+  const reasons = message.prefilterReasons.map((r) => `${formatWeight(r.weight)} ${reasonText(r)}`)
+  return [head, [score, ...reasons].join('\n')].join('\n\n')
 }
 
-function SourceBody({ message }: { message: MessageSummary }): JSX.Element {
-  const hasWhy = message.prefilterReasons.length > 0 || message.prefilterScore != null
-
+function Body({ message }: { message: MessageSummary }): JSX.Element {
   return (
     <>
       <span className="rq-source-icon">
-        <Icon name="mail" size={13} />
+        <Icon name="mail" size={12} />
       </span>
-      <span className="rq-source-main">
-        <span className="rq-source-top">
-          <span className="rq-source-subject truncate selectable">
-            {message.subject?.trim() || '(no subject)'}
-          </span>
-          <span className="rq-source-date tabular">{formatListDate(message.dateUtc)}</span>
-        </span>
-        <span className="rq-source-from truncate selectable">
-          {formatSender(message.fromName, message.fromAddr)}
-        </span>
-        {hasWhy ? (
-          <span className="rq-source-reasons">
-            <span className="rq-why">Flagged</span>
-            <ScorePill score={message.prefilterScore} />
-            {message.prefilterReasons.map((r, i) => (
-              <ReasonChip reason={r} key={`${r.code}-${i}`} />
-            ))}
-          </span>
-        ) : null}
+      <span className="rq-source-text truncate">
+        <span className="rq-source-subject">{message.subject?.trim() || '(no subject)'}</span>
+        <span className="rq-source-from"> — {formatSender(message.fromName, message.fromAddr)}</span>
       </span>
+      <span className="rq-source-date tabular">{formatListDate(message.dateUtc)}</span>
     </>
   )
 }
 
-/**
- * The evidence behind a proposal: which emails the agent was allowed to read, and the
- * prefilter reasons that put them in front of it.
- *
- * Deliberately never collapsed away. A proposal without visible provenance is just an
- * assertion, and the point of the review queue is that the user can check the work.
- */
 export function SourceMessages({ messages, onOpenMessage }: Props): JSX.Element | null {
   if (messages.length === 0) return null
 
   return (
-    <div className="rq-sources">
-      <div className="rq-sources-label">
-        {messages.length === 1 ? 'Source email' : `Source emails · ${messages.length}`}
-      </div>
-      <ul className="rq-source-list">
-        {messages.map((m) => (
-          <li key={m.id}>
-            {onOpenMessage ? (
-              <button
-                type="button"
-                className="rq-source is-clickable"
-                onClick={() => onOpenMessage(m.id)}
-                title="Open in Mail"
-              >
-                <SourceBody message={m} />
-              </button>
-            ) : (
-              <div className="rq-source">
-                <SourceBody message={m} />
-              </div>
-            )}
-          </li>
-        ))}
-      </ul>
-    </div>
+    <ul className="rq-sources">
+      {messages.map((m) => (
+        <li key={m.id}>
+          {onOpenMessage ? (
+            <button
+              type="button"
+              className="rq-source is-clickable"
+              title={whyTooltip(m)}
+              onClick={() => onOpenMessage(m.id)}
+            >
+              <Body message={m} />
+            </button>
+          ) : (
+            <div className="rq-source" title={whyTooltip(m)}>
+              <Body message={m} />
+            </div>
+          )}
+        </li>
+      ))}
+    </ul>
   )
 }

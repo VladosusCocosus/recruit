@@ -1,6 +1,6 @@
-/* Review queue — the payoff surface.
-   Structure only: the shared components in @renderer/components own .card/.btn/.badge/
-   .banner/.empty, and index.css owns their look. Prefix for anything new: .rq- */
+/* Review — the agent's proposed changes, waiting for a human yes.
+   Structure only; the shared components own .badge/.btn/.status-badge. Prefix: .rq-
+   Tokens only, hairlines and flat fills — no shadows. */
 
 .rq-spacer {
   flex: 1;
@@ -8,213 +8,229 @@
 }
 
 /* The pane is owned by <Pane>/<PaneBody>, so tint the scroll area by what it contains
-   rather than by adding a root class we don't control. */
-.pane-body:has(> .rq-list) {
+   rather than by adding a root class we don't control. Same reason as Up next:
+   --bg-elevated and --bg are BOTH #ffffff in light mode, so on the default pane
+   background a card would have a hairline and no fill contrast at all. */
+.pane-body:has(> .rq-col) {
   background: var(--bg-subtle);
 }
 
-.rq-list {
-  max-width: 860px;
+/* <PaneBody> is deliberately NOT `padded`. 760px keeps a change row's label column and
+   its value on one comfortable measure — a diff stretched to a 1400px window puts the
+   field name and what it changes to at opposite ends of the screen. */
+.rq-col {
+  display: flex;
+  flex-direction: column;
+  max-width: 760px;
+  padding: 0 20px 40px;
 }
 
-/* ── per-run section ───────────────────────────────────────────────────── */
+/* ── run heading ───────────────────────────────────────────────────────── */
 
-.rq-run-section + .rq-run-section {
-  margin-top: 26px;
-}
-
+/* Sticky, so halfway down a long queue you still know which scan you are reading. The
+   opaque background has to cover the space above the card it heads, so that spacing
+   lives in this element's own padding rather than in a flex gap — a gap is transparent
+   and cards would scroll through it. Hence `.rq-col` sets no gap of its own. */
 .rq-run-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 2px 8px;
-  margin-bottom: 2px;
-  border-bottom: var(--hairline) solid var(--border);
+  padding: 18px 2px 8px;
+  background: var(--bg-subtle);
 }
 
+/* Sentence case at body size, semibold — the same heading treatment as Settings blocks
+   and the Up next day labels. */
 .rq-run-title {
+  flex: 0 0 auto;
+  margin: 0;
   font-size: var(--fs-md);
   font-weight: 600;
-  margin: 0;
-  white-space: nowrap;
-}
-
-.rq-run-id {
-  font-weight: 400;
 }
 
 .rq-run-facts {
-  font-size: var(--fs-xs);
-  white-space: nowrap;
+  flex: 0 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-sm);
 }
 
-/* ── proposal group card ───────────────────────────────────────────────── */
+/* The sticky heading's containing block. Every card from one run lives in here, which is
+   what lets the heading travel the whole length of its own run and no further. */
+.rq-run {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── the card: one application ─────────────────────────────────────────── */
 
 .rq-card {
-  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 10px;
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  overflow: hidden;
+}
+
+.rq-card:last-child {
+  margin-bottom: 0;
 }
 
 .rq-card.is-busy {
-  opacity: 0.55;
+  opacity: 0.6;
 }
 
-.rq-card .card-header {
+.rq-card-head {
+  display: flex;
+  align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  padding: 9px 12px;
+  border-bottom: var(--hairline) solid var(--border);
 }
 
 .rq-target {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   min-width: 0;
-  max-width: 60%;
   padding: 0;
   border: 0;
   background: transparent;
   color: inherit;
-  font-size: var(--fs-md);
-  font-weight: 600;
+  font: inherit;
   text-align: left;
+}
+
+.rq-target-name {
+  font-size: var(--fs-md);
+  font-weight: 500;
 }
 
 .rq-target.is-clickable:hover .rq-target-name {
   color: var(--accent);
   text-decoration: underline;
-  text-underline-offset: 2px;
 }
 
-.rq-target-icon {
-  display: flex;
-  color: var(--success);
-}
-
-.rq-target-name {
-  min-width: 0;
-}
-
+/* An application that does not exist yet. A word, not a coloured pill: it is a fact
+   about the target, not a queue asking for attention. */
 .rq-new-tag {
   flex: 0 0 auto;
   font-size: var(--fs-xs);
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: var(--success);
-  background: var(--success-tint);
-  border-radius: var(--radius-pill);
-  padding: 1px 6px;
+  color: var(--text-tertiary);
 }
 
-.rq-bundle-tag {
-  flex: 0 0 auto;
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  color: var(--accent);
-  background: var(--accent-tint);
-  border-radius: var(--radius-pill);
-  padding: 2px 8px;
-  white-space: nowrap;
-}
+/* ── one proposed change ───────────────────────────────────────────────── */
 
-.rq-card-stack {
+.rq-changes {
   display: flex;
   flex-direction: column;
-  gap: 12px;
 }
 
-.rq-bundle-note {
-  margin: 0;
-  font-size: var(--fs-sm);
-  color: var(--text-secondary);
-  line-height: 1.45;
-  padding: 7px 10px;
-  border-radius: var(--radius);
-  background: var(--accent-tint);
+.rq-change {
+  padding: 9px 12px 10px;
 }
 
-/* ── one proposal's diff ───────────────────────────────────────────────── */
-
-.rq-diffs {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.rq-diff + .rq-diff {
-  padding-top: 10px;
+.rq-change + .rq-change {
   border-top: var(--hairline) solid var(--border);
 }
 
-.rq-diff-head {
+/* Unticked: still readable, visibly out of the decision. Not hidden — the reviewer
+   needs to see what they are leaving behind. */
+.rq-change.is-skipped {
+  opacity: 0.45;
+}
+
+.rq-change-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 7px;
 }
 
-.rq-diff-icon {
+.rq-tick {
   flex: 0 0 auto;
-  display: flex;
-  align-self: center;
-  color: var(--text-secondary);
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  accent-color: var(--accent);
 }
 
-.rq-diff-headline {
+/* Holds the gutter open for a row that cannot be ticked, so every headline on the card
+   still starts at the same left edge. */
+.rq-tick-locked {
+  flex: 0 0 auto;
+  width: 13px;
+}
+
+.rq-change-icon {
+  flex: 0 0 auto;
+  display: flex;
+  color: var(--text-tertiary);
+}
+
+.rq-change-headline {
   flex: 1;
   min-width: 0;
   font-size: var(--fs-md);
-  font-weight: 600;
-  line-height: 1.35;
+  font-weight: 500;
 }
 
+/* ── the diff itself ───────────────────────────────────────────────────── */
+
+/* Indented to the headline, so the change and its detail read as one block. 13 + 7 + 13
+   + 7 = the tick, its gap, the icon and its gap. */
 .rq-diff-lines {
-  margin: 7px 0 0;
-  padding: 0 0 0 20px;
+  margin: 3px 0 0;
+  padding-left: 40px;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 1px;
 }
 
 .rq-diff-line {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  font-size: var(--fs-sm);
-  line-height: 1.45;
+  min-width: 0;
 }
 
+/* Sentence case at label size. The uppercase letterspaced treatment this replaces is a
+   web-table convention — Finder, Mail and System Settings all set field labels this way,
+   and the board and Settings panes here already do. */
 .rq-diff-label {
   flex: 0 0 96px;
+  font-size: var(--fs-sm);
   color: var(--text-tertiary);
-  font-size: var(--fs-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  padding-top: 1px;
 }
 
 .rq-diff-value {
   flex: 1;
   min-width: 0;
   margin: 0;
-  color: var(--text);
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: var(--fs-sm);
   overflow-wrap: anywhere;
 }
 
-.rq-diff-line.is-neutral .rq-diff-value {
-  color: var(--text-secondary);
-}
-
+/* The prior value is context for the new one, so it recedes and is struck through —
+   which is the whole reason the line is a diff and not a statement. */
 .rq-diff-from {
+  flex: 0 0 auto;
   color: var(--text-tertiary);
   text-decoration: line-through;
-  text-decoration-thickness: 1px;
 }
 
 .rq-diff-arrow {
-  display: inline-flex;
-  vertical-align: -2px;
-  margin: 0 5px;
+  flex: 0 0 auto;
+  display: flex;
   color: var(--text-tertiary);
 }
 
@@ -224,183 +240,97 @@
 }
 
 .rq-linkish {
+  min-width: 0;
   padding: 0;
   border: 0;
   background: transparent;
   color: var(--accent);
+  font: inherit;
   text-align: left;
-  overflow-wrap: anywhere;
 }
 
 .rq-linkish:hover {
   text-decoration: underline;
-  text-underline-offset: 2px;
 }
 
+/* The agent's own reasoning. It used to carry a "WHY" tag in a bordered box; the
+   sentence is plainly a justification and does not need to be labelled as one. */
 .rq-rationale {
-  margin: 8px 0 0 20px;
+  margin: 5px 0 0;
+  padding-left: 40px;
   font-size: var(--fs-sm);
+  line-height: 1.45;
   color: var(--text-secondary);
-  line-height: 1.5;
-  padding-left: 9px;
-  border-left: 2px solid var(--border);
-}
-
-.rq-rationale-mark {
-  display: inline-block;
-  margin-right: 6px;
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-tertiary);
 }
 
 .rq-more-siblings {
   margin: 0;
+  padding: 8px 12px 10px 52px;
+  border-top: var(--hairline) solid var(--border);
   font-size: var(--fs-sm);
   color: var(--text-tertiary);
 }
 
-/* ── confidence ────────────────────────────────────────────────────────── */
+/* ── confidence, when it is low enough to matter ───────────────────────── */
 
-.rq-confidence {
+/* One tone, one meaning: look closer. See Confidence.tsx for why there is no bar and
+   why a confident proposal renders nothing at all. */
+.rq-unsure {
   flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
   font-size: var(--fs-xs);
-  color: var(--text-secondary);
+  color: var(--warning);
   font-variant-numeric: tabular-nums;
 }
 
-.rq-confidence-label {
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--text-tertiary);
-}
-
-.rq-confidence-track {
-  display: block;
-  width: 44px;
-  height: 4px;
-  border-radius: var(--radius-pill);
-  background: var(--neutral-tint);
-  overflow: hidden;
-}
-
-.rq-confidence-fill {
-  display: block;
-  height: 100%;
-  border-radius: var(--radius-pill);
-  background: var(--text-tertiary);
-}
-
-.rq-confidence--high .rq-confidence-fill {
-  background: var(--success);
-}
-.rq-confidence--mid .rq-confidence-fill {
-  background: var(--warning);
-}
-.rq-confidence--low .rq-confidence-fill {
-  background: var(--text-tertiary);
-}
-
-.rq-confidence-value {
-  min-width: 30px;
-  text-align: right;
-}
-
-.rq-confidence--unknown {
-  color: var(--text-tertiary);
-  font-style: italic;
-}
-
-.rq-confidence--compact {
-  padding: 1px 6px;
-  border-radius: var(--radius-pill);
-  background: var(--neutral-tint);
-  font-weight: 600;
-}
-
-.rq-confidence--compact.rq-confidence--high {
-  background: var(--success-tint);
-  color: var(--success);
-}
-.rq-confidence--compact.rq-confidence--mid {
-  background: var(--warning-tint);
-  color: var(--warning);
-}
-
-/* ── source emails + prefilter reasons ─────────────────────────────────── */
+/* ── source emails ─────────────────────────────────────────────────────── */
 
 .rq-sources {
-  border-top: var(--hairline) solid var(--border);
-  padding-top: 10px;
-}
-
-.rq-sources-label {
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-tertiary);
-  margin-bottom: 6px;
-}
-
-.rq-source-list {
-  list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  list-style: none;
+  border-top: var(--hairline) solid var(--border);
+  background: var(--bg-subtle);
 }
 
 .rq-source {
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
+  align-items: center;
+  gap: 7px;
   width: 100%;
-  padding: 7px 9px;
-  border: var(--hairline) solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg-subtle);
-  color: inherit;
+  padding: 7px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--fs-sm);
   text-align: left;
+}
+
+.rq-sources li + li .rq-source {
+  border-top: var(--hairline) solid var(--border);
 }
 
 .rq-source.is-clickable:hover {
   background: var(--bg-hover);
-  border-color: var(--border-strong);
 }
 
 .rq-source-icon {
   flex: 0 0 auto;
   display: flex;
-  padding-top: 2px;
   color: var(--text-tertiary);
 }
 
-.rq-source-main {
+.rq-source-text {
   flex: 1;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.rq-source-top {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
 }
 
 .rq-source-subject {
-  flex: 1;
-  min-width: 0;
-  font-size: var(--fs-sm);
-  font-weight: 500;
+  color: var(--text);
+}
+
+.rq-source-from {
+  color: var(--text-tertiary);
 }
 
 .rq-source-date {
@@ -409,212 +339,33 @@
   color: var(--text-tertiary);
 }
 
-.rq-source-from {
-  font-size: var(--fs-xs);
-  color: var(--text-secondary);
-}
-
-.rq-source-reasons {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  flex-wrap: wrap;
-  margin-top: 3px;
-}
-
-.rq-why {
-  font-size: var(--fs-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-tertiary);
-}
-
-.rq-score-pill {
-  display: inline-flex;
-  align-items: center;
-  height: 16px;
-  padding: 0 6px;
-  border-radius: var(--radius-pill);
-  background: var(--accent-tint);
-  color: var(--accent);
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.rq-reason {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 16px;
-  padding: 0 6px 0 4px;
-  border-radius: var(--radius-pill);
-  background: var(--neutral-tint);
-  color: var(--text-secondary);
-  font-size: var(--fs-xs);
-  white-space: nowrap;
-}
-
-.rq-reason-weight {
-  font-weight: 600;
-  color: var(--text-tertiary);
-}
-
-.rq-reason.is-negative {
-  background: var(--warning-tint);
-  color: var(--warning);
-}
-
-.rq-reason.is-negative .rq-reason-weight {
-  color: var(--warning);
-}
-
-/* ── card error + footer ───────────────────────────────────────────────── */
+/* ── error + footer ────────────────────────────────────────────────────── */
 
 .rq-card-error {
   display: flex;
   align-items: flex-start;
-  gap: 7px;
-  padding: 8px 14px;
+  gap: 6px;
+  padding: 8px 12px;
+  border-top: var(--hairline) solid var(--border);
   background: var(--danger-tint);
   color: var(--danger);
   font-size: var(--fs-sm);
-  line-height: 1.45;
+}
+
+.rq-card-error svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.rq-card-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
   border-top: var(--hairline) solid var(--border);
 }
 
-.rq-card .card-footer {
-  gap: 7px;
-}
-
-.rq-card-meta {
-  font-size: var(--fs-xs);
-}
-
-/* ── run history strip ─────────────────────────────────────────────────── */
-
-.rq-runs {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: stretch;
-  gap: 8px;
-  padding: 8px 12px;
-  border-bottom: var(--hairline) solid var(--border);
-  background: var(--bg);
-  min-width: 0;
-}
-
-.rq-runs-label {
-  flex: 0 0 auto;
-  align-self: center;
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-tertiary);
-}
-
-.rq-runs-scroll {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  padding-bottom: 2px;
-}
-
-.rq-run {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  min-width: 132px;
-  max-width: 190px;
-  padding: 5px 9px;
-  border: var(--hairline) solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg-elevated);
-  color: inherit;
-  text-align: left;
-}
-
-.rq-run:hover {
-  background: var(--bg-hover);
-}
-
-.rq-run.is-selected {
-  border-color: var(--accent);
-  background: var(--accent-tint);
-}
-
-.rq-run.is-error .rq-run-icon {
-  color: var(--danger);
-}
-
-.rq-run:not(.is-error) .rq-run-icon {
-  color: var(--success);
-}
-
-.rq-run.is-clear {
-  min-width: 0;
-  align-items: center;
-  font-size: var(--fs-sm);
-  color: var(--accent);
-}
-
-.rq-run-icon {
-  flex: 0 0 auto;
-  display: flex;
-  padding-top: 2px;
-}
-
-.rq-run-main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.rq-run-top {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-}
-
-.rq-run-kind {
-  flex: 1;
-  min-width: 0;
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--text-secondary);
-}
-
-.rq-run.is-enrich .rq-run-kind {
-  color: var(--accent);
-}
-
-.rq-run-when {
+.rq-card-source {
   flex: 0 0 auto;
   font-size: var(--fs-xs);
-  color: var(--text-tertiary);
-}
-
-.rq-run-sub {
-  font-size: var(--fs-sm);
-}
-
-.rq-run.is-error .rq-run-sub {
-  color: var(--danger);
-}
-
-.rq-run-meta {
-  display: flex;
-  gap: 6px;
-  font-size: var(--fs-xs);
-  color: var(--text-tertiary);
-  overflow: hidden;
-  white-space: nowrap;
 }

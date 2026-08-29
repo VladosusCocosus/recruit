@@ -6,17 +6,16 @@ export { ReviewQueue } from './ReviewQueue'
 export type { ReviewQueueProps } from './ReviewQueue'
 
 export { ProposalGroupCard } from './ProposalGroupCard'
+export type { PendingAction } from './ProposalGroupCard'
 export { ProposalDiff } from './ProposalDiff'
 export { SourceMessages } from './SourceMessages'
-export { RunHistoryStrip } from './RunHistoryStrip'
-export { ConfidenceMeter, ScorePill } from './ConfidenceMeter'
+export { Confidence, SURE_ENOUGH } from './Confidence'
 
-export { buildRunGroups, describeProposal, formatWhen, targetName, statusLabel } from './format'
+export { buildGroups, describeProposal, formatWhen, targetName, statusLabel } from './format'
 export type {
   DescribeContext,
   DiffLine,
   DiffTone,
   ProposalDescription,
-  ProposalGroup,
-  RunGroup
+  ProposalGroup
 } from './format'

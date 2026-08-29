@@ -290,25 +290,42 @@ export interface ProposalGroup {
   messages: MessageSummary[]
   /** Weakest link across the group — a bundle is only as trustworthy as its worst part. */
   confidence: number | null
-  /** True when siblings share a ref, i.e. this card is a bundle. */
+  /** These proposals share a ref and must be accepted as a unit — see `groupKey`. */
+  locked: boolean
+  /** More than one proposal on this card. */
   isBundle: boolean
   sortKey: number
 }
 
-export interface RunGroup {
-  runId: number
-  run: AgentRunSummary
-  groups: ProposalGroup[]
-  proposalIds: number[]
-}
-
+/**
+ * What a card is about.
+ *
+ * `ref` — the agent tied these proposals together with a client-side id, and the applier
+ * needs them in order: the item has to exist before an event can attach to it. They are
+ * one decision and cannot be split.
+ *
+ * `item` — several proposals from one run touching one application that already exists.
+ * Nothing forces them together, but they answer one question ("what does the agent think
+ * happened at Northwind Labs?"), so they belong on one card and can be picked apart.
+ *
+ * `solo` — a lone proposal.
+ */
 function groupKey(card: ProposalCard): string {
   const p = card.proposal
-  return p.ref ? `${p.runId}::ref::${p.ref}` : `${p.runId}::solo::${p.id}`
+  if (p.ref) return `${p.runId}::ref::${p.ref}`
+  if (p.targetItemId != null) return `${p.runId}::item::${p.targetItemId}`
+  return `${p.runId}::solo::${p.id}`
 }
 
-/** Group pending cards into decide-together units, then bucket those by run. */
-export function buildRunGroups(cards: ProposalCard[]): RunGroup[] {
+/**
+ * Group pending cards into one card per application per run, newest run first.
+ *
+ * This used to group only by `ref`, which meant two proposals about the same existing
+ * application arrived as two identical-looking cards — same company, same status, same
+ * source email, two Accept buttons. The reviewer's question is about the application,
+ * not about the proposal, so that is what a card now is.
+ */
+export function buildGroups(cards: ProposalCard[]): ProposalGroup[] {
   const byKey = new Map<string, ProposalCard[]>()
   const order: string[] = []
   for (const card of cards) {
@@ -374,33 +391,21 @@ export function buildRunGroups(cards: ProposalCard[]): RunGroup[] {
       item,
       messages,
       confidence: confidences.length ? Math.min(...confidences) : null,
+      // A ref group is indivisible; an item group is a convenience and its rows can be
+      // ticked apart. This is the whole difference between the two, so it is one flag.
+      locked: first.proposal.ref !== null,
       isBundle: ids.size > 1,
       sortKey: sorted[0].proposal.id
     }
   })
 
-  const byRun = new Map<number, RunGroup>()
-  for (const group of groups) {
-    const existing = byRun.get(group.runId)
-    if (existing) existing.groups.push(group)
-    else
-      byRun.set(group.runId, {
-        runId: group.runId,
-        run: group.run,
-        groups: [group],
-        proposalIds: []
-      })
-  }
-
-  const runs = [...byRun.values()]
-  for (const run of runs) {
-    run.groups.sort((a, b) => a.sortKey - b.sortKey)
-    const ids = new Set<number>()
-    for (const g of run.groups) for (const id of g.proposalIds) ids.add(id)
-    run.proposalIds = [...ids]
-  }
-  runs.sort((a, b) => (a.run.startedAt < b.run.startedAt ? 1 : -1))
-  return runs
+  // Newest run first, then in the order the agent proposed them. A reviewer works down
+  // from the most recent scan; within a run, proposal order is the agent's own reasoning
+  // order and is more useful than any score we could sort by.
+  return groups.sort(
+    (a, b) => (a.run.startedAt < b.run.startedAt ? 1 : a.run.startedAt > b.run.startedAt ? -1 : 0) ||
+      a.sortKey - b.sortKey
+  )
 }
 
 /** Glyph for each proposal kind, from the shared icon set. */
