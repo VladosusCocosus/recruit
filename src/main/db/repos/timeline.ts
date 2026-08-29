@@ -84,8 +84,24 @@ export function deleteEvent(eventId: number): void {
   execute('DELETE FROM timeline_events WHERE id = ?', eventId)
 }
 
-/** "Up next": every future scheduled event across all items, soonest first. */
+/**
+ * What "Up next" and the rail badge both mean by upcoming.
+ *
+ * Not simply `starts_at >= now`: a meeting that began ten minutes ago is the single most
+ * relevant thing on the screen, and an all-day event stamped at UTC midnight is already in
+ * the past by that test for every viewer east of Greenwich. So an event stays upcoming
+ * while it is still running — which is exactly what lets the view mark one row "Now".
+ *
+ * Both bound params are the same instant; SQLite has no named parameters here.
+ */
+const UPCOMING = `te.superseded_by IS NULL
+       AND te.starts_at IS NOT NULL
+       AND (te.starts_at >= ? OR te.ends_at > ?)
+       AND i.archived_at IS NULL`
+
+/** "Up next": everything still ahead of you across all items, soonest first. */
 export function upcomingEvents(limit = 50): UpcomingEvent[] {
+  const now = nowIso()
   const rows = queryAll<
     TimelineEventRow & {
       item_company: string
@@ -97,13 +113,11 @@ export function upcomingEvents(limit = 50): UpcomingEvent[] {
      FROM timeline_events te
      JOIN items i ON i.id = te.item_id
      JOIN statuses s ON s.id = i.status_id
-     WHERE te.superseded_by IS NULL
-       AND te.starts_at IS NOT NULL
-       AND te.starts_at >= ?
-       AND i.archived_at IS NULL
+     WHERE ${UPCOMING}
      ORDER BY te.starts_at ASC, te.id ASC
      LIMIT ?`,
-    nowIso(),
+    now,
+    now,
     limit
   )
   return rows.map((row) => ({
@@ -117,13 +131,30 @@ export function upcomingEvents(limit = 50): UpcomingEvent[] {
   }))
 }
 
-export function countUpcomingEvents(): number {
+const SOON_MS = 24 * 60 * 60 * 1000
+
+/**
+ * The rail badge: the next twenty-four hours, not the whole horizon.
+ *
+ * A count of every future event is inventory, not a prompt — it reads "40" for weeks and
+ * means nothing. A rolling window is something you can act on.
+ *
+ * Deliberately a window and not "today". Calling it today would put a calendar day into
+ * SQL, and a calendar day here is not one thing: all-day events are stored at UTC midnight
+ * while a person's day starts wherever they are, so "is this today" needs the same
+ * all-day-versus-timed reasoning `isAllDay` does in the renderer — reimplemented in SQL,
+ * where it would quietly drift. A window is pure instant arithmetic and cannot drift. It
+ * also answers better: at 21:00 "today" says nothing about the 09:00 interview tomorrow.
+ */
+export function countEventsSoon(): number {
+  const now = nowIso()
   return count(
     `SELECT count(*) FROM timeline_events te
      JOIN items i ON i.id = te.item_id
-     WHERE te.superseded_by IS NULL AND te.starts_at IS NOT NULL AND te.starts_at >= ?
-       AND i.archived_at IS NULL`,
-    nowIso()
+     WHERE ${UPCOMING} AND te.starts_at < ?`,
+    now,
+    now,
+    new Date(Date.now() + SOON_MS).toISOString()
   )
 }
 

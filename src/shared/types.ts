@@ -857,7 +857,12 @@ export interface AppCounts {
   candidates: number
   pendingProposals: number
   unreadInbox: number
-  upcomingEvents: number
+  /**
+   * Events starting in the next 24 hours, plus anything running right now — not the whole
+   * future. A running total of every event ever booked is inventory; the next day is a
+   * prompt. See `countEventsSoon` for why the window is rolling rather than "today".
+   */
+  eventsSoon: number
   items: number
 }
 

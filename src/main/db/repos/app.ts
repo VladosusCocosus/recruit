@@ -6,14 +6,14 @@ import { countCandidates, countMessages, countUnread } from './messages'
 import { countItems } from './items'
 import { countPendingProposals } from './proposals'
 import { countRuns } from './runs'
-import { countUpcomingEvents } from './timeline'
+import { countEventsSoon } from './timeline'
 
 export function getAppCounts(): AppCounts {
   return {
     candidates: countCandidates(),
     pendingProposals: countPendingProposals(),
     unreadInbox: countUnread(),
-    upcomingEvents: countUpcomingEvents(),
+    eventsSoon: countEventsSoon(),
     items: countItems()
   }
 }

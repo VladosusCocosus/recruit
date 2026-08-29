@@ -34,7 +34,7 @@ export const RAIL_SECTIONS: readonly RailSectionSpec[] = [
     items: [
       { key: 'board', label: 'Board', icon: 'board' },
       { key: 'review', label: 'Review', icon: 'review', count: 'pendingProposals', tone: 'accent' },
-      { key: 'upnext', label: 'Up next', icon: 'calendar', count: 'upcomingEvents' }
+      { key: 'upnext', label: 'Up next', icon: 'calendar', count: 'eventsSoon' }
     ]
   }
 ]

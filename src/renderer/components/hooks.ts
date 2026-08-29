@@ -231,7 +231,7 @@ const EMPTY_COUNTS: AppCounts = {
   candidates: 0,
   pendingProposals: 0,
   unreadInbox: 0,
-  upcomingEvents: 0,
+  eventsSoon: 0,
   items: 0
 }
 
