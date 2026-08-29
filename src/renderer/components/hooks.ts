@@ -540,3 +540,17 @@ export function useUpdate(): {
     check
   }
 }
+
+/**
+ * Debounces a fast-changing value — a search box, a slider — so every keystroke isn't a
+ * round trip to main. Lives here rather than beside one view because both Mail's message
+ * search and the tracker's filter box need it, and two copies would drift.
+ */
+export function useDebounced<T>(value: T, delayMs = 200): T {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delayMs)
+    return () => clearTimeout(timer)
+  }, [value, delayMs])
+  return debounced
+}

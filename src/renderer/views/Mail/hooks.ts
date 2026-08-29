@@ -66,12 +66,5 @@ export function useBlockRemoteImages(): boolean {
   return block
 }
 
-/** Debounces the search box so every keystroke isn't a SQLite LIKE scan. */
-export function useDebounced<T>(value: T, delayMs = 200): T {
-  const [debounced, setDebounced] = useState(value)
-  useEffect(() => {
-    const timer = setTimeout(() => setDebounced(value), delayMs)
-    return () => clearTimeout(timer)
-  }, [value, delayMs])
-  return debounced
-}
+/** Re-exported so Mail keeps its own import surface; the implementation is shared. */
+export { useDebounced } from '@renderer/components'
