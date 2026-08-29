@@ -33,11 +33,18 @@ export function feedBase(): string {
 /**
  * The account-setup guide: a static site on its own host, deliberately not behind the
  * update feed — a mail-setup problem should stay readable when that service is down.
- * Anchors match the provider keys in the account form: #gmail, #icloud, #fastmail,
- * #outlook. `RECRUIT_SETUP_URL` points it at a local copy in dev.
+ *
+ * This returns the GUIDE PAGE, not the site origin. The per-provider anchors the
+ * account form appends (#gmail, #icloud, #fastmail, #outlook, plus #custom and
+ * #trouble) exist only on /setup; pointing this at the origin sent everyone to the
+ * marketing landing page with a fragment that matched nothing.
+ *
+ * `RECRUIT_SETUP_URL` is therefore the full guide URL in dev — e.g.
+ * `http://localhost:8080/setup` — and must be http(s): `openExternal` refuses every
+ * other scheme, so a file: path silently does nothing.
  */
 export function setupGuideUrl(): string {
-  return (process.env.RECRUIT_SETUP_URL || DEFAULT_SETUP_SITE).replace(/\/+$/, '')
+  return (process.env.RECRUIT_SETUP_URL || `${DEFAULT_SETUP_SITE}/setup`).replace(/\/+$/, '')
 }
 
 export function getUpdateStatus(): UpdateStatus {
