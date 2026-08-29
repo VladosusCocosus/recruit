@@ -16,8 +16,8 @@
       "public": true,
       "ingress_label": "",
       "depends_on": [],
-      "env_names": [],
-      "volumes": []
+      "env_names": [{ "name": "JOBBOX_STATS_TOKEN" }],
+      "volumes": [{ "path": "/data" }]
     },
     {
       "name": "storage",
