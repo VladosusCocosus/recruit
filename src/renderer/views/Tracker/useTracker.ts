@@ -66,7 +66,8 @@ export interface TrackerStore {
   patchItem: (itemId: number, patch: ItemPatch) => Promise<void>
   archiveItem: (itemId: number, archived: boolean) => Promise<void>
   deleteItem: (itemId: number) => Promise<void>
-  createItem: (company: string) => Promise<Item | null>
+  /** `statusKey` is which column it lands in — the board's per-column + passes its own. */
+  createItem: (company: string, statusKey?: string) => Promise<Item | null>
 }
 
 export function useTracker(query?: ItemQuery): TrackerStore {
@@ -174,9 +175,9 @@ export function useTracker(query?: ItemQuery): TrackerStore {
   }, [])
 
   const createItem = useCallback<TrackerStore['createItem']>(
-    async (company) => {
+    async (company, statusKey = 'saved') => {
       try {
-        const created = await window.recruit.createItem({ company, statusKey: 'saved' })
+        const created = await window.recruit.createItem({ company, statusKey })
         await refresh()
         return created
       } catch (e) {

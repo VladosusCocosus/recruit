@@ -26,8 +26,8 @@ import type { JSX } from 'react'
 import type { ItemDetail as ItemDetailData, ItemPatch, WorkMode } from '@shared/types'
 import { AddEntry } from './AddEntry'
 import { Description } from './Description'
-import { formatDateTime, lastMessageAt, staleness } from './format'
-import { closeReasonLabel, StatusSelect } from './StatusSelect'
+import { closeReasonLabel, formatDateTime, lastMessageAt, staleness } from './format'
+import { StatusSelect } from './StatusSelect'
 import { Timeline } from './Timeline'
 import { useItemDetail, type StatusIndex } from './useTracker'
 
@@ -216,7 +216,6 @@ export function ItemDetail({
             <StatusSelect
               item={detail}
               statusIndex={statusIndex}
-              size="md"
               onChange={(statusKey, closeReason) => void store.setStatus(statusKey, closeReason)}
             />
             <Button size="sm" variant="subtle" onClick={() => setEditing((v) => !v)}>

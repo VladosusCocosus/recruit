@@ -23,6 +23,7 @@ export type IconName =
   | 'plus'
   | 'chevronRight'
   | 'chevronLeft'
+  | 'ellipsis'
   | 'mail'
   | 'link'
   | 'search'
@@ -124,6 +125,15 @@ const PATHS: Record<IconName, JSX.Element> = {
   plus: <path d="M8 3.4v9.2M3.4 8h9.2" {...STROKE} />,
   chevronRight: <path d="m6.2 3.6 4.4 4.4-4.4 4.4" {...STROKE} />,
   chevronLeft: <path d="m9.8 3.6-4.4 4.4 4.4 4.4" {...STROKE} />,
+  // The macOS "more" affordance. Filled dots, not stroked: at 13px a stroked ring
+  // renders as a smudge on a non-Retina display.
+  ellipsis: (
+    <g fill="currentColor">
+      <circle cx="3.6" cy="8" r="1.25" />
+      <circle cx="8" cy="8" r="1.25" />
+      <circle cx="12.4" cy="8" r="1.25" />
+    </g>
+  ),
   mail: (
     <g {...STROKE}>
       <rect x="1.9" y="3.4" width="12.2" height="9.2" rx="1.6" />

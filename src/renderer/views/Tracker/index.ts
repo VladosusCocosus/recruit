@@ -19,7 +19,9 @@ export { ItemCard, ITEM_DRAG_TYPE } from './ItemCard'
 export { Timeline } from './Timeline'
 export { Description } from './Description'
 export { Markdown } from './Markdown'
-export { StatusSelect, closeReasonLabel, CLOSE_REASONS } from './StatusSelect'
+export { StatusSelect } from './StatusSelect'
+export { StatusMenu, menuTargetFromElement, menuTargetFromEvent } from './StatusMenu'
+export type { StatusMenuTarget } from './StatusMenu'
 export { AddEntry, type NewEntry } from './AddEntry'
 
 export {
@@ -33,6 +35,9 @@ export {
 
 export {
   STALE_AFTER_DAYS,
+  CLOSE_REASONS,
+  closeReasonLabel,
+  itemSignal,
   eventWhen,
   eventTime,
   isFutureEvent,
@@ -44,3 +49,4 @@ export {
   toLocalInputValue,
   fromLocalInputValue
 } from './format'
+export type { ItemSignal, SignalTone } from './format'

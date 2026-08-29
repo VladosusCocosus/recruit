@@ -1,20 +1,27 @@
 /**
  * Compact table alternative to the board. Same data, one row per item, sortable.
+ *
+ * A table is for comparing, so unlike the board it keeps every fact in its own column
+ * rather than collapsing them into one signal line — but it borrows the board's colour
+ * language: an imminent interview reads accent, a thread that has gone quiet reads
+ * warning, everything else stays quiet.
  */
 
 import { useMemo, useState } from 'react'
 import type { CloseReason, ItemSummary } from '@shared/types'
 import type { JSX } from 'react'
-import { Button, EmptyState, StatusBadge } from '@renderer/components'
+import { Button, EmptyState, Icon, StatusBadge } from '@renderer/components'
 import {
+  closeReasonLabel,
   eventWhen,
   formatCountdown,
   formatDateTime,
   formatRelative,
+  isFutureEvent,
   lastMessageAt,
   staleness
 } from './format'
-import { closeReasonLabel, StatusSelect } from './StatusSelect'
+import { StatusMenu, menuTargetFromElement, menuTargetFromEvent, type StatusMenuTarget } from './StatusMenu'
 import type { StatusIndex } from './useTracker'
 
 type SortKey = 'company' | 'role' | 'status' | 'next' | 'lastMessage'
@@ -26,6 +33,9 @@ const COLUMNS: ReadonlyArray<{ key: SortKey; label: string; className?: string }
   { key: 'next', label: 'Next', className: 'col-next' },
   { key: 'lastMessage', label: 'Last message', className: 'col-last-message' }
 ]
+
+/** Within this window the next event is something you are about to do. Matches `itemSignal`. */
+const SOON_MS = 2 * 24 * 60 * 60 * 1000
 
 function compare(a: ItemSummary, b: ItemSummary, key: SortKey, statusIndex: StatusIndex): number {
   switch (key) {
@@ -77,10 +87,11 @@ export function ItemList({
   selectedItemId?: number | null
   onOpenItem: (itemId: number) => void
   onChangeStatus: (itemId: number, statusKey: string, closeReason: CloseReason | null) => void
-  onCreateItem?: () => void
+  onCreateItem?: (statusKey: string) => void
 }): JSX.Element {
   const [sort, setSort] = useState<SortKey>('lastMessage')
   const [desc, setDesc] = useState(false)
+  const [menu, setMenu] = useState<StatusMenuTarget | null>(null)
 
   const rows = useMemo(() => {
     const sorted = [...items].sort((a, b) => compare(a, b, sort, statusIndex))
@@ -95,6 +106,7 @@ export function ItemList({
   }, [items, sort, desc, statusIndex])
 
   if (items.length === 0) {
+    const firstOpen = statusIndex.open[0]?.key ?? 'saved'
     return (
       <EmptyState
         icon="board"
@@ -102,7 +114,7 @@ export function ItemList({
         message="Run a scan over your candidate mail, or add the first one by hand."
         actions={
           onCreateItem ? (
-            <Button variant="primary" icon="plus" onClick={onCreateItem}>
+            <Button variant="primary" icon="plus" onClick={() => onCreateItem(firstOpen)}>
               Add application
             </Button>
           ) : null
@@ -112,95 +124,133 @@ export function ItemList({
   }
 
   return (
-    <table className="item-table">
-      <thead>
-        <tr>
-          {COLUMNS.map((col) => (
-            <th key={col.key} className={col.className} aria-sort={sort === col.key ? (desc ? 'descending' : 'ascending') : 'none'}>
-              <button
-                type="button"
-                className="item-table-sort"
-                onClick={() => {
-                  if (sort === col.key) setDesc((d) => !d)
-                  else {
-                    setSort(col.key)
-                    setDesc(false)
-                  }
+    <>
+      <table className="item-table">
+        <thead>
+          <tr>
+            {COLUMNS.map((col) => (
+              <th
+                key={col.key}
+                className={col.className}
+                aria-sort={sort === col.key ? (desc ? 'descending' : 'ascending') : 'none'}
+              >
+                <button
+                  type="button"
+                  className="item-table-sort"
+                  onClick={() => {
+                    if (sort === col.key) setDesc((d) => !d)
+                    else {
+                      setSort(col.key)
+                      setDesc(false)
+                    }
+                  }}
+                >
+                  {col.label}
+                  {sort === col.key ? <span aria-hidden="true">{desc ? ' ↓' : ' ↑'}</span> : null}
+                </button>
+              </th>
+            ))}
+            <th className="col-actions">
+              <span className="sr-only">Change status</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((item) => {
+            const status = statusIndex.byKey.get(item.statusKey)
+            const kind = statusIndex.kindOf(item)
+            const stale = staleness(item, kind, now)
+            const lastMessage = lastMessageAt(item)
+            const reason = closeReasonLabel(item.closeReason)
+            const next = item.nextEvent
+            const soon =
+              next && isFutureEvent(next, now) && Date.parse(next.startsAt ?? '') - now <= SOON_MS
+            return (
+              <tr
+                key={item.id}
+                className={`item-row${item.id === selectedItemId ? ' is-selected' : ''}`}
+                data-item-focus={item.id}
+                tabIndex={0}
+                onClick={() => onOpenItem(item.id)}
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  setMenu(menuTargetFromEvent(item, e))
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') onOpenItem(item.id)
                 }}
               >
-                {col.label}
-                {sort === col.key ? <span aria-hidden="true">{desc ? ' ↓' : ' ↑'}</span> : null}
-              </button>
-            </th>
-          ))}
-          <th className="col-actions">
-            <span className="sr-only">Change status</span>
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((item) => {
-          const status = statusIndex.byKey.get(item.statusKey)
-          const kind = statusIndex.kindOf(item)
-          const stale = staleness(item, kind, now)
-          const lastMessage = lastMessageAt(item)
-          const reason = closeReasonLabel(item.closeReason)
-          return (
-            <tr
-              key={item.id}
-              className={`item-row${item.id === selectedItemId ? ' is-selected' : ''}`}
-              tabIndex={0}
-              onClick={() => onOpenItem(item.id)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') onOpenItem(item.id)
-              }}
-            >
-              <td className="col-company">
-                <span className="truncate" title={item.company}>
-                  {item.company}
-                </span>
-                {stale.stale ? <span className="stale-dot" title={`Stale — ${stale.days} days quiet`} /> : null}
-              </td>
-              <td className="col-role secondary">
-                <span className="truncate" title={item.role ?? undefined}>
-                  {item.role ?? '—'}
-                </span>
-              </td>
-              <td className="col-status">
-                <StatusBadge status={status ?? null} statusKey={item.statusKey} />
-                {reason ? <span className="tertiary close-reason">{reason}</span> : null}
-              </td>
-              <td className="col-next secondary">
-                {item.nextEvent ? (
-                  <span className="truncate" title={eventWhen(item.nextEvent)}>
-                    {item.nextEvent.title} · {formatCountdown(item.nextEvent.startsAt, now)}
+                <td className="col-company">
+                  <span className="truncate" title={item.company}>
+                    {item.company}
                   </span>
-                ) : (
-                  <span className="tertiary">—</span>
-                )}
-              </td>
-              <td className="col-last-message tertiary tabular">
-                {lastMessage ? (
-                  <span title={formatDateTime(lastMessage)}>
-                    {formatRelative(lastMessage, now)}
+                  {stale.stale ? (
+                    <span
+                      className="stale-dot"
+                      title={`Nothing heard for ${stale.days} days, and nothing booked`}
+                    >
+                      <span className="sr-only">Quiet</span>
+                    </span>
+                  ) : null}
+                </td>
+                <td className="col-role secondary">
+                  <span className="truncate" title={item.role ?? undefined}>
+                    {item.role ?? '—'}
                   </span>
-                ) : (
-                  '—'
-                )}
-              </td>
-              <td className="col-actions" onClick={(e) => e.stopPropagation()}>
-                <StatusSelect
-                  item={item}
-                  statusIndex={statusIndex}
-                  onChange={(statusKey, closeReason) =>
-                    onChangeStatus(item.id, statusKey, closeReason)
+                </td>
+                <td className="col-status">
+                  <StatusBadge status={status ?? null} statusKey={item.statusKey} />
+                  {reason ? <span className="tertiary close-reason">{reason}</span> : null}
+                </td>
+                <td className={'col-next ' + (soon ? 'is-urgent' : 'secondary')}>
+                  {next ? (
+                    <span className="truncate" title={eventWhen(next)}>
+                      {next.title} · {formatCountdown(next.startsAt, now)}
+                    </span>
+                  ) : (
+                    <span className="tertiary">—</span>
+                  )}
+                </td>
+                {/* The warning tint belongs on a date that has gone stale, not on the
+                    dash that stands in for "no mail at all" — colouring an em dash says
+                    nothing and spends the one colour that should mean "chase this". */}
+                <td
+                  className={
+                    'col-last-message tabular ' +
+                    (stale.stale && lastMessage ? 'is-quiet-warning' : 'tertiary')
                   }
-                />
-              </td>
-            </tr>
-          )
-        })}
-      </tbody>
-    </table>
+                >
+                  {lastMessage ? (
+                    <span title={formatDateTime(lastMessage)}>{formatRelative(lastMessage, now)}</span>
+                  ) : (
+                    '—'
+                  )}
+                </td>
+                <td className="col-actions" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    className="item-row-menu"
+                    aria-label={`Change status of ${item.company}`}
+                    aria-haspopup="menu"
+                    onClick={(e) => setMenu(menuTargetFromElement(item, e.currentTarget))}
+                  >
+                    <Icon name="ellipsis" size={13} />
+                  </button>
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+
+      {menu ? (
+        <StatusMenu
+          target={menu}
+          statusIndex={statusIndex}
+          onChange={onChangeStatus}
+          onClose={() => setMenu(null)}
+        />
+      ) : null}
+    </>
   )
 }

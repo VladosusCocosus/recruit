@@ -2,15 +2,21 @@
  * The board. One column per OPEN status in sort order, then every closed status
  * collapsed into a single trailing column — a job search has one "done" pile, not four.
  *
- * Cards move by drag or by the status dropdown on the card itself; the dropdown is the
- * real control (keyboard reachable, carries close reasons) and drag is the shortcut.
+ * Columns are groups, not panes: labelled regions on a recessed ground with the cards
+ * inset inside them, the same shape the Settings pane uses for its grouped lists. The
+ * old board drew a full-height hairline between every column, which is how macOS
+ * separates *panes* — and made six columns read as six windows.
+ *
+ * Cards move by drag, or through the contextual menu on the card, which is the control
+ * that carries close reasons and works from the keyboard.
  */
 
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import type { CloseReason, ItemSummary, Status } from '@shared/types'
-import type { DragEvent, JSX } from 'react'
-import { Badge, Button, Dot, EmptyState } from '@renderer/components'
+import type { DragEvent, JSX, KeyboardEvent } from 'react'
+import { Button, EmptyState, Icon } from '@renderer/components'
 import { ITEM_DRAG_TYPE, ItemCard } from './ItemCard'
+import { StatusMenu, type StatusMenuTarget } from './StatusMenu'
 import type { StatusIndex } from './useTracker'
 
 interface Column {
@@ -70,6 +76,41 @@ function buildColumns(statusIndex: StatusIndex, items: ItemSummary[]): Column[] 
   return columns
 }
 
+/**
+ * Arrow-key movement across the grid the board already draws.
+ *
+ * Tab alone gets you there, but a fifteen-card board is thirty tab stops, and a board is
+ * two-dimensional — Finder's icon view and Mail's list both answer arrow keys, and this
+ * is the same shape. Read off the DOM rather than the columns model so the order matched
+ * is the order on screen, including whatever the current sort did.
+ */
+function focusNeighbour(board: HTMLElement, from: HTMLElement, key: string): boolean {
+  const grid = [...board.querySelectorAll('.board-column')].map((col) => [
+    ...col.querySelectorAll<HTMLElement>('.item-card-open')
+  ])
+  const colIndex = grid.findIndex((cards) => cards.includes(from))
+  if (colIndex === -1) return false
+  const rowIndex = grid[colIndex]!.indexOf(from)
+
+  if (key === 'ArrowUp' || key === 'ArrowDown') {
+    const next = grid[colIndex]![rowIndex + (key === 'ArrowDown' ? 1 : -1)]
+    if (!next) return false
+    next.focus()
+    return true
+  }
+
+  // Sideways, skipping empty columns — stopping on one would strand the focus with
+  // nothing to move to next.
+  const step = key === 'ArrowRight' ? 1 : -1
+  for (let i = colIndex + step; i >= 0 && i < grid.length; i += step) {
+    const cards = grid[i]!
+    if (cards.length === 0) continue
+    cards[Math.min(rowIndex, cards.length - 1)]!.focus()
+    return true
+  }
+  return false
+}
+
 export function Board({
   items,
   statusIndex,
@@ -85,10 +126,18 @@ export function Board({
   selectedItemId?: number | null
   onOpenItem: (itemId: number) => void
   onChangeStatus: (itemId: number, statusKey: string, closeReason: CloseReason | null) => void
-  onCreateItem?: () => void
+  /** Creates an application already in that column, so the header's + lands where it says. */
+  onCreateItem?: (statusKey: string) => void
 }): JSX.Element {
   const [dragItemId, setDragItemId] = useState<number | null>(null)
   const [dropTarget, setDropTarget] = useState<string | null>(null)
+  const [menu, setMenu] = useState<StatusMenuTarget | null>(null)
+
+  const onKeyDown = useCallback((e: KeyboardEvent<HTMLDivElement>) => {
+    const from = e.target as HTMLElement
+    if (!from.classList?.contains('item-card-open')) return
+    if (focusNeighbour(e.currentTarget, from, e.key)) e.preventDefault()
+  }, [])
 
   const columns = useMemo(() => buildColumns(statusIndex, items), [statusIndex, items])
   const byId = useMemo(() => new Map(items.map((i) => [i.id, i])), [items])
@@ -96,6 +145,8 @@ export function Board({
   if (statusIndex.statuses.length === 0) {
     return <EmptyState icon="board" title="No statuses configured" />
   }
+
+  const firstOpen = statusIndex.open[0]?.key ?? 'saved'
 
   if (items.length === 0) {
     return (
@@ -105,7 +156,7 @@ export function Board({
         message="Run a scan over your candidate mail, or add the first one by hand."
         actions={
           onCreateItem ? (
-            <Button variant="primary" icon="plus" onClick={onCreateItem}>
+            <Button variant="primary" icon="plus" onClick={() => onCreateItem(firstOpen)}>
               Add application
             </Button>
           ) : null
@@ -131,22 +182,20 @@ export function Board({
     if (col.statuses.some((s) => s.key === item.statusKey)) return
 
     // Dragging into Closed keeps a reason the item already had; otherwise it lands
-    // reason-less and the card's dropdown is where the user says why.
+    // reason-less and the card's menu is where the user says why.
     const wasClosed = statusIndex.kindOf(item) === 'closed'
     const reason: CloseReason | null = col.kind === 'closed' && wasClosed ? item.closeReason : null
     onChangeStatus(id, col.key, reason)
   }
 
   return (
-    <div className="board">
+    <div className="board" onKeyDown={onKeyDown}>
       {columns.map((col) => {
         const active = dropTarget === col.key
         return (
           <section
             key={col.key}
-            className={`board-column${active ? ' is-drop-target' : ''}${
-              col.kind === 'closed' ? ' is-closed' : ''
-            }`}
+            className={'board-column' + (active ? ' is-drop-target' : '')}
             onDragOver={(e) => {
               if (dragItemId === null && !e.dataTransfer.types.includes(ITEM_DRAG_TYPE)) return
               e.preventDefault()
@@ -160,10 +209,25 @@ export function Board({
             onDrop={(e) => handleDrop(e, col)}
           >
             <header className="board-column-head">
-              <Dot color={col.color ?? undefined} />
-              <span className="board-column-label">{col.label}</span>
-              <Badge>{col.items.length}</Badge>
+              <span
+                className="dot"
+                aria-hidden="true"
+                style={col.color ? { background: col.color } : undefined}
+              />
+              <span className="board-column-label truncate">{col.label}</span>
+              <span className="board-column-count tabular">{col.items.length}</span>
+              {onCreateItem && col.kind === 'open' ? (
+                <button
+                  type="button"
+                  className="board-column-add"
+                  aria-label={`Add an application to ${col.label}`}
+                  onClick={() => onCreateItem(col.key)}
+                >
+                  <Icon name="plus" size={12} />
+                </button>
+              ) : null}
             </header>
+
             <div className="board-column-body">
               {col.items.map((item) => (
                 <ItemCard
@@ -172,20 +236,32 @@ export function Board({
                   statusIndex={statusIndex}
                   now={now}
                   selected={item.id === selectedItemId}
+                  dragging={item.id === dragItemId}
                   onOpen={onOpenItem}
-                  onChangeStatus={onChangeStatus}
+                  onRequestMenu={setMenu}
                   onDragStateChange={setDragItemId}
                 />
               ))}
-              {col.items.length === 0 ? (
-                <div className="board-column-empty tertiary">
-                  {active ? 'Drop here' : 'Nothing here'}
-                </div>
+
+              {/* Only while something is actually being dragged. A permanent dashed
+                  "Nothing here" box in every empty column is six pieces of furniture
+                  telling you nothing you couldn't already see. */}
+              {dragItemId !== null && col.items.length === 0 ? (
+                <div className="board-drop-hint">Drop here</div>
               ) : null}
             </div>
           </section>
         )
       })}
+
+      {menu ? (
+        <StatusMenu
+          target={menu}
+          statusIndex={statusIndex}
+          onChange={onChangeStatus}
+          onClose={() => setMenu(null)}
+        />
+      ) : null}
     </div>
   )
 }

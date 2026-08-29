@@ -14,7 +14,7 @@ import {
   formatTime,
   isAllDay as isAllDayRange
 } from '@renderer/components/format'
-import type { Item, ItemSummary, TimelineEvent } from '@shared/types'
+import type { CloseReason, Item, ItemSummary, TimelineEvent } from '@shared/types'
 
 export { formatCountdown, formatDateTime, formatRelative, formatTime }
 
@@ -146,4 +146,110 @@ export function fromLocalInputValue(value: string): string | null {
 
 export function nowIso(): string {
   return new Date().toISOString()
+}
+
+/* ── close reasons ─────────────────────────────────────────────────────────── */
+
+/**
+ * Why an application ended. Lives here rather than beside a control because three
+ * different surfaces render it — the inspector's popup, the card's contextual menu and
+ * the signal line below — and none of them should own the vocabulary.
+ */
+export const CLOSE_REASONS: ReadonlyArray<{ value: CloseReason; label: string }> = [
+  { value: 'rejected', label: 'Rejected' },
+  { value: 'withdrawn', label: 'Withdrawn' },
+  { value: 'accepted', label: 'Accepted' },
+  { value: 'ghosted', label: 'Ghosted' }
+]
+
+export function closeReasonLabel(reason: CloseReason | null): string | null {
+  return CLOSE_REASONS.find((r) => r.value === reason)?.label ?? null
+}
+
+/* ── the signal line ───────────────────────────────────────────────────────── */
+
+export type SignalTone = 'urgent' | 'upcoming' | 'warning' | 'quiet'
+
+export interface ItemSignal {
+  icon: 'calendar' | 'clock'
+  /** One line, already assembled. Truncated by CSS, never by this function. */
+  text: string
+  tone: SignalTone
+  /** The long form, for the title attribute. */
+  title: string
+}
+
+/** Inside this window an event is something you are about to do, not something booked. */
+const SOON_MS = 2 * DAY
+
+/**
+ * The single line every card and row ends with.
+ *
+ * The old board showed a filled blue pill whenever an item had *any* future event and a
+ * bare orange dot whenever it was stale. Both are binary, so a week of interviews and a
+ * casual coffee next month looked identical, and a board where most cards are blue
+ * teaches people to stop reading blue.
+ *
+ * So each item gets exactly one fact — the one that would make somebody act — and the
+ * colour carries urgency rather than mere existence:
+ *
+ *   urgent    an interview inside 48 hours
+ *   upcoming  something scheduled further out
+ *   warning   open, nothing booked, and quiet past the stale threshold
+ *   quiet     everything else: when this thread last moved
+ *
+ * Closed items skip all of it and show their close reason, which by then is the only
+ * thing still worth knowing.
+ */
+export function itemSignal(
+  item: ItemSummary,
+  statusKind: 'open' | 'closed',
+  now: number = Date.now()
+): ItemSignal {
+  const last = lastContactAt(item)
+
+  // `lastContactAt()` falls back to createdAt, so the raw field is what says whether
+  // contact ever actually happened. Calling a filed-and-forgotten application's creation
+  // date its "last contact" would be a lie about a row nobody ever replied to.
+  const contacted = item.lastContactAt !== null
+
+  if (statusKind === 'closed') {
+    const reason = closeReasonLabel(item.closeReason) ?? 'Closed'
+    return {
+      icon: 'clock',
+      text: `${reason} · ${formatRelative(last, now)}`,
+      tone: 'quiet',
+      title: contacted
+        ? `${reason} — last contact ${formatDateTime(last)}`
+        : `${reason} — added ${formatDateTime(item.createdAt)}, never heard back`
+    }
+  }
+
+  const next = item.nextEvent
+  if (next && isFutureEvent(next, now)) {
+    const start = parse(next.startsAt)
+    return {
+      icon: 'calendar',
+      text: `${next.title} · ${formatCountdown(next.startsAt, now)}`,
+      tone: start !== null && start - now <= SOON_MS ? 'urgent' : 'upcoming',
+      title: `${next.title} — ${eventWhen(next)}`
+    }
+  }
+
+  const { stale, days } = staleness(item, statusKind, now)
+  if (stale) {
+    return {
+      icon: 'clock',
+      text: `Quiet for ${days} days`,
+      tone: 'warning',
+      title: `Nothing since ${formatDateTime(last)} — no reply, and nothing booked`
+    }
+  }
+
+  return {
+    icon: 'clock',
+    text: contacted ? `Last contact ${formatRelative(last, now)}` : `Added ${formatRelative(item.createdAt, now)}`,
+    tone: 'quiet',
+    title: contacted ? `Last contact ${formatDateTime(last)}` : `Added ${formatDateTime(item.createdAt)}`
+  }
 }

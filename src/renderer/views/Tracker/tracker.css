@@ -11,27 +11,62 @@
   overflow: hidden;
 }
 
+/* Not a second toolbar — a filter bar, in the Finder/Mail position: directly under the
+   window chrome, on the window background, hairline below, and nothing in it that acts
+   on an item. It is what you are looking at, not what you are doing. */
 .tracker-bar {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 12px;
+  padding: 6px 12px;
   border-bottom: var(--hairline) solid var(--border);
   background: var(--bg);
 }
 
+/* Mirrors Mail's search field — same wrapper, same inset glyph — so the two searches in
+   the app are one control the user learns once. */
 .tracker-search {
-  width: 220px;
-  flex: 0 1 220px;
+  position: relative;
+  flex: 0 1 240px;
+  min-width: 140px;
+}
+
+.tracker-search-icon {
+  position: absolute;
+  left: 7px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+
+.tracker-search-input {
+  height: 22px;
+  padding-left: 24px;
+}
+
+.tracker-search-input::-webkit-search-cancel-button {
+  appearance: none;
 }
 
 .tracker-archived {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   font-size: var(--fs-sm);
+  color: var(--text-secondary);
   white-space: nowrap;
+}
+
+/* A real checkbox, tinted. Chromium draws the macOS control once accent-color is set,
+   and it is the honest widget for "add this to what's shown" — a switch would promise a
+   mode, and a pull-down would hide the state. */
+.tracker-archived input {
+  accent-color: var(--accent);
+  width: 13px;
+  height: 13px;
+  margin: 0;
 }
 
 .tracker-bar-spacer {
@@ -40,6 +75,7 @@
 
 .tracker-count {
   font-size: var(--fs-sm);
+  color: var(--text-tertiary);
 }
 
 /* The detail pane is a shared <Pane>; this just fills it and draws the divider. */
@@ -54,35 +90,30 @@
 
 /* ── board ─────────────────────────────────────────────────────────────────── */
 
+/* Columns are groups, not panes. The old board drew a full-height hairline between
+   every one of them — the divider macOS uses between a sidebar and its content — so six
+   statuses read as six windows. Whitespace on a recessed ground groups them instead,
+   which is the same move the Settings pane makes with its inset lists. */
 .board {
   display: flex;
   align-items: stretch;
-  gap: 0;
+  gap: 10px;
   height: 100%;
+  padding: 12px 12px 0;
   overflow-x: auto;
   overflow-y: hidden;
   background: var(--bg-subtle);
 }
 
+/* 240px is the narrowest column that holds "Senior Platform Engineer · London" without
+   the ellipsis eating the role. Six of them overflow a 1440pt window, which is what the
+   horizontal scroll is for — a board is allowed to be wider than the screen. */
 .board-column {
-  flex: 0 0 232px;
-  width: 232px;
+  flex: 0 0 240px;
+  width: 240px;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  border-right: var(--hairline) solid var(--border);
-}
-
-.board-column:last-child {
-  border-right: 0;
-}
-
-.board-column.is-closed {
-  background: color-mix(in srgb, var(--neutral-tint) 40%, transparent);
-}
-
-.board-column.is-drop-target {
-  background: var(--accent-tint);
 }
 
 .board-column-head {
@@ -90,160 +121,345 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 30px;
-  padding: 0 10px;
-  border-bottom: var(--hairline) solid var(--border);
+  height: 24px;
+  /* 2px, matching `.set-block-title` — a group label sits just inside its group's edge. */
+  padding: 0 2px;
 }
 
 .board-column-label {
-  flex: 1;
   min-width: 0;
   font-size: var(--fs-sm);
   font-weight: 600;
   color: var(--text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
+/* The total, as a number. A filled pill is what the rail uses for "n things want your
+   attention", and spending that vocabulary on "n things exist" devalues it. */
+.board-column-count {
+  flex: 0 0 auto;
+  font-size: var(--fs-sm);
+  color: var(--text-tertiary);
+}
+
+.board-column-add {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-tertiary);
+  opacity: 0;
+}
+
+/* Same reveal rule as `.tl-delete` and the linked-mail unlink button: invisible until
+   the region is hovered or something inside it takes keyboard focus, never invisible to
+   a keyboard user who has tabbed onto it. */
+.board-column:hover .board-column-add,
+.board-column-add:focus-visible {
+  opacity: 1;
+}
+
+.board-column-add:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+/* The negative margin buys 2px of bleed for the outward `:focus-visible` ring, which an
+   `overflow` container would otherwise clip to nothing. */
 .board-column-body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 8px;
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 8px;
+  margin: 0 -3px;
+  padding: 3px 3px 14px;
+  border-radius: var(--radius-lg);
 }
 
-.board-column-empty {
-  margin-top: 4px;
-  padding: 14px 8px;
-  border: var(--hairline) dashed var(--border-strong);
+.board-column.is-drop-target .board-column-body {
+  background: var(--accent-tint);
+  box-shadow: inset 0 0 0 var(--hairline) var(--accent);
+}
+
+.board-column.is-drop-target .board-column-label {
+  color: var(--accent);
+}
+
+/* Shown only mid-drag. A permanent dashed box in every empty column is six pieces of
+   furniture restating what the empty column already says. */
+.board-drop-hint {
+  padding: 12px 8px;
+  border: var(--hairline) dashed var(--accent);
   border-radius: var(--radius);
   text-align: center;
   font-size: var(--fs-xs);
-}
-
-.board-column.is-drop-target .board-column-empty {
-  border-color: var(--accent);
   color: var(--accent);
 }
 
 /* ── item card ─────────────────────────────────────────────────────────────── */
 
+/* Three lines and no status control. The card sits in the column that names its status,
+   so the popup button the old card carried spent its loudest element restating the
+   layout — see StatusMenu.tsx. */
 .item-card {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 7px;
-  padding: 9px 10px;
+  gap: 2px;
+  padding: 7px 10px 8px;
   border: var(--hairline) solid var(--border);
-  border-radius: var(--radius-lg);
+  /* 6px, matching the Settings groups. 10px is the iOS radius and reads soft on a Mac. */
+  border-radius: var(--radius);
   background: var(--bg-elevated);
 }
 
-.item-card:hover {
-  border-color: var(--border-strong);
-}
+/* The card's keyboard affordance: a real button stretched over the tile so the focus
+   ring frames the whole card, without making the card itself a button and pruning the
+   ••• out of the accessibility tree.
 
-.item-card.is-selected {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
+   `pointer-events: none` is what makes it work rather than get in the way — an overlay
+   that swallowed the pointer would take every hover with it, and the title tooltips on
+   the truncated role and on the signal line would never appear. The mouse hits the card
+   div underneath; the keyboard hits this. */
+.item-card-open {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  pointer-events: none;
 }
 
 .item-card:active {
   background: var(--bg-hover);
 }
 
-.item-card-top {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
+.item-card:hover {
+  border-color: var(--border-strong);
 }
 
-.item-avatar {
-  flex: 0 0 auto;
+/* Inset, so selection never changes the card's footprint and the column stays still. */
+.item-card.is-selected {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.item-card.is-dragging {
+  opacity: 0.35;
+}
+
+/* Archived rows only appear when the filter asks for them; this says which they are
+   without spending a badge on it. */
+.item-card.is-archived {
+  opacity: 0.6;
+}
+
+.item-card-head {
+  display: flex;
+  align-items: center;
+  min-height: 17px;
+  /* Reserved for the ••• button, which is positioned rather than laid out — a control
+     that appears on hover must not reflow the title it sits beside. */
+  padding-right: 18px;
+}
+
+.item-card-company {
+  min-width: 0;
+  font-size: var(--fs-md);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.item-card-menu {
+  position: absolute;
+  /* Above the stretched open button, which is the only other positioned child. */
+  z-index: 1;
+  top: 5px;
+  right: 5px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: var(--radius);
-  background: var(--neutral-tint);
-  color: var(--text-secondary);
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-tertiary);
+  opacity: 0;
 }
 
-.item-card-headings {
+.item-card:hover .item-card-menu,
+.item-card.is-selected .item-card-menu,
+.item-card-menu:focus-visible {
+  opacity: 1;
+}
+
+.item-card-menu:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+/* Role and location on one line. They were two competing elements in a flex row before,
+   both allowed to grow, which is why every card ended "Berlin" as "B…". Here the role
+   takes the space and the location is the one that gives way. */
+.item-card-sub {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  line-height: 1.35;
+}
+
+.item-card-role {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+/* Shrinks six times faster than the role, so a long title eats the location rather than
+   both of them ending in an ellipsis. Role is the answer to "which job is this"; the
+   city is context. */
+.item-card-loc {
+  flex: 0 6 auto;
+  min-width: 0;
+  color: var(--text-tertiary);
+}
+
+/* The separator is drawn rather than written, so it disappears with the location it
+   separates instead of leaving a dangling middot. */
+.item-card-loc::before {
+  content: '·';
+  margin-right: 5px;
+}
+
+.item-card-mail {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  font-size: var(--fs-xs);
+  color: var(--text-tertiary);
+}
+
+/* ── the signal line ───────────────────────────────────────────────────────── */
+
+/* One line per item, coloured by urgency rather than by category — see `itemSignal`.
+   The tones are deliberately four steps apart in emphasis, so a column scans as a
+   ranking instead of as a set of labels. */
+.item-signal {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  min-width: 0;
+  font-size: var(--fs-xs);
+  line-height: 1.35;
+}
+
+.item-signal.is-urgent {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.item-signal.is-upcoming {
+  color: var(--text-secondary);
+}
+
+.item-signal.is-warning {
+  color: var(--warning);
+}
+
+.item-signal.is-quiet {
+  color: var(--text-tertiary);
+}
+
+.item-signal svg {
+  flex: 0 0 auto;
+}
+
+/* ── status menu ───────────────────────────────────────────────────────────── */
+
+/* The app bans shadows, and this is the one exception: a menu floats over arbitrary
+   content and has to detach from it. macOS menus carry a shadow for exactly this
+   reason. Nothing inline may borrow this rule. */
+.st-menu {
+  position: fixed;
+  z-index: 50;
+  min-width: 184px;
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+  padding: 4px;
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  box-shadow: 0 10px 28px var(--overlay);
+}
+
+.st-menu:focus {
+  outline: none;
+}
+
+.st-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 8px 0 4px;
+  border-radius: 4px;
+  font-size: var(--fs-md);
+  white-space: nowrap;
+}
+
+/* A solid accent fill is how a macOS menu marks the row under the pointer or the
+   selection ring — not a tint, which reads as "disabled" beside real menus. */
+.st-menu-item.is-active {
+  background: var(--bg-selected-strong);
+  color: var(--text-inverse);
+}
+
+.st-menu-check {
+  flex: 0 0 auto;
+  width: 12px;
+  text-align: center;
+  font-size: var(--fs-xs);
+}
+
+.st-menu-label {
   flex: 1;
   min-width: 0;
 }
 
-.item-card-company {
-  font-size: var(--fs-md);
+/* Section header with its own separator, the way a macOS menu groups a submenu's worth
+   of choices inline. The first one never draws a rule against the menu's own edge. */
+.st-menu-section {
+  margin-top: 4px;
+  padding: 6px 8px 3px;
+  border-top: var(--hairline) solid var(--border);
+  font-size: var(--fs-xs);
   font-weight: 600;
-  line-height: 1.25;
+  color: var(--text-tertiary);
 }
 
-.item-card-role {
-  font-size: var(--fs-sm);
-  color: var(--text-secondary);
-  line-height: 1.3;
-}
+/* ── status popup (detail inspector) ───────────────────────────────────────── */
 
-.stale-dot {
-  flex: 0 0 auto;
-  width: 7px;
-  height: 7px;
-  margin-top: 6px;
-  border-radius: 50%;
-  background: var(--warning);
-}
-
-.item-card-next {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 6px;
-  border-radius: var(--radius);
-  background: var(--accent-tint);
-  color: var(--accent);
-  font-size: var(--fs-xs);
-}
-
-.item-card-next-when {
-  margin-left: auto;
-  flex: 0 0 auto;
-  opacity: 0.85;
-}
-
-.item-card-foot {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.item-card-meta {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  margin-left: auto;
-  font-size: var(--fs-xs);
-}
-
-/* Status <select> shrunk to card scale; keeps the native popup behaviour. */
+/* The shared `.input` is width:100% for stacked forms. A popup button is sized to its
+   widest label instead, per the HIG — and capped, because "Closed — Withdrawn" would
+   otherwise push the Edit button off the header. */
 .status-select {
   width: auto;
-  max-width: 130px;
-}
-
-.status-select.is-sm {
-  height: 20px;
-  font-size: var(--fs-xs);
-  padding: 0 2px 0 5px;
+  max-width: 168px;
 }
 
 /* ── item table ────────────────────────────────────────────────────────────── */
@@ -254,14 +470,16 @@
   font-size: var(--fs-md);
 }
 
+/* Sentence case at label size, the way Finder, Mail and Numbers set a column header.
+   The uppercase letterspaced treatment this replaces is a web table convention. */
 .item-table th {
   position: sticky;
   top: 0;
   z-index: 1;
   text-align: left;
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  color: var(--text-tertiary);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
   background: var(--bg);
   border-bottom: var(--hairline) solid var(--border);
   padding: 0;
@@ -275,8 +493,6 @@
   color: inherit;
   font: inherit;
   text-align: left;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 .item-table-sort:hover {
@@ -321,14 +537,50 @@
   max-width: 230px;
 }
 
+/* Same colour language as the board: accent when it is about to happen, warning when
+   the thread has gone quiet. */
+.item-table .col-next.is-urgent {
+  color: var(--accent);
+  font-weight: 500;
+}
+
 .item-table .col-last-message {
   white-space: nowrap;
   font-size: var(--fs-sm);
 }
 
+.item-table .col-last-message.is-quiet-warning {
+  color: var(--warning);
+}
+
 .item-table .col-actions {
   width: 1%;
   white-space: nowrap;
+}
+
+.item-row-menu {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-tertiary);
+  opacity: 0;
+}
+
+.item-row:hover .item-row-menu,
+.item-row.is-selected .item-row-menu,
+.item-row-menu:focus-visible {
+  opacity: 1;
+}
+
+.item-row-menu:hover {
+  background: var(--bg-hover);
+  color: var(--text);
 }
 
 .item-table .close-reason {
@@ -340,6 +592,17 @@
   display: inline-block;
   max-width: 100%;
   vertical-align: bottom;
+}
+
+/* The board no longer has a bare dot — its cards say "Quiet for 21 days" in words — but
+   the table has a column per fact and no room for a sentence, so the dot stays here as
+   Mail's unread dot does: one glyph, with the sentence in its tooltip. */
+.stale-dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warning);
 }
 
 /* ── item detail ───────────────────────────────────────────────────────────── */
