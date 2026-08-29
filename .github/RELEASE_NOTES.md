@@ -18,9 +18,11 @@ shortcut for unsigned apps in macOS 15, so the command above is the one required
 
 ### Requirements
 
-Jobbox drives the `claude` CLI on your own machine — there is no API key and no server
-holding your mail. Install Claude Code and sign in first:
+Jobbox drives a coding-agent CLI on your own machine — there is no API key, and no server
+holding your mail. Install whichever one you already have, then pick it in Settings:
 
-```bash
-claude auth login
-```
+- **Claude Code** — sign in by running `claude` once in a terminal
+- **Codex** — sign in by running `codex` once in a terminal
+
+Jobbox spawns it as a subprocess on your own subscription and never holds credentials for
+either one.
