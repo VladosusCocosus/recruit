@@ -14,6 +14,10 @@ export {
   isAllDay,
   isImminent,
   isInProgress,
-  timeLabel
+  isTodayKey,
+  rangeLabel,
+  spanLabel,
+  timeLabel,
+  todayLabel
 } from './datetime'
 export type { EventDay } from './datetime'

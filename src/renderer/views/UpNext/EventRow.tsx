@@ -1,6 +1,6 @@
-import { Icon, StatusBadge, formatCountdown, type IconName } from '@renderer/components'
+import { Button, Dot, Icon, formatCountdown, type IconName } from '@renderer/components'
 import type { Status, TimelineEventKind, UpcomingEvent } from '@shared/types'
-import { isAllDay, isImminent, isInProgress, timeLabel } from './datetime'
+import { isAllDay, isImminent, isInProgress, rangeLabel, spanLabel, timeLabel } from './datetime'
 
 interface Props {
   event: UpcomingEvent
@@ -29,32 +29,60 @@ function itemLabel(item: UpcomingEvent['item']): string {
  * rather than as a list of sentences. "Join" sits outside the row's own click target:
  * joining a call and opening the application are different intents, and a button inside a
  * button is invalid HTML besides.
+ *
+ * Urgency is carried by the time — accent when it is close, an accent edge and the word
+ * "Now" while it runs — and never by washing the whole row in tint. A schedule where the
+ * next two hours are a block of colour is harder to read, not easier, and the row is
+ * already sorted into the position that says when it happens.
  */
 export function EventRow({ event, statuses, now, onOpenItem, onOpenUrl }: Props): JSX.Element {
   const status = statuses.get(event.item.statusKey) ?? null
-  const running = isInProgress(event, now)
-  const soon = running || isImminent(event, now)
+  // All-day events are never "Now", for the same reason `isImminent` excludes them: they
+  // are the shape of the day, not a moment inside it, and an accent edge on one would
+  // compete with the meeting that is genuinely starting. They still group under today —
+  // that is `dayKey`'s job, and a different question.
+  const running = isInProgress(event, now) && !isAllDay(event)
+  const soon = isImminent(event, now)
   const meetingUrl = event.meetingUrl
+  const span = spanLabel(event)
   // An all-day event has no meaningful countdown — its day header already says everything.
-  const countdown = isAllDay(event) ? '' : running ? 'now' : formatCountdown(event.startsAt, now)
+  const countdown = isAllDay(event) ? '' : running ? 'Now' : formatCountdown(event.startsAt, now)
+
+  const statusLabel = status?.label ?? event.item.statusKey
+  const summary = `${event.title} · ${rangeLabel(event)}\n${itemLabel(event.item)} — ${statusLabel}`
 
   const main = (
     <>
-      <span className="un-kind" title={event.kind}>
+      {/* Inside the click target, not beside it: the time is part of what you are pointing
+          at, and it puts "10:00, Technical screen" into the button's accessible name. */}
+      <span className="un-time tabular">
+        <span className="un-time-main">{timeLabel(event)}</span>
+        {countdown ? <span className="un-countdown">{countdown}</span> : null}
+      </span>
+      <span className="un-kind">
         <Icon name={KIND_ICON[event.kind]} size={13} />
       </span>
       <span className="un-main">
         <span className="un-title truncate">{event.title}</span>
-        <span className="un-item truncate">
-          <StatusBadge status={status} statusKey={event.item.statusKey} />
-          {itemLabel(event.item)}
+        <span className="un-item">
+          {/* The status as a calendar colour rather than a pill: while reading a schedule
+              you are asking who and when, not what stage the application is at. The label
+              stays reachable through the row's tooltip and one click away on the item. */}
+          <Dot color={status?.color ?? undefined} />
+          <span className="truncate">{itemLabel(event.item)}</span>
         </span>
-        {event.location ? (
+        {span || event.location ? (
           <span className="un-where">
-            <span className="un-location truncate">
-              <Icon name="target" size={11} />
-              {event.location}
-            </span>
+            {span ? <span className="un-span">{span}</span> : null}
+            {event.location ? (
+              <span className="un-location">
+                <Icon name="pin" size={11} />
+                {/* The text needs its own box: `text-overflow` has nothing to act on when
+                    the string is a bare child of a flex container, so a long venue would
+                    clip mid-word with no ellipsis. */}
+                <span className="truncate">{event.location}</span>
+              </span>
+            ) : null}
           </span>
         ) : null}
       </span>
@@ -62,37 +90,34 @@ export function EventRow({ event, statuses, now, onOpenItem, onOpenUrl }: Props)
   )
 
   return (
-    <div className={`un-row${soon ? ' is-soon' : ''}`}>
-      <span className="un-time tabular">
-        <span className="un-time-main">{timeLabel(event)}</span>
-        {countdown ? (
-          <span className={`un-countdown${running ? ' is-now' : ''}`}>{countdown}</span>
-        ) : null}
-      </span>
-
+    <div className={'un-row' + (running ? ' is-now' : soon ? ' is-soon' : '')}>
       {onOpenItem ? (
         <button
           type="button"
           className="un-row-main is-clickable"
+          title={summary}
           onClick={() => onOpenItem(event.item.id)}
-          title={`Open ${itemLabel(event.item)}`}
         >
           {main}
         </button>
       ) : (
-        <div className="un-row-main">{main}</div>
+        <div className="un-row-main" title={summary}>
+          {main}
+        </div>
       )}
 
       {meetingUrl ? (
-        <button
-          type="button"
-          className="btn is-sm is-outline un-join"
+        <Button
+          size="sm"
+          /* Filled only in the window where joining is the thing you came here to do. */
+          variant={running || soon ? 'primary' : 'outline'}
+          className="un-join"
+          icon="external"
           title={meetingUrl}
           onClick={() => onOpenUrl?.(meetingUrl)}
         >
-          <Icon name="external" size={12} />
           Join
-        </button>
+        </Button>
       ) : null}
     </div>
   )

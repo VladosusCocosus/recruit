@@ -32,6 +32,7 @@ export type IconName =
   | 'terminal'
   | 'sparkle'
   | 'clock'
+  | 'pin'
   | 'image'
 
 export interface IconProps {
@@ -178,6 +179,14 @@ const PATHS: Record<IconName, JSX.Element> = {
     <g {...STROKE}>
       <circle cx="8" cy="8" r="5.9" />
       <path d="M8 4.7V8l2.3 1.5" />
+    </g>
+  ),
+  // A place, not a target. `target` is the crosshair the rail uses for Candidates, and
+  // reusing it for a venue made two unrelated things look like the same idea.
+  pin: (
+    <g {...STROKE}>
+      <path d="M8 14.2s4.7-4.2 4.7-7.5a4.7 4.7 0 1 0-9.4 0c0 3.3 4.7 7.5 4.7 7.5z" />
+      <circle cx="8" cy="6.6" r="1.7" />
     </g>
   ),
   image: (

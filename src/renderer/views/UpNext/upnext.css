@@ -1,67 +1,136 @@
-/* Up next — every future event across every application, grouped by day.
-   Structure only; the shared components own .badge/.status-badge/.btn. Prefix: .un- */
+/* Up next — everything still ahead of you, across every application, grouped by day.
+   Structure only; the shared components own .badge/.dot/.btn. Prefix: .un-
+   Tokens only, hairlines and flat fills — no shadows. */
 
 /* The pane is owned by <Pane>/<PaneBody>, so tint the scroll area by what it contains
-   rather than by adding a root class we don't control. */
-.pane-body:has(> .un-days) {
+   rather than by adding a root class we don't control.
+
+   Load-bearing, not decoration: --bg-elevated and --bg are BOTH #ffffff in light mode,
+   so on the default pane background a day group would have a hairline and no fill
+   contrast. Sinking the pane to --bg-subtle puts the white group on a light ground. */
+.pane-body:has(> .un-col) {
   background: var(--bg-subtle);
 }
 
-.un-days {
-  max-width: 720px;
+/* <PaneBody> is deliberately NOT `padded` — that would add its own 16px on top of these.
+   640px keeps a row's three lines within one comfortable measure; a schedule stretched to
+   a 1400px window turns into a hunt from the time on the left to the title in the middle. */
+.un-col {
+  display: flex;
+  flex-direction: column;
+  max-width: 640px;
+  padding: 0 20px 40px;
+}
+
+/* ── the state today's absence used to leave silent ─────────────────────── */
+
+.un-clear {
+  margin: 0;
+  padding: 18px 2px 0;
+  font-size: var(--fs-sm);
+  color: var(--text-tertiary);
+}
+
+.un-foot {
+  margin: 0;
+  padding: 14px 2px 0;
+  font-size: var(--fs-xs);
+  color: var(--text-tertiary);
+}
+
+.un-date {
+  flex: 0 0 auto;
+  font-size: var(--fs-sm);
+  color: var(--text-tertiary);
 }
 
 /* ── day group ─────────────────────────────────────────────────────────── */
 
-.un-day + .un-day {
-  margin-top: 22px;
-}
-
-.un-day-label {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin: 0 0 7px;
-  padding: 0 2px 6px;
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  color: var(--text-secondary);
-  border-bottom: var(--hairline) solid var(--border);
-  position: sticky;
-  top: -16px; /* cancels .pane-body.is-padded's top padding */
-  background: var(--bg-subtle);
-  z-index: 1;
-}
-
-.un-day-label .badge {
-  font-weight: 600;
-}
-
-.un-day-rows {
+.un-day {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+}
+
+/* Sticky, so you always know which day you are looking at halfway down a long list.
+   The opaque background has to cover the gap it would otherwise leave above the group,
+   so the spacing lives in the heading's own padding rather than in a flex gap — a gap
+   is transparent, and rows would scroll through it — which is also why `.un-col` sets no
+   gap of its own. */
+.un-day-label {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  padding: 18px 2px 7px;
+  background: var(--bg-subtle);
+}
+
+/* Sentence case at body size, semibold — matching the Settings block titles. Today is
+   the only day that gets full-strength text; the rest are context. */
+.un-day-name {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.un-day.is-today .un-day-name {
+  color: var(--text);
+}
+
+/* A number, not a pill: how many things a day holds is context, not a summons. */
+.un-day-count {
+  margin-left: auto;
+  font-size: var(--fs-sm);
+  font-weight: 400;
+  color: var(--text-tertiary);
+}
+
+/* One inset group per day. A border around every individual row makes the eye stop at
+   each one; a schedule wants to read as a run of lines under a heading. */
+.un-day-rows {
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  overflow: hidden;
 }
 
 /* ── row ───────────────────────────────────────────────────────────────── */
 
 .un-row {
+  position: relative;
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 8px 10px;
-  border: var(--hairline) solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg-elevated);
+  gap: 8px;
+  padding: 8px 10px 9px;
 }
 
-.un-row.is-soon {
-  border-color: var(--accent);
-  background: var(--accent-tint);
+/* The whole row is the object, so the whole row lights up — even though the click target
+   inside it stops short of "Join", which belongs to a different intent. */
+.un-row:has(> .is-clickable:hover) {
+  background: var(--bg-hover);
+}
+
+.un-row + .un-row {
+  border-top: var(--hairline) solid var(--border);
+}
+
+/* Urgency lives in the time and in this one edge — never in a tint across the whole row.
+   Two hours of accent-washed rows is a block of colour to read past, not a signal. */
+.un-row.is-now::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--accent);
 }
 
 .un-time {
-  flex: 0 0 92px;
+  flex: 0 0 76px;
   display: flex;
   flex-direction: column;
   gap: 1px;
@@ -78,8 +147,14 @@
   color: var(--text-tertiary);
 }
 
-.un-countdown.is-now {
+.un-row.is-soon .un-time-main,
+.un-row.is-now .un-time-main,
+.un-row.is-soon .un-countdown,
+.un-row.is-now .un-countdown {
   color: var(--accent);
+}
+
+.un-row.is-now .un-countdown {
   font-weight: 600;
 }
 
@@ -88,18 +163,13 @@
   min-width: 0;
   display: flex;
   align-items: flex-start;
-  gap: 8px;
+  gap: 10px;
   padding: 0;
   border: 0;
   background: transparent;
   color: inherit;
+  font: inherit;
   text-align: left;
-}
-
-.un-row-main.is-clickable:hover .un-title {
-  color: var(--accent);
-  text-decoration: underline;
-  text-underline-offset: 2px;
 }
 
 .un-kind {
@@ -109,7 +179,7 @@
   color: var(--text-tertiary);
 }
 
-.un-row.is-soon .un-kind {
+.un-row.is-now .un-kind {
   color: var(--accent);
 }
 
@@ -135,17 +205,20 @@
   color: var(--text-secondary);
 }
 
-.un-item .status-badge {
-  flex: 0 0 auto;
-}
-
 .un-where {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 2px;
+  min-width: 0;
+  margin-top: 1px;
   font-size: var(--fs-xs);
   color: var(--text-tertiary);
+}
+
+/* The duration gives way last: "3 hr" is short and is the reason the line exists at all,
+   while a long venue string is the part that can afford to truncate. */
+.un-span {
+  flex: 0 0 auto;
 }
 
 .un-location {
@@ -153,6 +226,10 @@
   align-items: center;
   gap: 4px;
   min-width: 0;
+}
+
+.un-location svg {
+  flex: 0 0 auto;
 }
 
 .un-join {

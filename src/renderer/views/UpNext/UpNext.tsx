@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  Badge,
-  Button,
   EmptyState,
   ErrorBanner,
   LoadingState,
@@ -13,7 +11,7 @@ import {
   useStatuses
 } from '@renderer/components'
 import type { Status } from '@shared/types'
-import { groupByDay } from './datetime'
+import { groupByDay, todayLabel } from './datetime'
 import { EventRow } from './EventRow'
 import './upnext.css'
 
@@ -25,15 +23,20 @@ export interface UpNextProps {
 }
 
 const DEFAULT_LIMIT = 100
-/** Often enough that "in 12m" and "now" stay honest, rarely enough not to churn the tree. */
+/** Often enough that "in 12m" and "Now" stay honest, rarely enough not to churn the tree. */
 const TICK_MS = 60_000
 
 /**
- * Every future timeline event across every application, soonest first.
+ * Every event still ahead of you across every application, soonest first.
  *
  * The one view that ignores the tracker's structure entirely: an interview on Thursday
  * matters whether it belongs to a Screening or an Offer, so events group by day and nothing
  * else. Each row links back to the application it came from.
+ *
+ * Days are the only grouping, and each day is one inset group rather than a stack of cards
+ * — a schedule is a list, and a border around every line makes the eye stop at each one.
+ * The view leads with today, and says so when today is already done; the absence of a
+ * "Today" heading is otherwise silent, and reads as though something failed to load.
  */
 export function UpNext({ onOpenItem, limit = DEFAULT_LIMIT }: UpNextProps): JSX.Element {
   const events = useAsync(() => window.recruit.listUpcomingEvents(limit), [limit])
@@ -46,7 +49,8 @@ export function UpNext({ onOpenItem, limit = DEFAULT_LIMIT }: UpNextProps): JSX.
   useRecruitEvent('itemsChanged', () => reload())
   useRecruitEvent('proposalsChanged', () => reload())
 
-  // Keeps countdowns truthful, and rolls "Today" over at midnight.
+  // Keeps countdowns truthful, rolls "Today" over at midnight, and retires a meeting
+  // from the schedule once it has actually finished.
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), TICK_MS)
     return () => window.clearInterval(id)
@@ -63,7 +67,8 @@ export function UpNext({ onOpenItem, limit = DEFAULT_LIMIT }: UpNextProps): JSX.
     void window.recruit.openExternal(url).catch(() => undefined)
   }, [])
 
-  const total = events.data?.length ?? 0
+  // The horizon is capped. Saying so beats letting a full page look like the whole future.
+  const capped = (events.data?.length ?? 0) >= limit
 
   let body: JSX.Element
   if (events.loading && events.data === null) {
@@ -78,12 +83,14 @@ export function UpNext({ onOpenItem, limit = DEFAULT_LIMIT }: UpNextProps): JSX.
     )
   } else {
     body = (
-      <div className="un-days">
+      <div className="un-col">
+        {days[0]?.isToday ? null : <p className="un-clear">Nothing left today.</p>}
+
         {days.map((day) => (
-          <section className="un-day" key={day.key}>
+          <section className={'un-day' + (day.isToday ? ' is-today' : '')} key={day.key}>
             <h2 className="un-day-label">
-              {day.label}
-              <Badge>{day.events.length}</Badge>
+              <span className="un-day-name">{day.label}</span>
+              <span className="un-day-count tabular">{day.events.length}</span>
             </h2>
             <div className="un-day-rows">
               {day.events.map((event) => (
@@ -99,6 +106,8 @@ export function UpNext({ onOpenItem, limit = DEFAULT_LIMIT }: UpNextProps): JSX.
             </div>
           </section>
         ))}
+
+        {capped ? <p className="un-foot">Showing the next {limit} events.</p> : null}
       </div>
     )
   }
@@ -106,25 +115,13 @@ export function UpNext({ onOpenItem, limit = DEFAULT_LIMIT }: UpNextProps): JSX.
   return (
     <Pane kind="detail">
       <ErrorBanner error={events.error} onRetry={reload} />
-
-      <PaneHeader
-        title="Up next"
-        actions={
-          <Button
-            variant="subtle"
-            size="sm"
-            icon="refresh"
-            busy={events.loading && events.data !== null}
-            onClick={reload}
-          >
-            Refresh
-          </Button>
-        }
-      >
-        {total > 0 ? <Badge>{total}</Badge> : null}
-      </PaneHeader>
-
-      <PaneBody padded>{body}</PaneBody>
+      {/* No Refresh button: the list reloads on every event that could change it, ticks
+          itself every minute, and the error banner owns the one case where a manual retry
+          is the right answer. The date earns the space instead — the day headings below say
+          "Today" and "Tomorrow" and then jump straight to weekday names, which needs an
+          anchor somewhere on screen. */}
+      <PaneHeader title="Up next" actions={<span className="un-date">{todayLabel(now)}</span>} />
+      <PaneBody>{body}</PaneBody>
     </Pane>
   )
 }
