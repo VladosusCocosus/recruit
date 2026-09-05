@@ -282,6 +282,14 @@ export function registerIpcHandlers(services: AppServices): void {
     return master
   })
 
+  handle('importResumeMaster', async () => {
+    const input = await resumes.pickResumeMasterText()
+    if (!input) return null
+    const master = db.createResumeMaster(input)
+    notifyResumeMasters()
+    return master
+  })
+
   handle('updateResumeMaster', async (masterId, patch) => {
     const master = db.updateResumeMaster(masterId, patch)
     notifyResumeMasters()

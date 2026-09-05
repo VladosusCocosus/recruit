@@ -77,9 +77,25 @@ function ResumeRow({
 
 /* ── master resumes ────────────────────────────────────────────────────────── */
 
+const MASTER_PLACEHOLDER = `# Ada Lovelace
+Berlin · ada@example.com · github.com/ada
+
+## Summary
+Backend engineer, 9 years, distributed systems and payments.
+
+## Experience
+
+### Staff Engineer — Northwind Labs (2021–present)
+- Cut checkout p99 latency from 1.8s to 240ms by …
+- Led the migration of 40 services onto …
+
+## Skills
+Go, Postgres, Kafka, Terraform`
+
 function MasterResumes(): JSX.Element {
   const state = useResumeMasters()
   const [editingId, setEditingId] = useState<number | null>(null)
+  const [creating, setCreating] = useState(false)
   const [draftLabel, setDraftLabel] = useState('')
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
@@ -87,6 +103,7 @@ function MasterResumes(): JSX.Element {
 
   const masters = state.data ?? []
   const editing = masters.find((m) => m.id === editingId) ?? null
+  const composing = creating || editing !== null
 
   const run = (work: () => Promise<unknown>, after?: () => void): void => {
     setBusy(true)
@@ -98,13 +115,42 @@ function MasterResumes(): JSX.Element {
   }
 
   const startEdit = (master: ResumeMaster): void => {
+    setCreating(false)
     setEditingId(master.id)
     setDraftLabel(master.label)
     setDraft(master.contentMd)
     setError(null)
   }
 
+  const startNew = (): void => {
+    setEditingId(null)
+    setCreating(true)
+    setDraftLabel('')
+    setDraft('')
+    setError(null)
+  }
+
+  const closeComposer = (): void => {
+    setEditingId(null)
+    setCreating(false)
+  }
+
   const save = (): void => {
+    if (creating) {
+      if (draft.trim().length === 0) {
+        setError('Paste your resume before saving it.')
+        return
+      }
+      run(
+        () =>
+          window.recruit.createResumeMaster({
+            label: draftLabel.trim() || 'My resume',
+            contentMd: draft
+          }),
+        closeComposer
+      )
+      return
+    }
     if (!editing) return
     run(
       () =>
@@ -112,7 +158,7 @@ function MasterResumes(): JSX.Element {
           label: draftLabel.trim() || editing.label,
           contentMd: draft
         }),
-      () => setEditingId(null)
+      closeComposer
     )
   }
 
@@ -122,12 +168,12 @@ function MasterResumes(): JSX.Element {
 
       <SettingsBlock
         title="Master resumes"
-        footnote="The markdown the apply flow tailors from. Editing one changes what future applications start from; the file each earlier application was sent with is untouched. The first master is created the first time you use Apply."
+        footnote="The markdown the apply flow tailors from. Editing one changes what future applications start from; the file each earlier application was sent with is untouched."
       >
         {masters.length === 0 ? (
           <SettingsRow
             label="No master resume yet"
-            description="Press Apply in the toolbar and paste one — it only asks once."
+            description="Apply needs one before it can tailor anything. Write it here, or import a markdown or text file."
           >
             <SettingsValue>—</SettingsValue>
           </SettingsRow>
@@ -177,16 +223,35 @@ function MasterResumes(): JSX.Element {
             </SettingsRow>
           ))
         )}
+
+        <SettingsRow
+          label="Add a resume"
+          description="Paste it as markdown, or import a .md or .txt file. PDFs cannot be tailored — nothing can read them."
+        >
+          <Button size="sm" variant="outline" disabled={busy || composing} onClick={startNew}>
+            Write one…
+          </Button>
+          <Button
+            size="sm"
+            variant="subtle"
+            disabled={busy || composing}
+            onClick={() => run(() => window.recruit.importResumeMaster())}
+          >
+            Import…
+          </Button>
+        </SettingsRow>
       </SettingsBlock>
 
-      {editing ? (
+      {composing ? (
         <section className="set-block">
-          <h3 className="set-block-title">Editing {editing.label}</h3>
+          <h3 className="set-block-title">
+            {editing ? `Editing ${editing.label}` : 'New master resume'}
+          </h3>
           <div className="stack">
             <TextInput
               value={draftLabel}
               aria-label="Resume name"
-              placeholder={editing.label}
+              placeholder={editing ? editing.label : 'My resume'}
               disabled={busy}
               onValueChange={setDraftLabel}
             />
@@ -194,7 +259,9 @@ function MasterResumes(): JSX.Element {
               className="input mono"
               rows={18}
               value={draft}
-              aria-label={`${editing.label} in markdown`}
+              autoFocus={creating}
+              placeholder={creating ? MASTER_PLACEHOLDER : undefined}
+              aria-label={`${editing ? editing.label : 'New resume'} in markdown`}
               disabled={busy}
               onChange={(e) => setDraft(e.currentTarget.value)}
             />
@@ -202,7 +269,7 @@ function MasterResumes(): JSX.Element {
               <Button size="sm" variant="primary" busy={busy} onClick={save}>
                 Save
               </Button>
-              <Button size="sm" variant="subtle" disabled={busy} onClick={() => setEditingId(null)}>
+              <Button size="sm" variant="subtle" disabled={busy} onClick={closeComposer}>
                 Cancel
               </Button>
               <span className="tertiary">{pluralize(countWords(draft), 'word')}</span>

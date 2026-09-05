@@ -45,25 +45,6 @@
   color: var(--text-secondary);
 }
 
-/* ── screen 1, first run: naming the master resume ─────────────────────── */
-
-.ap-first-lede {
-  margin: 4px 0 14px;
-  font-size: var(--fs-md);
-  line-height: 1.5;
-  color: var(--text-secondary);
-}
-
-/* A document, not a note: full height and monospaced, so the markdown structure the
-   tailor run matches on is legible while it is pasted. */
-.ap-master {
-  min-height: 300px;
-  max-height: 48vh;
-  font-family: var(--font-mono);
-  font-size: var(--fs-sm);
-  line-height: 1.5;
-}
-
 /* ── screen 2: the run ─────────────────────────────────────────────────── */
 
 .ap-run {

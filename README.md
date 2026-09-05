@@ -129,10 +129,12 @@ Accepting renders the result to PDF, files it as a resume variant, and creates t
 application at **Applied** with the tailored file already attached. So the flow that writes
 the application is the same one that answers "which resume did I send".
 
-**Master resumes** live in **Settings → Resume**, in markdown. That is the one-time cost of
-this feature: a resume has to exist as text before anything can tailor it, and an uploaded
-PDF is bytes nobody can read. Rendering is markdown → HTML → PDF inside Jobbox, so every
-application you send looks the same.
+**Master resumes** live in **Settings → Resume**, in markdown — write one there or import a
+`.md` or `.txt` file. That is the one-time cost of this feature: a resume has to exist as
+text before anything can tailor it, and an uploaded PDF is bytes nobody can read. Apply
+never asks you to create one; with no master it points you at Settings and does nothing
+else. Rendering is markdown → HTML → PDF inside Jobbox, so every application you send looks
+the same.
 
 Two limits worth stating plainly. **Jobbox does not submit anything** — mail is read-only
 and SMTP is unused, so you still apply on the company's own site with the PDF it produced.

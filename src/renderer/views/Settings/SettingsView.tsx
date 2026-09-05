@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   AGENT_ENGINES,
   AGENT_ENGINE_BINARY,
@@ -64,7 +64,7 @@ const SECTIONS = [
   { key: 'about', label: 'About', icon: 'info' }
 ] as const satisfies ReadonlyArray<{ key: string; label: string; icon: IconName }>
 
-type SectionKey = (typeof SECTIONS)[number]['key']
+export type SectionKey = (typeof SECTIONS)[number]['key']
 
 const THEME_OPTIONS: ReadonlyArray<{ value: ThemePreference; label: string }> = [
   { value: 'system', label: 'System' },
@@ -93,15 +93,26 @@ export interface SettingsViewProps {
   onUpdateSettings: (patch: Partial<AppSettings>) => Promise<void>
   /** Lets the shell refresh counts / setup state after an account is added. */
   onAccountsChanged?: () => void
+  /** The pane to open on. Re-selects whenever `openAtNonce` changes. */
+  openAt?: SectionKey
+  openAtNonce?: number
 }
 
 export default function SettingsView({
   settings,
   onUpdateSettings,
-  onAccountsChanged
+  onAccountsChanged,
+  openAt,
+  openAtNonce
 }: SettingsViewProps): JSX.Element {
-  const [section, setSection] = useState<SectionKey>('general')
+  const [section, setSection] = useState<SectionKey>(openAt ?? 'general')
   const accounts = useAccounts()
+
+  const requested = useRef(openAt)
+  requested.current = openAt
+  useEffect(() => {
+    if (requested.current) setSection(requested.current)
+  }, [openAtNonce])
 
   const active = SECTIONS.find((s) => s.key === section) ?? SECTIONS[0]
 

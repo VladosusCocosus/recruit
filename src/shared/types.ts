@@ -310,6 +310,12 @@ export interface ResumeMasterInput {
   contentMd: string
 }
 
+/** Extensions the master-resume import dialog accepts. Text only: it has to be readable. */
+export const RESUME_MASTER_EXTENSIONS = ['md', 'markdown', 'txt', 'text'] as const
+
+/** Largest master the import accepts, in bytes. */
+export const RESUME_MASTER_MAX_BYTES = 128 * 1024
+
 /** Extensions the resume file dialog accepts. */
 export const RESUME_EXTENSIONS = ['pdf', 'doc', 'docx', 'odt', 'rtf', 'txt', 'md', 'pages'] as const
 
@@ -1196,6 +1202,8 @@ export interface RecruitApi {
   // ── resume masters + apply ────────────────────────────────────────────────
   listResumeMasters(): Promise<ResumeMaster[]>
   createResumeMaster(input: ResumeMasterInput): Promise<ResumeMaster>
+  /** Opens a file dialog and creates a master from a text file. Null when cancelled. */
+  importResumeMaster(): Promise<ResumeMaster | null>
   updateResumeMaster(masterId: number, patch: Partial<ResumeMasterInput>): Promise<ResumeMaster>
   setDefaultResumeMaster(masterId: number): Promise<ResumeMaster[]>
   archiveResumeMaster(masterId: number): Promise<ResumeMaster[]>
@@ -1312,6 +1320,7 @@ export const IPC_METHODS = [
   'skipItemResume',
   'listResumeMasters',
   'createResumeMaster',
+  'importResumeMaster',
   'updateResumeMaster',
   'setDefaultResumeMaster',
   'archiveResumeMaster',

@@ -30,11 +30,13 @@ interface Props {
   store: ApplyStore
   /** Where the filed application opens. */
   onOpenItem: (itemId: number) => void
+  /** Opens Settings at the pane where master resumes are kept. */
+  onOpenResumeSettings: () => void
 }
 
-export function ApplyModal({ store, onOpenItem }: Props): JSX.Element | null {
-  if (!store.open) return null
-  return <ApplyDialog store={store} onOpenItem={onOpenItem} />
+export function ApplyModal(props: Props): JSX.Element | null {
+  if (!props.store.open) return null
+  return <ApplyDialog {...props} />
 }
 
 function countWords(text: string): number {
@@ -43,12 +45,12 @@ function countWords(text: string): number {
 }
 
 /** Which of the two screens' states is on show. Picks the title, the body and the footer. */
-type Mode = 'loading' | 'unavailable' | 'first-run' | 'input' | 'running' | 'failed' | 'review'
+type Mode = 'loading' | 'unavailable' | 'no-master' | 'input' | 'running' | 'failed' | 'review'
 
 function modeOf(store: ApplyStore): Mode {
   if (store.mastersLoading) return 'loading'
   if (store.masters.length === 0) {
-    return store.mastersError === null ? 'first-run' : 'unavailable'
+    return store.mastersError === null ? 'no-master' : 'unavailable'
   }
   if (store.screen === 'input') return 'input'
   if (store.phase === 'running') return 'running'
@@ -56,12 +58,9 @@ function modeOf(store: ApplyStore): Mode {
   return 'failed'
 }
 
-function ApplyDialog({ store, onOpenItem }: Props): JSX.Element {
-  const [masterLabel, setMasterLabel] = useState('My resume')
-  const [masterDraft, setMasterDraft] = useState('')
-
+function ApplyDialog({ store, onOpenItem, onOpenResumeSettings }: Props): JSX.Element {
   const mode = modeOf(store)
-  const locked = mode === 'running' || store.committing || store.savingMaster
+  const locked = mode === 'running' || store.committing
 
   const apply = async (): Promise<void> => {
     const itemId = await store.commit()
@@ -76,9 +75,8 @@ function ApplyDialog({ store, onOpenItem }: Props): JSX.Element {
   let subtitle: ReactNode = null
   if (mode === 'unavailable') {
     title = 'Apply'
-  } else if (mode === 'first-run') {
-    title = 'Add your resume'
-    subtitle = 'One time. Every tailored resume the apply flow writes starts from this one.'
+  } else if (mode === 'no-master') {
+    title = 'Apply'
   } else if (mode === 'running') {
     title = 'Tailoring your resume'
     subtitle = store.master?.label ?? null
@@ -99,15 +97,11 @@ function ApplyDialog({ store, onOpenItem }: Props): JSX.Element {
     body = <LoadingState label="Loading your resumes…" />
   } else if (mode === 'unavailable') {
     body = <ProblemBody title="Your resumes couldn't be read" message={store.mastersError} />
-  } else if (mode === 'first-run') {
+  } else if (mode === 'no-master') {
     body = (
-      <FirstRunBody
-        label={masterLabel}
-        draft={masterDraft}
-        saving={store.savingMaster}
-        error={store.masterSaveError}
-        onLabel={setMasterLabel}
-        onDraft={setMasterDraft}
+      <ProblemBody
+        title="No resume to tailor yet"
+        message="Apply builds every application from a master resume kept as markdown. Add one in Settings — write it there or import a .md or .txt file — and this screen turns into the job box."
       />
     )
   } else if (mode === 'running') {
@@ -160,21 +154,22 @@ function ApplyDialog({ store, onOpenItem }: Props): JSX.Element {
         </Button>
       </>
     )
-  } else if (mode === 'first-run') {
+  } else if (mode === 'no-master') {
     footer = (
       <>
-        <Button size="sm" variant="subtle" disabled={store.savingMaster} onClick={store.close}>
+        <Button size="sm" variant="subtle" onClick={store.close}>
           Cancel
         </Button>
         <span className="ap-spacer" />
         <Button
           size="sm"
           variant="primary"
-          busy={store.savingMaster}
-          disabled={masterDraft.trim() === ''}
-          onClick={() => void store.createMaster(masterLabel, masterDraft)}
+          onClick={() => {
+            store.close()
+            onOpenResumeSettings()
+          }}
         >
-          Save resume
+          Open Settings
         </Button>
       </>
     )
@@ -326,81 +321,6 @@ function InputBody({ store }: { store: ApplyStore }): JSX.Element {
       {store.mastersError ? (
         <p className="ap-error selectable">{store.mastersError}</p>
       ) : null}
-    </div>
-  )
-}
-
-/* ── screen 1, before there is a master ───────────────────────────────────── */
-
-const RESUME_PLACEHOLDER = `# Ada Lovelace
-Berlin · ada@example.com · github.com/ada
-
-## Summary
-Backend engineer, 9 years, distributed systems and payments.
-
-## Experience
-
-### Staff Engineer — Northwind Labs (2021–present)
-- Cut checkout p99 latency from 1.8s to 240ms by …
-- Led the migration of 40 services onto …
-
-## Skills
-Go, Postgres, Kafka, Terraform`
-
-function FirstRunBody({
-  label,
-  draft,
-  saving,
-  error,
-  onLabel,
-  onDraft
-}: {
-  label: string
-  draft: string
-  saving: boolean
-  error: string | null
-  onLabel: (value: string) => void
-  onDraft: (value: string) => void
-}): JSX.Element {
-  const words = countWords(draft)
-  return (
-    <div className="ap-first">
-      <p className="ap-first-lede">
-        Paste your resume as markdown. It stays on this machine, it is what every tailored
-        copy is built from, and you can edit it later in Settings → Resume. Headings and
-        bullets are enough — the tailor run matches on the text, not the layout.
-      </p>
-
-      <Field label="Name it">
-        <TextInput
-          value={label}
-          placeholder="My resume"
-          disabled={saving}
-          onValueChange={onLabel}
-        />
-      </Field>
-
-      <Field
-        label="Your resume, in markdown"
-        hint={
-          words === 0
-            ? 'Nothing pasted yet.'
-            : words < 120
-              ? `${words} words — short for a resume, but it is yours to judge.`
-              : `${words} words.`
-        }
-      >
-        <textarea
-          className="input ap-master"
-          autoFocus
-          value={draft}
-          placeholder={RESUME_PLACEHOLDER}
-          disabled={saving}
-          onChange={(e) => onDraft(e.currentTarget.value)}
-        />
-      </Field>
-
-      {error ? <p className="ap-error selectable">{error}</p> : null}
     </div>
   )
 }

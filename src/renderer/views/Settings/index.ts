@@ -7,6 +7,6 @@
 import './settings.css'
 
 export { default } from './SettingsView'
-export type { SettingsViewProps } from './SettingsView'
+export type { SectionKey, SettingsViewProps } from './SettingsView'
 export { AccountForm, AccountsSection } from './AccountForm'
 export { SettingsBlock, SettingsRow, SettingsValue } from './SettingsGroup'

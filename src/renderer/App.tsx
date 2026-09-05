@@ -6,7 +6,7 @@
 // imports this file; that import is a no-op once this one has run.
 import './index.css'
 
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import {
   AGENT_ENGINE_LABEL,
   type AppCounts,
@@ -41,7 +41,7 @@ import {
   useSync,
   useTheme
 } from '@renderer/components'
-import SettingsView from './views/Settings'
+import SettingsView, { type SectionKey } from './views/Settings'
 import OnboardingView, { SetupChecklist } from './views/Onboarding/OnboardingView'
 import InboxView from './views/Mail/InboxView'
 import CandidatesView from './views/Mail/CandidatesView'
@@ -124,6 +124,12 @@ function Shell(): JSX.Element {
   const appInfo = useAppInfo()
   const debriefs = useDebriefs()
   const apply = useApply()
+  const [settingsPane, setSettingsPane] = useState<{ at: SectionKey; nonce: number } | null>(null)
+
+  const openResumeSettings = useCallback((): void => {
+    setSettingsPane((prior) => ({ at: 'resume', nonce: (prior?.nonce ?? 0) + 1 }))
+    navigate('settings')
+  }, [navigate])
 
   useTheme(settings.settings?.theme)
 
@@ -243,6 +249,8 @@ function Shell(): JSX.Element {
                 <SettingsView
                   settings={settings.settings}
                   onUpdateSettings={settings.update}
+                  openAt={settingsPane?.at}
+                  openAtNonce={settingsPane?.nonce}
                   onAccountsChanged={() => {
                     accounts.reload()
                     setup.reload()
@@ -278,7 +286,11 @@ function Shell(): JSX.Element {
         />
       ) : null}
 
-      <ApplyModal store={apply} onOpenItem={(id) => navigate('board', { item: id })} />
+      <ApplyModal
+        store={apply}
+        onOpenItem={(id) => navigate('board', { item: id })}
+        onOpenResumeSettings={openResumeSettings}
+      />
     </div>
   )
 }

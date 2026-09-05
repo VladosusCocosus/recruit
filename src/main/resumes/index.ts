@@ -22,7 +22,14 @@ import {
 import { tmpdir } from 'node:os'
 import { basename, extname, join } from 'node:path'
 import { BrowserWindow, app, dialog, shell } from 'electron'
-import { RESUME_EXTENSIONS, RESUME_MAX_BYTES, type Resume } from '@shared/types'
+import {
+  RESUME_EXTENSIONS,
+  RESUME_MASTER_EXTENSIONS,
+  RESUME_MASTER_MAX_BYTES,
+  RESUME_MAX_BYTES,
+  type Resume,
+  type ResumeMasterInput
+} from '@shared/types'
 import * as db from '@main/db'
 
 const DIRECTORY = 'resumes'
@@ -164,6 +171,43 @@ export async function pickResumeFile(makeDefault = false): Promise<Resume | null
   const [chosen] = result.filePaths
   if (result.canceled || !chosen) return null
   return storeResumeFile(chosen, makeDefault)
+}
+
+/**
+ * Opens the file picker and reads a text file as master-resume markdown. Null when the
+ * user cancels. Nothing is copied into the store: a master lives in the database.
+ *
+ * Throws when the file is over RESUME_MASTER_MAX_BYTES or holds no text.
+ */
+export async function pickResumeMasterText(): Promise<ResumeMasterInput | null> {
+  const options: Electron.OpenDialogOptions = {
+    title: 'Import a resume',
+    buttonLabel: 'Import',
+    properties: ['openFile'],
+    filters: [
+      { name: 'Text', extensions: [...RESUME_MASTER_EXTENSIONS] },
+      { name: 'All files', extensions: ['*'] }
+    ]
+  }
+
+  const parent = BrowserWindow.getFocusedWindow()
+  const result = parent
+    ? await dialog.showOpenDialog(parent, options)
+    : await dialog.showOpenDialog(options)
+
+  const [chosen] = result.filePaths
+  if (result.canceled || !chosen) return null
+
+  const bytes = readFileSync(chosen)
+  if (bytes.byteLength > RESUME_MASTER_MAX_BYTES) {
+    const kb = Math.round(RESUME_MASTER_MAX_BYTES / 1024)
+    throw new Error(`That file is larger than ${kb} KB. A resume is text, not a document.`)
+  }
+
+  const contentMd = bytes.toString('utf8').replace(/\r\n?/g, '\n')
+  if (contentMd.trim().length === 0) throw new Error('That file has no text in it.')
+
+  return { label: labelFor(basename(chosen)), contentMd }
 }
 
 function pathOf(resumeId: number): string {

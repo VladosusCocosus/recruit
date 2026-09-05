@@ -73,11 +73,6 @@ export interface ApplyStore {
   tailorDisabledReason: string | null
   tailor: () => void
 
-  /* ── first run: no master yet ── */
-  createMaster: (label: string, contentMd: string) => Promise<void>
-  savingMaster: boolean
-  masterSaveError: string | null
-
   /* ── the run ── */
   elapsedMs: number
   currentTool: string | null
@@ -119,8 +114,6 @@ export function useApply(): ApplyStore {
   const [phase, setPhase] = useState<ApplyPhase>('running')
   const [jobInput, setJobInput] = useState('')
   const [masterId, setMasterId] = useState<number | null>(null)
-  const [savingMaster, setSavingMaster] = useState(false)
-  const [masterSaveError, setMasterSaveError] = useState<string | null>(null)
 
   /** True from our click until the tailor run reaches a terminal state. */
   const [pending, setPending] = useState(false)
@@ -162,7 +155,6 @@ export function useApply(): ApplyStore {
     setFields(EMPTY_FIELDS)
     setRejected(new Set())
     setCommitError(null)
-    setMasterSaveError(null)
   }, [])
 
   useEffect(() => {
@@ -360,28 +352,6 @@ export function useApply(): ApplyStore {
     }
   }, [result, master, applied, fields, jobSource, jobInput])
 
-  /* ── the first master ────────────────────────────────────────────────────── */
-
-  const createMaster = useCallback(
-    async (label: string, contentMd: string): Promise<void> => {
-      setSavingMaster(true)
-      setMasterSaveError(null)
-      try {
-        const created = await window.recruit.createResumeMaster({
-          label: label.trim() || 'My resume',
-          contentMd
-        })
-        setMasterId(created.id)
-        reloadMasters()
-      } catch (e) {
-        setMasterSaveError(errorMessage(e))
-      } finally {
-        setSavingMaster(false)
-      }
-    },
-    [reloadMasters]
-  )
-
   return {
     open,
     openApply,
@@ -400,9 +370,6 @@ export function useApply(): ApplyStore {
     tailorDisabledReason,
     tailor,
 
-    createMaster,
-    savingMaster,
-    masterSaveError,
 
     elapsedMs: run.elapsedMs,
     currentTool: run.active?.currentTool ?? null,
