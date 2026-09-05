@@ -9,6 +9,7 @@ import type {
   RecruitEventName,
   RecruitEvents,
   Resume,
+  ResumeMaster,
   SetupState,
   StartRunInput,
   Status,
@@ -235,6 +236,17 @@ export function useStatuses(): AsyncState<Status[]> {
 export function useResumes(): AsyncState<Resume[]> {
   const state = useAsync(() => window.recruit.listResumes(), [])
   useRecruitEvent('resumesChanged', (payload) => state.set(payload.resumes))
+  return state
+}
+
+/**
+ * The markdown resumes the apply flow tailors from, kept current from the
+ * `resumeMastersChanged` push so the apply modal and Settings never disagree about which
+ * one is the default.
+ */
+export function useResumeMasters(): AsyncState<ResumeMaster[]> {
+  const state = useAsync(() => window.recruit.listResumeMasters(), [])
+  useRecruitEvent('resumeMastersChanged', (payload) => state.set(payload.masters))
   return state
 }
 

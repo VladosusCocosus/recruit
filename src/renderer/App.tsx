@@ -17,6 +17,7 @@ import {
 import type { Navigate, RouteTarget } from '@renderer/components'
 import {
   AgentErrorBanner,
+  Button,
   EmptyState,
   ErrorBanner,
   UpdateBanner,
@@ -48,6 +49,7 @@ import BoardView from './views/Tracker/BoardView'
 import ReviewView from './views/Review/ReviewView'
 import UpNextView from './views/UpNext/UpNextView'
 import { DebriefModal, useDebriefs } from './views/Debrief'
+import { ApplyModal, useApply } from './views/Apply'
 
 /* ════════════════════════════════════════════════════════════════════════════
    VIEW REGISTRY
@@ -121,6 +123,7 @@ function Shell(): JSX.Element {
   const accounts = useAccounts()
   const appInfo = useAppInfo()
   const debriefs = useDebriefs()
+  const apply = useApply()
 
   useTheme(settings.settings?.theme)
 
@@ -178,6 +181,17 @@ function Shell(): JSX.Element {
               <IconButton icon="refresh" label="Sync now" onClick={syncNow} />
             )
           ) : null}
+
+          {/* The apply flow. ⌘N opens the same modal. */}
+          <Button
+            size="sm"
+            variant="outline"
+            icon="plus"
+            onClick={apply.openApply}
+            title="Tailor your resume for a job and file the application (⌘N)"
+          >
+            Apply
+          </Button>
 
           <ToolbarSpacer />
 
@@ -263,6 +277,8 @@ function Shell(): JSX.Element {
           onClose={debriefs.close}
         />
       ) : null}
+
+      <ApplyModal store={apply} onOpenItem={(id) => navigate('board', { item: id })} />
     </div>
   )
 }

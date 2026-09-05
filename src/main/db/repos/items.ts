@@ -259,8 +259,9 @@ export function createItem(input: ItemInput): Item {
     `INSERT INTO items (
        company, company_domain, role, location, work_mode, source, job_url,
        compensation_note, status_id, close_reason, description_md, description_source,
-       description_updated_at, contact_name, contact_email, created_at, updated_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)`,
+       description_updated_at, jd_md, jd_source, jd_updated_at, contact_name, contact_email,
+       created_at, updated_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     input.company,
     input.companyDomain ?? null,
     input.role ?? null,
@@ -273,6 +274,9 @@ export function createItem(input: ItemInput): Item {
     input.descriptionMd ?? null,
     input.descriptionMd ? (input.descriptionSource ?? 'user') : null,
     input.descriptionMd ? now : null,
+    input.jdMd ?? null,
+    input.jdMd ? (input.jdSource ?? 'pasted') : null,
+    input.jdMd ? now : null,
     input.contactName ?? null,
     input.contactEmail ?? null,
     now,
@@ -313,6 +317,13 @@ export function updateItem(itemId: number, patch: ItemPatch): Item {
   } else if (patch.descriptionSource !== undefined) {
     put('description_source', patch.descriptionSource)
   }
+  if (patch.jdMd !== undefined) {
+    put('jd_md', patch.jdMd)
+    put('jd_source', patch.jdSource ?? 'pasted')
+    put('jd_updated_at', nowIso())
+  } else if (patch.jdSource !== undefined) {
+    put('jd_source', patch.jdSource)
+  }
 
   put('updated_at', nowIso())
   params.push(itemId)
@@ -352,11 +363,6 @@ export function skipItemResume(itemId: number, skipped = true): Item {
   const item = getItem(itemId)
   if (!item) throw new Error(`Item ${itemId} not found`)
   return item
-}
-
-/** Points every item using `resumeId` at nothing, leaving them unanswered. */
-export function detachResume(resumeId: number): void {
-  execute('UPDATE items SET resume_id = NULL WHERE resume_id = ?', resumeId)
 }
 
 /**

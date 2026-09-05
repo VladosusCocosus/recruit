@@ -13,6 +13,7 @@ import type {
 } from '@shared/types'
 import * as db from '@main/db'
 import * as resumes from '@main/resumes'
+import { renderResumePdf } from '@main/render'
 import { sanitizeMessageBody } from '@main/mail/sanitize'
 import { getSettings, updateSettings } from '@main/settings'
 import * as updates from '@main/update'
@@ -36,6 +37,10 @@ function notifyItems(itemIds: Array<number | null | undefined>): void {
 
 function notifyResumes(): void {
   broadcast('resumesChanged', { resumes: db.listResumes() })
+}
+
+function notifyResumeMasters(): void {
+  broadcast('resumeMastersChanged', { masters: db.listResumeMasters() })
 }
 
 function afterDecisions(results: ProposalDecisionResult[]): void {
@@ -267,6 +272,64 @@ export function registerIpcHandlers(services: AppServices): void {
     return item
   })
 
+  /* ── resume masters + apply ─────────────────────────────────────────────── */
+
+  handle('listResumeMasters', () => db.listResumeMasters())
+
+  handle('createResumeMaster', async (input) => {
+    const master = db.createResumeMaster(input)
+    notifyResumeMasters()
+    return master
+  })
+
+  handle('updateResumeMaster', async (masterId, patch) => {
+    const master = db.updateResumeMaster(masterId, patch)
+    notifyResumeMasters()
+    return master
+  })
+
+  handle('setDefaultResumeMaster', async (masterId) => {
+    db.markDefaultResumeMaster(masterId)
+    notifyResumeMasters()
+    return db.listResumeMasters()
+  })
+
+  handle('archiveResumeMaster', async (masterId) => {
+    db.archiveResumeMaster(masterId)
+    notifyResumeMasters()
+    return db.listResumeMasters()
+  })
+
+  // Render before write: a failed PDF leaves no half-built application behind, and an
+  // orphaned variant with no item pointing at it is a file nobody sees.
+  handle('applyDraft', async (input) => {
+    const company = input.company.trim()
+    if (!company) throw new Error('An application needs a company.')
+    const master = db.getResumeMaster(input.masterId)
+    if (!master) throw new Error(`Resume master ${input.masterId} not found.`)
+    if (!input.resumeMd.trim()) throw new Error('The tailored resume is empty.')
+
+    const pdf = await renderResumePdf(input.resumeMd)
+    const resume = resumes.storeRenderedResume(pdf, `${master.label} — ${company}`, master.id)
+
+    const created = db.createItem({
+      company,
+      role: input.role,
+      location: input.location,
+      workMode: input.workMode,
+      jobUrl: input.jobUrl,
+      jdMd: input.jdMd,
+      jdSource: input.jdSource,
+      source: 'apply',
+      statusKey: 'applied'
+    })
+    const item = db.setItemResume(created.id, resume.id)
+
+    notifyItems([item.id])
+    notifyResumes()
+    return item
+  })
+
   /* ── timeline ───────────────────────────────────────────────────────────── */
 
   handle('listUpcomingEvents', (limit) => db.upcomingEvents(limit))
@@ -353,6 +416,21 @@ export function registerIpcHandlers(services: AppServices): void {
       if (!company) throw new Error('An enrich run needs a company name.')
       const started = await runner.spawnEnrichRun(company, { model: input.model })
       watchRun(started, [], input.itemId ?? null)
+      return runSummary(started.runId)
+    }
+
+    // A tailor run files nothing. Its whole output is the envelope, which the apply
+    // modal reads back with getRun once the run reaches a terminal state.
+    if (input.kind === 'tailor') {
+      const jobInput = input.jobInput?.trim()
+      if (!jobInput) throw new Error('A tailor run needs a job description or a link.')
+      if (input.masterId === undefined) throw new Error('A tailor run needs a resume.')
+      const master = db.getResumeMaster(input.masterId)
+      if (!master) throw new Error(`Resume master ${input.masterId} not found.`)
+      const started = await runner.spawnTailorRun(jobInput, master.contentMd, {
+        model: input.model
+      })
+      watchRun(started)
       return runSummary(started.runId)
     }
 

@@ -8,12 +8,11 @@
  */
 
 import { useMemo, useState } from 'react'
-import { Button, Chip, Icon, IconButton } from '@renderer/components'
+import { Button, Chip, Icon, IconButton, Markdown } from '@renderer/components'
 import type { IconName } from '@renderer/components'
 import type { JSX, ReactNode } from 'react'
 import type { TimelineEvent, TimelineEventKind } from '@shared/types'
 import { eventTime, eventWhen, formatCountdown, isFutureEvent } from './format'
-import { Markdown } from './Markdown'
 
 const KIND_ICON: Record<TimelineEventKind, IconName> = {
   email: 'mail',

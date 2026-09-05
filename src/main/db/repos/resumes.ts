@@ -20,6 +20,7 @@ export interface ResumeRow {
   is_default: number
   created_at: string
   archived_at: string | null
+  derived_from_master_id: number | null
   usage_count: number
 }
 
@@ -30,6 +31,8 @@ export interface ResumeFileInput {
   mimeType: string | null
   size: number
   sha256: string
+  /** The master this file was rendered from. Null on a user upload. */
+  derivedFromMasterId?: number | null
 }
 
 function rowToResume(row: ResumeRow): Resume {
@@ -42,17 +45,36 @@ function rowToResume(row: ResumeRow): Resume {
     isDefault: row.is_default === 1,
     createdAt: row.created_at,
     archivedAt: row.archived_at,
-    usageCount: row.usage_count ?? 0
+    usageCount: row.usage_count ?? 0,
+    derivedFromMasterId: row.derived_from_master_id
   }
 }
 
 const COLUMNS = `r.*, (SELECT count(*) FROM items i WHERE i.resume_id = r.id) AS usage_count`
 
-/** Live resumes, default first, then newest. */
+/**
+ * The user's own uploads, default first, then newest. Files the apply flow rendered are
+ * excluded; `listResumeVariants` returns those.
+ */
 export function listResumes(includeArchived = false): Resume[] {
-  const where = includeArchived ? '' : 'WHERE r.archived_at IS NULL'
+  const clauses = ['r.derived_from_master_id IS NULL']
+  if (!includeArchived) clauses.push('r.archived_at IS NULL')
   return queryAll<ResumeRow>(
-    `SELECT ${COLUMNS} FROM resumes r ${where} ORDER BY r.is_default DESC, r.created_at DESC, r.id DESC`
+    `SELECT ${COLUMNS} FROM resumes r WHERE ${clauses.join(' AND ')}
+     ORDER BY r.is_default DESC, r.created_at DESC, r.id DESC`
+  ).map(rowToResume)
+}
+
+/** Files the apply flow rendered, newest first. All of them, or one master's. */
+export function listResumeVariants(masterId?: number): Resume[] {
+  const where =
+    masterId === undefined
+      ? 'r.derived_from_master_id IS NOT NULL'
+      : 'r.derived_from_master_id = ?'
+  const params = masterId === undefined ? [] : [masterId]
+  return queryAll<ResumeRow>(
+    `SELECT ${COLUMNS} FROM resumes r WHERE ${where} ORDER BY r.created_at DESC, r.id DESC`,
+    ...params
   ).map(rowToResume)
 }
 
@@ -81,26 +103,37 @@ export function findResumeBySha(sha256: string): Resume | null {
 
 /**
  * Inserts a resume row. A row with the same sha256 is reused and un-archived instead,
- * so re-uploading a file already in the library does not duplicate it.
+ * so re-uploading a file already in the library does not duplicate it. A reused row
+ * picks up `derivedFromMasterId` when it does not already carry one.
  */
 export function createResume(input: ResumeFileInput, makeDefault = false): Resume {
+  const derivedFromMasterId = input.derivedFromMasterId ?? null
   return transact(() => {
     const existing = findResumeBySha(input.sha256)
     let id: number
     if (existing) {
       execute('UPDATE resumes SET archived_at = NULL WHERE id = ?', existing.id)
+      if (derivedFromMasterId !== null && existing.derivedFromMasterId === null) {
+        execute(
+          'UPDATE resumes SET derived_from_master_id = ? WHERE id = ?',
+          derivedFromMasterId,
+          existing.id
+        )
+      }
       id = existing.id
     } else {
       const info = execute(
-        `INSERT INTO resumes (label, filename, disk_path, mime_type, size, sha256, is_default, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, 0, ?)`,
+        `INSERT INTO resumes (label, filename, disk_path, mime_type, size, sha256, is_default,
+                              created_at, derived_from_master_id)
+         VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)`,
         input.label,
         input.filename,
         input.diskPath,
         input.mimeType,
         input.size,
         input.sha256,
-        nowIso()
+        nowIso(),
+        derivedFromMasterId
       )
       id = Number(info.lastInsertRowid)
     }
@@ -135,5 +168,7 @@ export function archiveResume(resumeId: number): void {
 }
 
 export function countResumes(): number {
-  return count('SELECT count(*) FROM resumes WHERE archived_at IS NULL')
+  return count(
+    'SELECT count(*) FROM resumes WHERE archived_at IS NULL AND derived_from_master_id IS NULL'
+  )
 }

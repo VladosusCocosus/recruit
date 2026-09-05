@@ -27,28 +27,32 @@ export type {
 export { createMcpServer, type McpBridge } from './mcpServer'
 export {
   adapterFor,
-  buildCodexEnrichArgv,
-  buildCodexTriageArgv,
-  buildEnrichArgv,
-  buildTriageArgv,
+  buildClaudeArgv,
+  buildCodexArgv,
   claudeAdapter,
   codexAdapter,
   codexPrompt,
   CODEX_TOKEN_ENV_VAR,
+  EMPTY_MCP_CONFIG,
   findClaudeBin,
   findCodexBin,
+  NO_TOOLS,
   parseCodexEvents,
   parseEnvelope,
+  RUN_KIND_POLICY,
+  WEB_TOOLS,
   type AgentEngineAdapter,
   type CommandInput,
   type EngineCommand,
   type EngineOutput,
-  type McpTarget
+  type McpTarget,
+  type RunKindPolicy
 } from './engines'
 export {
   classifyAgentError,
   createAgentRunner,
   looksLikeAuthFailure,
+  MAX_PROMPT_BYTES,
   redactArgv,
   type AgentRunner,
   type AgentRunResult,
@@ -58,6 +62,8 @@ export {
 export {
   ENRICH_SYSTEM_PROMPT,
   enrichTaskPrompt,
+  TAILOR_SYSTEM_PROMPT,
+  tailorTaskPrompt,
   TRIAGE_SYSTEM_PROMPT,
   triageTaskPrompt
 } from './prompts'

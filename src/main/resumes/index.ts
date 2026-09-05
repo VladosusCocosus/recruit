@@ -9,7 +9,17 @@
  * resolve the path against the database, the same rule `revealDatabase` follows.
  */
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  unlinkSync,
+  writeFileSync
+} from 'node:fs'
+import { tmpdir } from 'node:os'
 import { basename, extname, join } from 'node:path'
 import { BrowserWindow, app, dialog, shell } from 'electron'
 import { RESUME_EXTENSIONS, RESUME_MAX_BYTES, type Resume } from '@shared/types'
@@ -44,13 +54,22 @@ function labelFor(filename: string): string {
   return stem.length > 0 ? stem : filename
 }
 
+/** What an entry point may vary about the row a stored file gets. */
+interface StoreOptions {
+  /** Overrides the label derived from the filename. */
+  label?: string
+  makeDefault?: boolean
+  /** The resume master this file was rendered from. Null for an uploaded file. */
+  derivedFromMasterId?: number | null
+}
+
 /**
  * Copies `sourcePath` into the store and records it. Reuses the existing row when the same
  * bytes are already stored.
  *
  * Throws when the file is missing or over RESUME_MAX_BYTES.
  */
-export function storeResumeFile(sourcePath: string, makeDefault = false): Resume {
+function storeFile(sourcePath: string, options: StoreOptions = {}): Resume {
   if (!existsSync(sourcePath)) throw new Error(`No such file: ${sourcePath}`)
 
   const bytes = readFileSync(sourcePath)
@@ -70,17 +89,56 @@ export function storeResumeFile(sourcePath: string, makeDefault = false): Resume
     renameSync(tmp, target)
   }
 
-  return db.createResume(
-    {
-      label: labelFor(filename),
-      filename,
-      diskPath: target,
-      mimeType: MIME_BY_EXTENSION[extension] ?? null,
-      size: bytes.byteLength,
-      sha256: hash
-    },
-    makeDefault
-  )
+  const input: db.ResumeFileInput = {
+    label: options.label?.trim() || labelFor(filename),
+    filename,
+    diskPath: target,
+    mimeType: MIME_BY_EXTENSION[extension] ?? null,
+    size: bytes.byteLength,
+    sha256: hash,
+    derivedFromMasterId: options.derivedFromMasterId ?? null
+  }
+
+  return db.createResume(input, options.makeDefault ?? false)
+}
+
+/** The file-dialog entry point into the store. */
+export function storeResumeFile(sourcePath: string, makeDefault = false): Resume {
+  return storeFile(sourcePath, { makeDefault })
+}
+
+/** A label reduced to something usable as a filename. */
+function filenameFor(label: string): string {
+  const cleaned = label
+    .replace(/[/\\:*?"<>|]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/^\.+/, '')
+    .slice(0, 80)
+    .trim()
+  return cleaned.length > 0 ? cleaned : 'Resume'
+}
+
+/**
+ * Files a rendered PDF as a resume: hashed, copied and deduped exactly like an uploaded
+ * file, carrying `label` and the master it came from. The temp file is removed either way.
+ */
+export function storeRenderedResume(
+  pdf: Buffer,
+  label: string,
+  derivedFromMasterId: number
+): Resume {
+  const dir = mkdtempSync(join(tmpdir(), 'recruit-resume-'))
+  const path = join(dir, `${filenameFor(label)}.pdf`)
+  try {
+    writeFileSync(path, pdf, { mode: 0o600 })
+    return storeFile(path, { label, derivedFromMasterId })
+  } finally {
+    try {
+      rmSync(dir, { recursive: true, force: true })
+    } catch {
+      /* a stray temp file is not worth failing the call */
+    }
+  }
 }
 
 /**

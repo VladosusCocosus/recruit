@@ -1,8 +1,9 @@
 /**
- * A deliberately small markdown renderer for item descriptions.
+ * A deliberately small markdown renderer for item descriptions, timeline notes and
+ * tailored resumes.
  *
- * It renders to React elements and NEVER touches dangerouslySetInnerHTML. Descriptions can
- * be written by the agent from web search results, so treating them as untrusted text and
+ * It renders to React elements and NEVER touches dangerouslySetInnerHTML. The source can
+ * be written by the agent from web search results, so treating it as untrusted text and
  * building the tree ourselves removes the whole injection surface rather than filtering it.
  * Raw HTML in the source is therefore shown as literal text, which is the safe failure mode.
  *

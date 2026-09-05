@@ -3,11 +3,24 @@
  *
  * Built on native `<dialog showModal>`, so it carries a focus trap, an inert backdrop,
  * top-layer stacking and Escape-to-close. `locked` suppresses Escape and backdrop
- * dismissal; `wide` widens it past the default.
+ * dismissal; `width` picks one of three measures.
  */
 import { useEffect, useRef } from 'react'
 import type { JSX, ReactNode } from 'react'
 import { IconButton } from './Button'
+
+/**
+ * 'default' 440px — a question and a couple of fields.
+ * 'wide' 620px — a form with two columns.
+ * 'document' 880px — a document under review: prose, a diff and a preview of the result.
+ */
+export type ModalWidth = 'default' | 'wide' | 'document'
+
+const WIDTH_CLASS: Record<ModalWidth, string> = {
+  default: '',
+  wide: ' is-wide',
+  document: ' is-document'
+}
 
 export interface ModalProps {
   open: boolean
@@ -17,8 +30,7 @@ export interface ModalProps {
   subtitle?: ReactNode
   children: ReactNode
   footer?: ReactNode
-  /** Widens past the default for forms that need two columns. */
-  wide?: boolean
+  width?: ModalWidth
   /** Escape and backdrop clicks stop closing — for a form mid-submit. */
   locked?: boolean
 }
@@ -30,7 +42,7 @@ export function Modal({
   subtitle,
   children,
   footer,
-  wide,
+  width = 'default',
   locked
 }: ModalProps): JSX.Element | null {
   const ref = useRef<HTMLDialogElement>(null)
@@ -58,7 +70,7 @@ export function Modal({
   return (
     <dialog
       ref={ref}
-      className={'modal' + (wide ? ' is-wide' : '')}
+      className={'modal' + WIDTH_CLASS[width]}
       aria-label={title}
       /* A backdrop click reports the dialog element itself as the target; a click on
          any content inside reports a descendant. */

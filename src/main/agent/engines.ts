@@ -3,18 +3,24 @@
  *
  * The runner owns the run's LIFECYCLE — run rows, the MCP bridge, minting and revoking
  * the per-run token, the ticker, cancel, timeout, finish(). An adapter owns only four
- * things: where the binary is, what argv to build for each run kind, what environment
- * that argv needs, and how to read the child's stdout back into an AgentEnvelope. Adding
- * a third CLI means adding one adapter, not touching the runner.
+ * things: where the binary is, what argv to build for a run kind, what environment that
+ * argv needs, and how to read the child's stdout back into an AgentEnvelope. Adding a
+ * third CLI means adding one adapter, not touching the runner.
  *
- * The two run kinds are isolated by construction on BOTH engines, and the isolation is
- * the point — a triage run reads untrusted email, so it must have no way to send anything
- * out; an enrich run reaches the web, so it must have no way to see anything private.
+ * What a run kind may reach is one entry in RUN_KIND_POLICY, read by both adapters. A new
+ * run kind is a policy row and a system prompt; neither engine grows a branch.
+ *
+ * The run kinds are isolated by construction on BOTH engines, and the isolation is the
+ * point — a triage run reads untrusted email, so it must have no way to send anything
+ * out; a web-enabled run must have no way to see anything private that it could send.
  *
  *   triage  tracker MCP tools only. No shell, no file tools, no subagents, and — on
  *           Claude — no web. The user's own MCP servers are never loaded.
  *   enrich  web search only, and NO MCP server at all, so the tracker listener is
  *           unreachable. Its entire input is a company name string.
+ *   tailor  the enrich shape exactly — web, and NO MCP server at all. It is the one run
+ *           holding private text (the master resume) on a web-enabled process; nothing
+ *           in its tool surface can post, and the prompt forbids repeating it.
  *
  * KNOWN GAP, codex only: `codex exec` cannot turn web search off. `tools.web_search=false`
  * is accepted and does remove Codex's own web_search tool, but the ChatGPT backend still
@@ -30,11 +36,13 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import {
   AGENT_MODELS,
+  AGENT_RUN_KIND_LABEL,
   agentNotSignedInMessage,
   type AgentEngine,
-  type AgentEnvelope
+  type AgentEnvelope,
+  type AgentRunKind
 } from '@shared/types'
-import { ENRICH_SYSTEM_PROMPT, TRIAGE_SYSTEM_PROMPT } from './prompts'
+import { ENRICH_SYSTEM_PROMPT, TAILOR_SYSTEM_PROMPT, TRIAGE_SYSTEM_PROMPT } from './prompts'
 import { MCP_SERVER_NAME, TRACKER_ALLOWED_TOOLS, TRACKER_TOOL_NAMES } from './schemas'
 
 /** Where the run's in-process MCP listener is, and the token that opens it. */
@@ -49,7 +57,7 @@ export interface McpTarget {
 
 export interface CommandInput {
   taskPrompt: string
-  /** null for a run that gets no tracker access — always the case for enrich. */
+  /** null for a run whose policy has no tracker — always the case for enrich and tailor. */
   mcp: McpTarget | null
   /** null => let the engine choose its own default model. */
   model: string | null
@@ -85,11 +93,69 @@ export interface AgentEngineAdapter {
    * model name, which is meaningless to any other CLI — see the codex adapter.
    */
   resolveModel(model: string | undefined): string | null
-  triageCommand(input: CommandInput): EngineCommand
-  enrichCommand(input: CommandInput): EngineCommand
+  /**
+   * argv and environment for one run kind, per RUN_KIND_POLICY. Throws when the policy
+   * needs the tracker bridge and `input.mcp` is null.
+   */
+  command(kind: AgentRunKind, input: CommandInput): EngineCommand
   /** The child's output as the shared envelope shape, or null if unreadable. */
   parseResult(output: EngineOutput): AgentEnvelope | null
   readonly notSignedInMessage: string
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * the per-kind policy
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** Claude Code's --tools value for a run that gets no built-in tool at all. */
+export const NO_TOOLS = ''
+
+/**
+ * The only two built-ins a web-enabled run gets. WebSearch alone returns result
+ * snippets, which is not enough to read a careers page or a job posting — WebFetch is
+ * what makes the "Hiring" section of a brief, and reading a posting from a URL, possible.
+ * Neither tool can reach anything local.
+ */
+export const WEB_TOOLS = 'WebSearch,WebFetch'
+
+/** An --mcp-config that configures no server whatsoever. */
+export const EMPTY_MCP_CONFIG = '{"mcpServers":{}}'
+
+/** What one run kind may reach, in terms both adapters can enforce. */
+export interface RunKindPolicy {
+  /** Claude Code's --tools value. NO_TOOLS disables the entire built-in set. */
+  builtinTools: string
+  /** Claude Code's --allowedTools values. Variadic — see ORDER MATTERS below. */
+  allowedTools: readonly string[]
+  /** Whether the tracker MCP server is configured for this kind at all. */
+  tracker: boolean
+  /** Codex's tools.web_search. On Claude Code the web lives in builtinTools. */
+  web: boolean
+  systemPrompt: string
+}
+
+export const RUN_KIND_POLICY: Record<AgentRunKind, RunKindPolicy> = {
+  triage: {
+    builtinTools: NO_TOOLS,
+    allowedTools: TRACKER_ALLOWED_TOOLS,
+    tracker: true,
+    web: false,
+    systemPrompt: TRIAGE_SYSTEM_PROMPT
+  },
+  enrich: {
+    builtinTools: WEB_TOOLS,
+    allowedTools: [WEB_TOOLS],
+    tracker: false,
+    web: true,
+    systemPrompt: ENRICH_SYSTEM_PROMPT
+  },
+  tailor: {
+    builtinTools: WEB_TOOLS,
+    allowedTools: [WEB_TOOLS],
+    tracker: false,
+    web: true,
+    systemPrompt: TAILOR_SYSTEM_PROMPT
+  }
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -158,57 +224,30 @@ export function findCodexBin(): string | null {
  * variadic (--tools, --mcp-config, --allowedTools). A variadic flag swallows every
  * following non-flag token, so the prompt must come first — immediately after the
  * boolean -p — and every variadic value must be followed by another flag.
+ *
+ * `mcpConfigJson` is used only by a kind whose policy has the tracker; every other kind
+ * gets EMPTY_MCP_CONFIG, which is the isolation.
  */
-export function buildTriageArgv(input: {
-  taskPrompt: string
-  mcpConfigJson: string
-  model: string
-}): string[] {
+export function buildClaudeArgv(
+  kind: AgentRunKind,
+  input: { taskPrompt: string; mcpConfigJson: string | null; model: string }
+): string[] {
+  const policy = RUN_KIND_POLICY[kind]
+  const mcpConfigJson = policy.tracker
+    ? (input.mcpConfigJson ?? EMPTY_MCP_CONFIG)
+    : EMPTY_MCP_CONFIG
   return [
     '-p',
     input.taskPrompt,
     '--system-prompt',
-    TRIAGE_SYSTEM_PROMPT,
-    // "" is the documented way to disable the entire built-in tool set:
-    // no Bash, no Read, no Write, no WebFetch, no WebSearch.
+    policy.systemPrompt,
     '--tools',
-    '',
+    policy.builtinTools,
     '--strict-mcp-config',
     '--mcp-config',
-    input.mcpConfigJson,
+    mcpConfigJson,
     '--allowedTools',
-    ...TRACKER_ALLOWED_TOOLS,
-    '--permission-mode',
-    'bypassPermissions',
-    '--output-format',
-    'json',
-    '--no-session-persistence',
-    '--model',
-    input.model
-  ]
-}
-
-/**
- * The only two built-ins an enrich run gets. WebSearch alone returns result snippets,
- * which is not enough to read a careers page or a job posting — WebFetch is what makes
- * the "Hiring" section of the brief possible. Neither tool can reach anything local.
- */
-export const ENRICH_TOOLS = 'WebSearch,WebFetch'
-
-/** Enrich: web reads and nothing else. The empty mcp config is the isolation. */
-export function buildEnrichArgv(input: { taskPrompt: string; model: string }): string[] {
-  return [
-    '-p',
-    input.taskPrompt,
-    '--system-prompt',
-    ENRICH_SYSTEM_PROMPT,
-    '--tools',
-    ENRICH_TOOLS,
-    '--strict-mcp-config',
-    '--mcp-config',
-    '{"mcpServers":{}}',
-    '--allowedTools',
-    ENRICH_TOOLS,
+    ...policy.allowedTools,
     '--permission-mode',
     'bypassPermissions',
     '--output-format',
@@ -258,20 +297,13 @@ export const claudeAdapter: AgentEngineAdapter = {
     return model ?? CLAUDE_DEFAULT_MODEL
   },
 
-  triageCommand({ taskPrompt, mcp, model }) {
+  command(kind, { taskPrompt, mcp, model }) {
     return {
-      argv: buildTriageArgv({
+      argv: buildClaudeArgv(kind, {
         taskPrompt,
-        mcpConfigJson: mcp?.configJson ?? '{"mcpServers":{}}',
+        mcpConfigJson: mcp?.configJson ?? null,
         model: model ?? CLAUDE_DEFAULT_MODEL
       }),
-      env: {}
-    }
-  },
-
-  enrichCommand({ taskPrompt, model }) {
-    return {
-      argv: buildEnrichArgv({ taskPrompt, model: model ?? CLAUDE_DEFAULT_MODEL }),
       env: {}
     }
   },
@@ -353,27 +385,16 @@ export function codexPrompt(systemPrompt: string, taskPrompt: string): string {
   return `${systemPrompt}\n\n---\n\n# Your task\n\n${taskPrompt}`
 }
 
-export function buildCodexTriageArgv(input: {
-  taskPrompt: string
-  mcpUrl: string
-  cwd: string
-  model: string | null
-}): string[] {
+/** The `-c mcp_servers.<name>.*` block. Only a kind whose policy has the tracker gets it. */
+function codexTrackerArgv(mcpUrl: string): string[] {
   const server = `mcp_servers.${MCP_SERVER_NAME}`
   return [
-    ...codexBaseArgv(input.cwd),
-    // No web, no image reading. See the KNOWN GAP at the top of this file: Codex
-    // does not currently honour this one, but it is the documented switch.
-    '-c',
-    'tools.web_search=false',
-    '-c',
-    'tools.view_image=false',
     // Belt and braces for the token: the shell tool is already disabled above, but
     // if one ever came back it would not inherit the bearer token.
     '-c',
     `shell_environment_policy.exclude=${tomlArr([CODEX_TOKEN_ENV_VAR])}`,
     '-c',
-    `${server}.url=${tomlStr(input.mcpUrl)}`,
+    `${server}.url=${tomlStr(mcpUrl)}`,
     // The token travels by env var, so it never reaches argv or command_json.
     '-c',
     `${server}.bearer_token_env_var=${tomlStr(CODEX_TOKEN_ENV_VAR)}`,
@@ -384,30 +405,31 @@ export function buildCodexTriageArgv(input: {
     `${server}.default_tools_approval_mode="approve"`,
     // The per-server allowlist — Codex's analogue of --allowedTools.
     '-c',
-    `${server}.enabled_tools=${tomlArr(TRACKER_TOOL_NAMES)}`,
-    ...(input.model ? ['-m', input.model] : []),
-    codexPrompt(TRIAGE_SYSTEM_PROMPT, input.taskPrompt)
+    `${server}.enabled_tools=${tomlArr(TRACKER_TOOL_NAMES)}`
   ]
 }
 
 /**
- * Enrich: web search on, and not one `mcp_servers.*` override. Combined with
- * --ignore-user-config that leaves the run with zero MCP servers of any kind, so
+ * A kind with no tracker in its policy gets not one `mcp_servers.*` override. Combined
+ * with --ignore-user-config that leaves the run with zero MCP servers of any kind, so
  * the tracker listener is not merely un-allowed, it is unaddressable.
  */
-export function buildCodexEnrichArgv(input: {
-  taskPrompt: string
-  cwd: string
-  model: string | null
-}): string[] {
+export function buildCodexArgv(
+  kind: AgentRunKind,
+  input: { taskPrompt: string; mcpUrl: string | null; cwd: string; model: string | null }
+): string[] {
+  const policy = RUN_KIND_POLICY[kind]
   return [
     ...codexBaseArgv(input.cwd),
+    // No image reading either way. See the KNOWN GAP at the top of this file: Codex does
+    // not currently honour web_search=false, but it is the documented switch.
     '-c',
-    'tools.web_search=true',
+    `tools.web_search=${policy.web}`,
     '-c',
     'tools.view_image=false',
+    ...(policy.tracker ? codexTrackerArgv(input.mcpUrl ?? '') : []),
     ...(input.model ? ['-m', input.model] : []),
-    codexPrompt(ENRICH_SYSTEM_PROMPT, input.taskPrompt)
+    codexPrompt(policy.systemPrompt, input.taskPrompt)
   ]
 }
 
@@ -509,18 +531,21 @@ export const codexAdapter: AgentEngineAdapter = {
     return (AGENT_MODELS as readonly string[]).includes(model) ? null : model
   },
 
-  triageCommand({ taskPrompt, mcp, model, cwd }) {
-    if (!mcp) throw new Error('A Codex triage run needs the tracker MCP bridge.')
-    return {
-      argv: buildCodexTriageArgv({ taskPrompt, mcpUrl: mcp.url, cwd, model }),
-      env: { [CODEX_TOKEN_ENV_VAR]: mcp.token }
+  command(kind, { taskPrompt, mcp, model, cwd }) {
+    const needsTracker = RUN_KIND_POLICY[kind].tracker
+    if (needsTracker && !mcp) {
+      throw new Error(
+        `A Codex ${AGENT_RUN_KIND_LABEL[kind].toLowerCase()} needs the tracker MCP bridge.`
+      )
     }
-  },
-
-  enrichCommand({ taskPrompt, model, cwd }) {
     return {
-      argv: buildCodexEnrichArgv({ taskPrompt, cwd, model }),
-      env: {}
+      argv: buildCodexArgv(kind, {
+        taskPrompt,
+        mcpUrl: needsTracker ? (mcp?.url ?? null) : null,
+        cwd,
+        model
+      }),
+      env: needsTracker && mcp ? { [CODEX_TOKEN_ENV_VAR]: mcp.token } : {}
     }
   },
 

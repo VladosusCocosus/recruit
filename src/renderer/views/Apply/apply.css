@@ -1,0 +1,413 @@
+/* Apply — one box in, one application out. Prefix: .ap-
+   Structure only; the shared components own .btn/.input/.field/.markdown.
+   Tokens only, hairlines and flat fills — no shadows. */
+
+.ap-spacer {
+  flex: 1;
+  min-width: 0;
+}
+
+.ap-error {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--danger);
+}
+
+/* ── screen 1: the one box ─────────────────────────────────────────────── */
+
+.ap-input {
+  padding-top: 4px;
+}
+
+/* Capped at 46vh; the shared textarea rule keeps it resizable. */
+.ap-job {
+  min-height: 200px;
+  max-height: 46vh;
+  line-height: 1.5;
+}
+
+.ap-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ap-mode.is-url {
+  color: var(--accent);
+}
+
+.ap-resume-one {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: 26px;
+  color: var(--text-secondary);
+}
+
+/* ── screen 1, first run: naming the master resume ─────────────────────── */
+
+.ap-first-lede {
+  margin: 4px 0 14px;
+  font-size: var(--fs-md);
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+/* A document, not a note: full height and monospaced, so the markdown structure the
+   tailor run matches on is legible while it is pasted. */
+.ap-master {
+  min-height: 300px;
+  max-height: 48vh;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+
+/* ── screen 2: the run ─────────────────────────────────────────────────── */
+
+.ap-run {
+  padding: 18px 0 8px;
+}
+
+.ap-run-line {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-size: var(--fs-md);
+}
+
+.ap-run-elapsed {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+}
+
+.ap-run-sep {
+  flex: 0 0 auto;
+  color: var(--text-tertiary);
+}
+
+.ap-run-tool {
+  flex: 1;
+  min-width: 0;
+}
+
+.ap-run-bar {
+  position: relative;
+  display: block;
+  height: 2px;
+  margin: 12px 0 10px;
+  border-radius: var(--radius-pill);
+  background: var(--neutral-tint);
+  overflow: hidden;
+}
+
+/* Indeterminate — the run reports no countable progress. */
+.ap-run-bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 30%;
+  border-radius: inherit;
+  background: var(--accent);
+  animation: ap-run-slide 1400ms ease-in-out infinite;
+}
+
+@keyframes ap-run-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(350%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ap-run-bar::after {
+    animation-duration: 4200ms;
+  }
+}
+
+.ap-run-note {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+}
+
+/* ── screen 2: the run that returned nothing ───────────────────────────── */
+
+.ap-failed {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 8px 0;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--danger-tint);
+  color: var(--danger);
+}
+
+.ap-failed-icon {
+  flex: 0 0 auto;
+  display: flex;
+  margin-top: 1px;
+}
+
+.ap-failed-title {
+  margin: 0 0 3px;
+  font-size: var(--fs-md);
+  font-weight: 600;
+}
+
+.ap-failed-text {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+}
+
+.ap-failed-hint {
+  margin: 6px 0 0;
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+}
+
+/* ── screen 2: the review ──────────────────────────────────────────────── */
+
+.ap-review {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding-top: 4px;
+}
+
+.ap-section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+
+.ap-section-title {
+  flex: 0 0 auto;
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: 600;
+}
+
+.ap-section-note {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: var(--fs-sm);
+}
+
+.ap-note {
+  margin: 0 0 8px;
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+}
+
+/* Four short facts in two columns. The bottom row carries no field margin. */
+.ap-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 14px;
+}
+
+.ap-fields > .field:nth-last-child(-n + 2) {
+  margin-bottom: 0;
+}
+
+/* ── the changes ───────────────────────────────────────────────────────── */
+
+.ap-changes {
+  display: flex;
+  flex-direction: column;
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  overflow: hidden;
+}
+
+.ap-change {
+  padding: 9px 12px 10px;
+}
+
+.ap-change + .ap-change {
+  border-top: var(--hairline) solid var(--border);
+}
+
+/* Rejected: still readable, visibly out of the document. */
+.ap-change.is-skipped {
+  opacity: 0.45;
+}
+
+.ap-change-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.ap-tick {
+  flex: 0 0 auto;
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.ap-change-section {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-md);
+  font-weight: 500;
+}
+
+.ap-change-tone {
+  flex: 0 0 auto;
+  font-size: var(--fs-xs);
+  color: var(--text-tertiary);
+}
+
+.ap-change.is-add .ap-change-tone {
+  color: var(--success);
+}
+
+.ap-change.is-remove .ap-change-tone {
+  color: var(--danger);
+}
+
+/* Indented to the section name: 13 + 7 = the tick and its gap. */
+.ap-change-body {
+  margin-top: 3px;
+  padding-left: 20px;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  flex-wrap: wrap;
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+
+/* Receding and struck through: the same treatment .rq-diff-from gives a prior value. */
+.ap-change-before {
+  color: var(--text-tertiary);
+  text-decoration: line-through;
+}
+
+.ap-change-arrow {
+  flex: 0 0 auto;
+  display: flex;
+  align-self: center;
+  color: var(--text-tertiary);
+}
+
+.ap-change-empty {
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
+.ap-change-reason {
+  margin: 5px 0 0;
+  padding-left: 20px;
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+/* ── changes that had nowhere to land ──────────────────────────────────── */
+
+.ap-unapplied {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: -8px;
+  padding: 9px 12px;
+  border-radius: var(--radius);
+  background: var(--warning-tint);
+  color: var(--warning);
+}
+
+.ap-unapplied-body {
+  min-width: 0;
+}
+
+.ap-unapplied-title {
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+}
+
+.ap-unapplied-list {
+  margin: 4px 0 0;
+  padding-left: 16px;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+
+.ap-unapplied-section {
+  font-weight: 500;
+}
+
+/* ── the resulting document ────────────────────────────────────────────── */
+
+/* Its own scroll region, capped, inside the modal body's scroll. */
+.ap-preview {
+  max-height: 340px;
+  overflow-y: auto;
+  padding: 12px 14px;
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-subtle);
+}
+
+/* ── the gaps ──────────────────────────────────────────────────────────── */
+
+/* Unlike a change row: no tick, no card. There is nothing to decide here. */
+.ap-gaps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ap-gap {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-left: 10px;
+  border-left: 2px solid var(--border-strong);
+}
+
+.ap-gap-req {
+  font-size: var(--fs-sm);
+  font-weight: 500;
+}
+
+.ap-gap-note {
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+/* ── footer ────────────────────────────────────────────────────────────── */
+
+.ap-foot-reason {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: var(--fs-sm);
+  text-align: right;
+}
+
+.ap-foot-error {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+  color: var(--danger);
+  text-align: right;
+}

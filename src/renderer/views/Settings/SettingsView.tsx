@@ -293,7 +293,16 @@ function AgentSection({ settings, onUpdate }: SectionProps): JSX.Element {
 
   return (
     <>
-      <SettingsBlock footnote="The agent never writes to the tracker directly. Every change it wants to make lands in the Review queue for you to accept or reject.">
+      <SettingsBlock
+        footnote={
+          <>
+            The agent never writes to the tracker directly. Every change it wants to make
+            lands in the Review queue for you to accept or reject. Apply is the one flow
+            that hands the agent your resume: a tailor run has your master resume in
+            context and fetches the posting over the web when the job you paste is a link.
+          </>
+        }
+      >
         <SettingsRow
           label="Engine"
           description="Runs on that tool's own subscription — Jobbox never holds an API key."

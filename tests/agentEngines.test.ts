@@ -1,14 +1,21 @@
 import { describe, expect, it } from 'vitest'
-import { TRACKER_TOOL_NAMES } from '@main/agent/schemas'
+import type { AgentRunKind } from '@shared/types'
+import { TRACKER_ALLOWED_TOOLS, TRACKER_TOOL_NAMES } from '@main/agent/schemas'
 import {
-  buildCodexEnrichArgv,
-  buildCodexTriageArgv,
-  buildEnrichArgv,
+  buildClaudeArgv,
+  buildCodexArgv,
   codexAdapter,
+  codexPrompt,
   CODEX_TOKEN_ENV_VAR,
-  ENRICH_TOOLS,
+  RUN_KIND_POLICY,
+  WEB_TOOLS,
   parseCodexEvents
 } from '@main/agent/engines'
+import {
+  ENRICH_SYSTEM_PROMPT,
+  TAILOR_SYSTEM_PROMPT,
+  TRIAGE_SYSTEM_PROMPT
+} from '@main/agent/prompts'
 import { redactArgv } from '@main/agent/runner'
 
 const TOKEN = 'sekrit-token-abc123'
@@ -16,11 +23,30 @@ const URL = 'http://127.0.0.1:54321/mcp'
 const CWD = '/tmp/jobbox-agent'
 
 function triage(model: string | null = null): string[] {
-  return buildCodexTriageArgv({ taskPrompt: 'Triage the 3 messages.', mcpUrl: URL, cwd: CWD, model })
+  return buildCodexArgv('triage', {
+    taskPrompt: 'Triage the 3 messages.',
+    mcpUrl: URL,
+    cwd: CWD,
+    model
+  })
 }
 
 function enrich(model: string | null = null): string[] {
-  return buildCodexEnrichArgv({ taskPrompt: 'Write the brief for: Acme', cwd: CWD, model })
+  return buildCodexArgv('enrich', {
+    taskPrompt: 'Write the brief for: Acme',
+    mcpUrl: null,
+    cwd: CWD,
+    model
+  })
+}
+
+function tailor(model: string | null = null): string[] {
+  return buildCodexArgv('tailor', {
+    taskPrompt: 'Tailor this resume to this job.',
+    mcpUrl: null,
+    cwd: CWD,
+    model
+  })
 }
 
 /** The value of `-c <key>=<value>`, or undefined when the key was never passed. */
@@ -67,7 +93,7 @@ describe('codex triage argv', () => {
   })
 
   it('never puts the bearer token in argv — it travels by environment variable', () => {
-    const command = codexAdapter.triageCommand({
+    const command = codexAdapter.command('triage', {
       taskPrompt: 'Triage.',
       mcp: { url: URL, token: TOKEN, configJson: '{}' },
       model: null,
@@ -108,28 +134,151 @@ describe('codex enrich argv', () => {
     expect(argv).toContain('--ignore-user-config')
   })
 
-  it('is the only run kind that asks for the web', () => {
+  it('asks for the web, which triage does not', () => {
     expect(override(enrich(), 'tools.web_search')).toBe('true')
     expect(override(triage(), 'tools.web_search')).toBe('false')
   })
 })
 
-describe('claude enrich argv', () => {
-  const argv = buildEnrichArgv({ taskPrompt: 'Write the brief for: Acme', model: 'sonnet' })
-  const flag = (name: string): string | undefined => argv[argv.indexOf(name) + 1]
+describe('codex tailor argv', () => {
+  it('carries not one mcp_servers override, so the tracker is unaddressable', () => {
+    const argv = tailor()
+    expect(argv.filter((a) => a.startsWith('mcp_servers.'))).toEqual([])
+    expect(argv).toContain('--ignore-user-config')
+    expect(argv).toContain('--ephemeral')
+    expect(argv.slice(argv.indexOf('-s'), argv.indexOf('-s') + 2)).toEqual(['-s', 'read-only'])
+  })
+
+  it('is the enrich shape: web on, images off', () => {
+    expect(override(tailor(), 'tools.web_search')).toBe('true')
+    expect(override(tailor(), 'tools.view_image')).toBe('false')
+    expect(override(tailor(), 'shell_environment_policy.exclude')).toBeUndefined()
+  })
+
+  it('needs no bridge, so the adapter builds it with no mcp target and no env', () => {
+    const command = codexAdapter.command('tailor', {
+      taskPrompt: 'Tailor.',
+      mcp: null,
+      model: null,
+      cwd: CWD
+    })
+    expect(command.env).toEqual({})
+    expect(command.argv[command.argv.length - 1]).toContain('untrusted data')
+  })
+
+  it('folds the tailor system prompt into the positional prompt, which comes last', () => {
+    const prompt = tailor()[tailor().length - 1]
+    expect(prompt).toBe(codexPrompt(TAILOR_SYSTEM_PROMPT, 'Tailor this resume to this job.'))
+    expect(prompt.startsWith('-')).toBe(false)
+  })
+})
+
+describe('claude argv', () => {
+  const claude = (kind: AgentRunKind, mcpConfigJson: string | null = null): string[] =>
+    buildClaudeArgv(kind, { taskPrompt: 'Do the thing.', mcpConfigJson, model: 'sonnet' })
+
+  const TAIL = [
+    '--permission-mode',
+    'bypassPermissions',
+    '--output-format',
+    'json',
+    '--no-session-persistence',
+    '--model',
+    'sonnet'
+  ]
+
+  it('builds triage as the tracker-only run: no built-ins, the run’s own mcp config', () => {
+    expect(claude('triage', '{"mcpServers":{"tracker":{}}}')).toEqual([
+      '-p',
+      'Do the thing.',
+      '--system-prompt',
+      TRIAGE_SYSTEM_PROMPT,
+      '--tools',
+      '',
+      '--strict-mcp-config',
+      '--mcp-config',
+      '{"mcpServers":{"tracker":{}}}',
+      '--allowedTools',
+      ...TRACKER_ALLOWED_TOOLS,
+      ...TAIL
+    ])
+  })
+
+  it('builds enrich as web reads and an empty mcp config', () => {
+    expect(claude('enrich')).toEqual([
+      '-p',
+      'Do the thing.',
+      '--system-prompt',
+      ENRICH_SYSTEM_PROMPT,
+      '--tools',
+      WEB_TOOLS,
+      '--strict-mcp-config',
+      '--mcp-config',
+      '{"mcpServers":{}}',
+      '--allowedTools',
+      WEB_TOOLS,
+      ...TAIL
+    ])
+  })
+
+  it('builds tailor with the same isolation as enrich', () => {
+    expect(claude('tailor')).toEqual([
+      '-p',
+      'Do the thing.',
+      '--system-prompt',
+      TAILOR_SYSTEM_PROMPT,
+      '--tools',
+      WEB_TOOLS,
+      '--strict-mcp-config',
+      '--mcp-config',
+      '{"mcpServers":{}}',
+      '--allowedTools',
+      WEB_TOOLS,
+      ...TAIL
+    ])
+  })
 
   it('grants web reads and nothing else, on both the tool and the permission flag', () => {
-    expect(ENRICH_TOOLS).toBe('WebSearch,WebFetch')
-    expect(flag('--tools')).toBe(ENRICH_TOOLS)
-    expect(flag('--allowedTools')).toBe(ENRICH_TOOLS)
+    expect(WEB_TOOLS).toBe('WebSearch,WebFetch')
+    for (const kind of ['enrich', 'tailor'] as const) {
+      const argv = claude(kind)
+      const flag = (name: string): string | undefined => argv[argv.indexOf(name) + 1]
+      expect(flag('--tools')).toBe(WEB_TOOLS)
+      expect(flag('--allowedTools')).toBe(WEB_TOOLS)
+    }
     for (const forbidden of ['Bash', 'Read', 'Write', 'Edit', 'Task']) {
-      expect(ENRICH_TOOLS.split(',')).not.toContain(forbidden)
+      expect(WEB_TOOLS.split(',')).not.toContain(forbidden)
     }
   })
 
-  it('configures no MCP server at all, so the tracker is unaddressable', () => {
-    expect(flag('--mcp-config')).toBe('{"mcpServers":{}}')
+  it('ignores an mcp config handed to a kind whose policy has no tracker', () => {
+    const argv = claude('tailor', '{"mcpServers":{"tracker":{"url":"http://127.0.0.1/mcp"}}}')
+    expect(argv[argv.indexOf('--mcp-config') + 1]).toBe('{"mcpServers":{}}')
     expect(argv).toContain('--strict-mcp-config')
+  })
+
+  it('keeps the positional prompt immediately after -p, ahead of every variadic flag', () => {
+    for (const kind of ['triage', 'enrich', 'tailor'] as const) {
+      const argv = claude(kind)
+      expect(argv[0]).toBe('-p')
+      expect(argv[1]).toBe('Do the thing.')
+      expect(argv[argv.indexOf('--allowedTools') + RUN_KIND_POLICY[kind].allowedTools.length + 1])
+        .toBe('--permission-mode')
+    }
+  })
+})
+
+describe('run kind policy', () => {
+  it('gives tailor the enrich isolation exactly', () => {
+    const { systemPrompt: _enrich, ...enrichShape } = RUN_KIND_POLICY.enrich
+    const { systemPrompt: _tailor, ...tailorShape } = RUN_KIND_POLICY.tailor
+    expect(tailorShape).toEqual(enrichShape)
+  })
+
+  it('configures the tracker for triage alone', () => {
+    expect(RUN_KIND_POLICY.triage.tracker).toBe(true)
+    expect(RUN_KIND_POLICY.enrich.tracker).toBe(false)
+    expect(RUN_KIND_POLICY.tailor.tracker).toBe(false)
   })
 })
 

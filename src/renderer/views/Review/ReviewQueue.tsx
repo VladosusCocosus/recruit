@@ -18,7 +18,7 @@ import {
   useStatuses
 } from '@renderer/components'
 import type { JSX } from 'react'
-import type { AgentRunSummary, Status } from '@shared/types'
+import { AGENT_RUN_KIND_LABEL, type AgentRunSummary, type Status } from '@shared/types'
 import { buildGroups, type ProposalGroup } from './format'
 import { ProposalGroupCard, type PendingAction } from './ProposalGroupCard'
 import './review.css'
@@ -282,7 +282,7 @@ function RunHeading({
 
   return (
     <div className="rq-run-head">
-      <h2 className="rq-run-title">{run.kind === 'enrich' ? 'Enrich run' : 'Triage run'}</h2>
+      <h2 className="rq-run-title">{AGENT_RUN_KIND_LABEL[run.kind]}</h2>
       <span className="rq-run-facts tertiary tabular">{facts.join(' · ')}</span>
       <span className="rq-spacer" />
       <Button

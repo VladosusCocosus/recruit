@@ -22,7 +22,7 @@
 import { useMemo, useState } from 'react'
 import { Button, Icon, StatusBadge, pluralize } from '@renderer/components'
 import type { JSX } from 'react'
-import type { Item, MessageSummary, Status } from '@shared/types'
+import { AGENT_RUN_KIND_LABEL, type Item, type MessageSummary, type Status } from '@shared/types'
 import type { DescribeContext, ProposalGroup } from './format'
 import { ProposalDiff } from './ProposalDiff'
 import { SourceMessages } from './SourceMessages'
@@ -192,7 +192,7 @@ export function ProposalGroupCard({
             no way to use and no reason to read. */}
         <span className="rq-card-source tertiary">
           {group.locked ? `${pluralize(total, 'change')} · ` : ''}
-          {group.run.kind === 'enrich' ? 'enrich' : 'triage'} run
+          {AGENT_RUN_KIND_LABEL[group.run.kind]}
         </span>
       </footer>
     </section>

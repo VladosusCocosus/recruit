@@ -1780,6 +1780,87 @@ hr.rule {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
+   MARKDOWN
+   The <Markdown> component's output. Shared: item descriptions, timeline notes
+   and the tailored-resume preview all render through it.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.markdown {
+  font-size: var(--fs-md);
+  line-height: 1.55;
+}
+
+.markdown > *:first-child {
+  margin-top: 0;
+}
+
+.markdown > *:last-child {
+  margin-bottom: 0;
+}
+
+.markdown p {
+  margin: 0 0 9px;
+}
+
+.md-h {
+  margin: 14px 0 6px;
+  font-weight: 600;
+}
+
+.md-h1,
+.md-h2 {
+  font-size: var(--fs-lg);
+}
+
+.md-h3,
+.md-h4 {
+  font-size: var(--fs-md);
+  color: var(--text-secondary);
+}
+
+.md-list {
+  margin: 0 0 9px;
+  padding-left: 20px;
+}
+
+.md-list li {
+  margin-bottom: 2px;
+}
+
+.md-quote {
+  margin: 0 0 9px;
+  padding: 2px 0 2px 10px;
+  border-left: 2px solid var(--border-strong);
+  color: var(--text-secondary);
+}
+
+.md-pre {
+  margin: 0 0 9px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  background: var(--bg-subtle);
+  border: var(--hairline) solid var(--border);
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+}
+
+.md-code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--neutral-tint);
+}
+
+.md-hr {
+  margin: 12px 0;
+  border: 0;
+  border-top: var(--hairline) solid var(--border);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
    MODAL
    ══════════════════════════════════════════════════════════════════════════ */
 
@@ -1802,6 +1883,12 @@ hr.rule {
 
 .modal.is-wide {
   width: min(620px, calc(100vw - 48px));
+}
+
+/* A document under review needs a resume's own measure beside its diff. */
+.modal.is-document {
+  width: min(880px, calc(100vw - 48px));
+  max-height: calc(100vh - 64px);
 }
 
 .modal::backdrop {

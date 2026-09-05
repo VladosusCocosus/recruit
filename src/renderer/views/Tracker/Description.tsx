@@ -11,10 +11,9 @@
  */
 
 import { useEffect, useState } from 'react'
-import { Button, Icon, formatRelative, useRun, useSettings } from '@renderer/components'
+import { Button, Icon, Markdown, formatRelative, useRun, useSettings } from '@renderer/components'
 import type { JSX } from 'react'
 import type { ItemDetail } from '@shared/types'
-import { Markdown } from './Markdown'
 
 export function Description({
   item,

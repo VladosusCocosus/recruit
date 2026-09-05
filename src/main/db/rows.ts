@@ -18,6 +18,7 @@ import {
   type EmailAddress,
   type Item,
   type ItemSummary,
+  type JobDescriptionSource,
   type Message,
   type MessageSummary,
   type PrefilterReason,
@@ -271,6 +272,9 @@ export interface ItemRow {
   contact_email: string | null
   resume_id: number | null
   resume_skipped_at: string | null
+  jd_md: string | null
+  jd_source: string | null
+  jd_updated_at: string | null
   created_at: string
   updated_at: string
   archived_at: string | null
@@ -309,6 +313,9 @@ export function rowToItem(row: ItemRow): Item {
     contactEmail: row.contact_email,
     resumeId: row.resume_id,
     resumeSkippedAt: row.resume_skipped_at,
+    jdMd: row.jd_md,
+    jdSource: row.jd_source as JobDescriptionSource | null,
+    jdUpdatedAt: row.jd_updated_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     archivedAt: row.archived_at

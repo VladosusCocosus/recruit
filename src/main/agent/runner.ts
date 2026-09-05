@@ -11,12 +11,14 @@
  * back any environment that argv needs, read the output into an AgentEnvelope. Everything
  * below this line is engine-agnostic and runs identically for Claude Code and Codex.
  *
- * Two run kinds, deliberately non-overlapping:
+ * Three run kinds, deliberately non-overlapping:
  *   triage — tracker MCP tools and nothing else. Sees email; must not be able to send.
  *   enrich — web search, and an empty MCP config, so it cannot reach the tracker at all.
  *            Its only input is a company name; it never sees email.
- * See the header of ./engines for exactly how each engine enforces that, including the
- * one place Codex currently cannot.
+ *   tailor — the enrich isolation, over a job description and the master resume. It is
+ *            the apply flow's own step, so it is not gated on the enrichment setting.
+ * What each kind may reach is RUN_KIND_POLICY in ./engines; see that header for how each
+ * engine enforces it, including the one place Codex currently cannot.
  */
 import { spawn, type ChildProcessByStdio } from 'node:child_process'
 import { existsSync } from 'node:fs'
@@ -26,6 +28,7 @@ import type { Readable } from 'node:stream'
 import { classifyAgentErrorFacts, looksLikeAuthFailure } from '@shared/agentErrors'
 import {
   AGENT_ENGINE_LABEL,
+  AGENT_RUN_KIND_LABEL,
   type AgentEnvelope,
   type AgentErrorKind,
   type AgentRunKind,
@@ -34,7 +37,7 @@ import {
 import type { AgentDeps, AgentToolCallEvent } from './deps'
 import { adapterFor, type AgentEngineAdapter, type McpTarget } from './engines'
 import { createMcpServer, type McpBridge } from './mcpServer'
-import { enrichTaskPrompt, triageTaskPrompt } from './prompts'
+import { enrichTaskPrompt, tailorTaskPrompt, triageTaskPrompt } from './prompts'
 
 /** spawn() with stdio ['ignore','pipe','pipe'] — stdin is null by construction. */
 type AgentChild = ChildProcessByStdio<null, Readable, Readable>
@@ -51,6 +54,16 @@ type AgentChild = ChildProcessByStdio<null, Readable, Readable>
 const DEFAULT_TIMEOUT_MS = 0
 const KILL_GRACE_MS = 3000
 const TICK_MS = 1000
+
+/**
+ * Ceiling on the task prompt, in bytes. The prompt is a single argv element and the OS
+ * caps the whole argv: past its limit execve fails with E2BIG, which surfaces as a bare
+ * spawn error with nothing in it a user could act on. A tailor run carries a job
+ * description plus the master resume, so it is the kind that can reach this.
+ */
+export const MAX_PROMPT_BYTES = 256 * 1024
+
+const kb = (bytes: number): string => `${Math.ceil(bytes / 1024)} KB`
 
 /* ────────────────────────────────────────────────────────────────────────────
  * results
@@ -103,6 +116,12 @@ export interface RunOptions {
 export interface AgentRunner {
   spawnTriageRun(messageIds: number[], options?: RunOptions): Promise<StartedRun>
   spawnEnrichRun(companyName: string, options?: RunOptions): Promise<StartedRun>
+  /**
+   * The apply flow's run: web on, no tracker tools, no email. `jobInput` is a pasted job
+   * description or one URL to fetch; `masterMd` is the resume to tailor. Unlike enrich it
+   * is not gated on the enrichment setting.
+   */
+  spawnTailorRun(jobInput: string, masterMd: string, options?: RunOptions): Promise<StartedRun>
   /** Kills the child. The run finishes as {kind:'error', errorKind:'stopped'}. */
   cancelRun(runId: number): void
   /** Newest in-flight run, for RecruitApi.getActiveRun(). */
@@ -288,14 +307,19 @@ export function createAgentRunner(deps: AgentDeps): AgentRunner {
     let token: string | null = null
     let command: { argv: string[]; env: NodeJS.ProcessEnv }
     try {
+      const promptBytes = Buffer.byteLength(taskPrompt, 'utf8')
+      if (promptBytes > MAX_PROMPT_BYTES) {
+        throw new Error(
+          `This ${AGENT_RUN_KIND_LABEL[kind].toLowerCase()}'s prompt is ${kb(promptBytes)}, over the ${kb(MAX_PROMPT_BYTES)} limit. Shorten the input and try again.`
+        )
+      }
       let mcp: McpTarget | null = null
       if (needsBridge) {
         await bridge.start()
         token = bridge.mintToken(runId)
         mcp = { url: bridge.mcpUrl(), token, configJson: bridge.mcpConfigJson(token) }
       }
-      const input = { taskPrompt, mcp, model, cwd: cwd() }
-      command = kind === 'triage' ? engine.triageCommand(input) : engine.enrichCommand(input)
+      command = engine.command(kind, { taskPrompt, mcp, model, cwd: cwd() })
       await repo.setRunCommand(runId, redactArgv(command.argv, token))
     } catch (err) {
       if (token) bridge.revokeToken(token)
@@ -558,6 +582,11 @@ export function createAgentRunner(deps: AgentDeps): AgentRunner {
       }
       // No allowlist, no bridge, no tracker tools: the company name is the entire input.
       return begin('enrich', [], enrichTaskPrompt(companyName), false, options)
+    },
+
+    async spawnTailorRun(jobInput, masterMd, options) {
+      // No allowlist and no bridge: the job input and the master resume are the whole input.
+      return begin('tailor', [], tailorTaskPrompt(jobInput, masterMd), false, options)
     },
 
     cancelRun(runId) {

@@ -72,7 +72,9 @@ export type {
 } from './Field'
 
 export { Modal } from './Modal'
-export type { ModalProps } from './Modal'
+export type { ModalProps, ModalWidth } from './Modal'
+
+export { Markdown } from './Markdown'
 
 export { RunButton } from './RunButton'
 export type { RunButtonProps } from './RunButton'
