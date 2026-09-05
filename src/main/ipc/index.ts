@@ -7,7 +7,7 @@
  *   ...
  *   await services.dispose()
  */
-export { broadcast, handle } from './bridge'
+export { broadcast, handle, registerAppWindow } from './bridge'
 export { createServices, type AppServices } from './services'
 export { registerIpcHandlers } from './handlers'
 export { createAgentRepo } from './agentRepo'

@@ -33,10 +33,22 @@ export function handle<M extends RecruitInvokeMethod>(
   )
 }
 
-/** Push an event to every open window. Payload type is checked against RecruitEvents. */
+const appWindows = new Set<BrowserWindow>()
+
+/**
+ * Marks a window as one that renders the app UI and should receive events. Windows the
+ * main process opens for its own work — the offscreen PDF renderer — are never
+ * registered, so app state is not sent to a page built from a job description.
+ */
+export function registerAppWindow(win: BrowserWindow): void {
+  appWindows.add(win)
+  win.once('closed', () => appWindows.delete(win))
+}
+
+/** Push an event to every app window. Payload type is checked against RecruitEvents. */
 export function broadcast<K extends RecruitEventName>(event: K, payload: RecruitEvents[K]): void {
   const channel = eventChannel(event)
-  for (const win of BrowserWindow.getAllWindows()) {
+  for (const win of appWindows) {
     if (!win.isDestroyed()) win.webContents.send(channel, payload)
   }
 }

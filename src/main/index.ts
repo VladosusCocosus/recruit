@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import * as db from '@main/db'
 import { getSettings, setSettingsPath } from '@main/settings'
 import { setFallbackStorePath } from '@main/keychain'
-import { createServices, registerIpcHandlers, type AppServices } from '@main/ipc'
+import { createServices, registerAppWindow, registerIpcHandlers, type AppServices } from '@main/ipc'
 
 const isDev = !app.isPackaged
 
@@ -35,6 +35,8 @@ function createWindow(): BrowserWindow {
       spellcheck: false
     }
   })
+
+  registerAppWindow(win)
 
   win.once('ready-to-show', () => win.show())
 
@@ -140,7 +142,7 @@ if (!gotLock) {
     }
 
     app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0) mainWindow = createWindow()
+      if (!mainWindow || mainWindow.isDestroyed()) mainWindow = createWindow()
     })
   })
 
