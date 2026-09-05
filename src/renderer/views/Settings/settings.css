@@ -375,3 +375,12 @@
   border-radius: var(--radius);
   border: var(--hairline) solid var(--border);
 }
+
+/* ── resume ────────────────────────────────────────────────────────────────── */
+
+.set-resume-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}

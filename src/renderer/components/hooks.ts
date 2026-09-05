@@ -8,6 +8,7 @@ import type {
   NavKey,
   RecruitEventName,
   RecruitEvents,
+  Resume,
   SetupState,
   StartRunInput,
   Status,
@@ -225,6 +226,16 @@ export function useAccounts(): AsyncState<Account[]> {
 
 export function useStatuses(): AsyncState<Status[]> {
   return useAsync(() => window.recruit.listStatuses(), [])
+}
+
+/**
+ * The resume library, kept current from the `resumesChanged` push so the board chip, the
+ * item detail row and Settings never disagree about which resume is the default.
+ */
+export function useResumes(): AsyncState<Resume[]> {
+  const state = useAsync(() => window.recruit.listResumes(), [])
+  useRecruitEvent('resumesChanged', (payload) => state.set(payload.resumes))
+  return state
 }
 
 const EMPTY_COUNTS: AppCounts = {

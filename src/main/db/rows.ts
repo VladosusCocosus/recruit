@@ -267,6 +267,8 @@ export interface ItemRow {
   description_updated_at: string | null
   contact_name: string | null
   contact_email: string | null
+  resume_id: number | null
+  resume_skipped_at: string | null
   created_at: string
   updated_at: string
   archived_at: string | null
@@ -303,6 +305,8 @@ export function rowToItem(row: ItemRow): Item {
     descriptionUpdatedAt: row.description_updated_at,
     contactName: row.contact_name,
     contactEmail: row.contact_email,
+    resumeId: row.resume_id,
+    resumeSkippedAt: row.resume_skipped_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     archivedAt: row.archived_at

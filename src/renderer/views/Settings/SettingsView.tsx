@@ -38,6 +38,7 @@ import {
   SettingsValue
 } from './SettingsGroup'
 import { AccountsSection } from './AccountForm'
+import { ResumeSection } from './ResumeSection'
 
 /* ════════════════════════════════════════════════════════════════════════════
    SETTINGS
@@ -57,6 +58,7 @@ const SECTIONS = [
   { key: 'general', label: 'General', icon: 'gear' },
   { key: 'accounts', label: 'Accounts', icon: 'mail' },
   { key: 'triage', label: 'Triage', icon: 'target' },
+  { key: 'resume', label: 'Resume', icon: 'doc' },
   { key: 'agent', label: 'Agent', icon: 'sparkle' },
   { key: 'privacy', label: 'Privacy', icon: 'image' },
   { key: 'about', label: 'About', icon: 'info' }
@@ -137,6 +139,8 @@ export default function SettingsView({
                 <GeneralSection settings={settings} onUpdate={onUpdateSettings} />
               ) : section === 'triage' ? (
                 <TriageSection settings={settings} onUpdate={onUpdateSettings} />
+              ) : section === 'resume' ? (
+                <ResumeSection />
               ) : section === 'agent' ? (
                 <AgentSection settings={settings} onUpdate={onUpdateSettings} />
               ) : section === 'privacy' ? (

@@ -106,6 +106,18 @@ the result arrives as a proposal in the Review queue like everything else; the b
 so once the run finishes. Accepting it replaces an agent-written description and never a
 description you wrote yourself.
 
+### Which resume you applied with
+
+**Settings → Resume** holds a default resume plus every other one you have used. Once an
+application reaches **Applied**, its board card grows a **Resume?** chip; picking answers it
+with the default, another resume from the library, a file you upload there and then, or
+*Skip for now*. Skipping is an answer — the chip stops asking.
+
+Added files are copied into `userData/resumes` and named by content hash, so renaming or
+moving the original later does not break the record, and re-adding the same file reuses the
+row instead of duplicating it. The agent has no access to any of it: resumes appear nowhere
+on the MCP surface, and which one you sent is not something it can propose.
+
 Gmail and other 2FA providers need an app-specific password, not your account password.
 **Outlook and Microsoft 365 cannot connect at all** — Microsoft removed password sign-in from
 IMAP and SMTP, and Jobbox has no OAuth client. The preset is kept, with a warning in the form.
@@ -166,7 +178,8 @@ v1 is deliberately narrow.
   rescheduled interview creates a duplicate event instead of replacing the old one.**
   Fixing it means either parsing `.ics` at ingest or carrying the calendar body through the
   MCP surface (the unused `attachments.disk_path` column is there for the second option).
-- **Attachments never hit disk**, and there is no way to open one.
+- **Attachments never hit disk**, and there is no way to open one. (Resumes are the one
+  thing Jobbox does store: they arrive from a file dialog, not from mail.)
 - **A UIDVALIDITY bump leaves stale rows** rather than resyncing the folder.
 - **Navigation is shallow** — you can't deep-link to a specific message or item.
 - **The bridge has never completed a real model turn** on this machine (the CLI was not

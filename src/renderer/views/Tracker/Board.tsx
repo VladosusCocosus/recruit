@@ -12,11 +12,13 @@
  */
 
 import { useCallback, useMemo, useState } from 'react'
-import type { CloseReason, ItemSummary, Status } from '@shared/types'
+import type { CloseReason, ItemSummary, Resume, Status } from '@shared/types'
+import { shouldAskForResume } from '@shared/resume'
 import type { DragEvent, JSX, KeyboardEvent } from 'react'
 import { Button, EmptyState, Icon } from '@renderer/components'
 import { ITEM_DRAG_TYPE, ItemCard } from './ItemCard'
 import { ItemMenu, type ItemMenuTarget } from './ItemMenu'
+import { ResumeMenu, type ResumeMenuActions, type ResumeMenuTarget } from './ResumeMenu'
 import type { StatusIndex } from './useTracker'
 
 interface Column {
@@ -119,7 +121,9 @@ export function Board({
   onOpenItem,
   onChangeStatus,
   onArchiveItem,
-  onCreateItem
+  onCreateItem,
+  resumesById,
+  resumeActions
 }: {
   items: ItemSummary[]
   statusIndex: StatusIndex
@@ -131,10 +135,15 @@ export function Board({
   onArchiveItem?: (itemId: number, archived: boolean) => void
   /** Creates an application already in that column, so the header's + lands where it says. */
   onCreateItem?: (statusKey: string) => void
+  /** Resolves item.resumeId for the card. */
+  resumesById?: Map<number, Resume>
+  /** Omit and cards carry no resume line at all. */
+  resumeActions?: ResumeMenuActions
 }): JSX.Element {
   const [dragItemId, setDragItemId] = useState<number | null>(null)
   const [dropTarget, setDropTarget] = useState<string | null>(null)
   const [menu, setMenu] = useState<ItemMenuTarget | null>(null)
+  const [resumeMenu, setResumeMenu] = useState<ResumeMenuTarget | null>(null)
 
   const onKeyDown = useCallback((e: KeyboardEvent<HTMLDivElement>) => {
     const from = e.target as HTMLElement
@@ -241,8 +250,11 @@ export function Board({
                   selected={item.id === selectedItemId}
                   menuOpen={menu?.item.id === item.id}
                   dragging={item.id === dragItemId}
+                  resume={item.resumeId != null ? (resumesById?.get(item.resumeId) ?? null) : null}
+                  needsResume={shouldAskForResume(item, statusIndex.statuses)}
                   onOpen={onOpenItem}
                   onRequestMenu={setMenu}
+                  {...(resumeActions ? { onRequestResumeMenu: setResumeMenu } : {})}
                   onDragStateChange={setDragItemId}
                 />
               ))}
@@ -272,6 +284,16 @@ export function Board({
             ...(onArchiveItem ? { onArchive: onArchiveItem } : {})
           }}
           onClose={() => setMenu(null)}
+        />
+      ) : null}
+
+      {resumeMenu && resumeActions ? (
+        <ResumeMenu
+          key={resumeMenu.item.id}
+          target={resumeMenu}
+          resumes={[...(resumesById?.values() ?? [])]}
+          actions={resumeActions}
+          onClose={() => setResumeMenu(null)}
         />
       ) : null}
     </div>

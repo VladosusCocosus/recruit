@@ -12,6 +12,7 @@ import type {
   StartRunInput
 } from '@shared/types'
 import * as db from '@main/db'
+import * as resumes from '@main/resumes'
 import { sanitizeMessageBody } from '@main/mail/sanitize'
 import { getSettings, updateSettings } from '@main/settings'
 import * as updates from '@main/update'
@@ -31,6 +32,10 @@ function notifyProposals(): void {
 function notifyItems(itemIds: Array<number | null | undefined>): void {
   const ids = [...new Set(itemIds.filter((id): id is number => typeof id === 'number'))]
   broadcast('itemsChanged', { itemIds: ids })
+}
+
+function notifyResumes(): void {
+  broadcast('resumesChanged', { resumes: db.listResumes() })
 }
 
 function afterDecisions(results: ProposalDecisionResult[]): void {
@@ -213,6 +218,53 @@ export function registerIpcHandlers(services: AppServices): void {
   handle('unlinkMessage', async (itemId, messageId) => {
     db.unlinkMessage(itemId, messageId)
     notifyItems([itemId])
+  })
+
+  /* ── resumes ────────────────────────────────────────────────────────────── */
+
+  handle('listResumes', () => db.listResumes())
+
+  handle('addResume', async (makeDefault) => {
+    const resume = await resumes.pickResumeFile(makeDefault ?? false)
+    if (resume) notifyResumes()
+    return resume
+  })
+
+  handle('setDefaultResume', async (resumeId) => {
+    db.markDefault(resumeId)
+    notifyResumes()
+    return db.listResumes()
+  })
+
+  handle('renameResume', async (resumeId, label) => {
+    db.renameResume(resumeId, label)
+    notifyResumes()
+    return db.listResumes()
+  })
+
+  handle('archiveResume', async (resumeId) => {
+    resumes.archiveResume(resumeId)
+    notifyResumes()
+    return db.listResumes()
+  })
+
+  handle('openResume', (resumeId) => resumes.openResume(resumeId))
+
+  handle('revealResume', async (resumeId) => {
+    resumes.revealResume(resumeId)
+  })
+
+  handle('setItemResume', async (itemId, resumeId) => {
+    const item = db.setItemResume(itemId, resumeId)
+    notifyItems([itemId])
+    notifyResumes()
+    return item
+  })
+
+  handle('skipItemResume', async (itemId, skipped) => {
+    const item = db.skipItemResume(itemId, skipped)
+    notifyItems([itemId])
+    return item
   })
 
   /* ── timeline ───────────────────────────────────────────────────────────── */

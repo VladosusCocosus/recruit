@@ -227,6 +227,34 @@ export interface SanitizedBody {
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
+ * resumes
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * One stored resume file. Carries no disk path: the renderer addresses a resume by id and
+ * main resolves the path, the same rule `revealDatabase` follows.
+ */
+export interface Resume {
+  id: number
+  /** Display name. Defaults to the filename, editable afterwards. */
+  label: string
+  filename: string
+  mimeType: string | null
+  size: number
+  isDefault: boolean
+  createdAt: string
+  archivedAt: string | null
+  /** Applications pointing at this resume. */
+  usageCount: number
+}
+
+/** Extensions the resume file dialog accepts. */
+export const RESUME_EXTENSIONS = ['pdf', 'doc', 'docx', 'odt', 'rtf', 'txt', 'md', 'pages'] as const
+
+/** Largest file the resume store accepts, in bytes. */
+export const RESUME_MAX_BYTES = 25 * 1024 * 1024
+
+/* ────────────────────────────────────────────────────────────────────────────
  * statuses + items
  * ──────────────────────────────────────────────────────────────────────────── */
 
@@ -268,6 +296,10 @@ export interface Item {
   descriptionUpdatedAt: string | null
   contactName: string | null
   contactEmail: string | null
+  /** The resume this application was sent with. Null until the question is answered. */
+  resumeId: number | null
+  /** Set when the resume question was dismissed without an answer. */
+  resumeSkippedAt: string | null
   createdAt: string
   updatedAt: string
   archivedAt: string | null
@@ -906,6 +938,7 @@ export interface RecruitEvents {
   proposalsChanged: { pending: number }
   mailChanged: { accountId: number; newMessages: number; newCandidates: number }
   itemsChanged: { itemIds: number[] }
+  resumesChanged: { resumes: Resume[] }
   settingsChanged: AppSettings
   updateAvailable: UpdateStatus
 }
@@ -967,6 +1000,23 @@ export interface RecruitApi {
   deleteItem(itemId: number): Promise<void>
   linkMessage(itemId: number, messageId: number): Promise<void>
   unlinkMessage(itemId: number, messageId: number): Promise<void>
+
+  // ── resumes ───────────────────────────────────────────────────────────────
+  listResumes(): Promise<Resume[]>
+  /** Opens a file dialog and stores the chosen file. Null when the user cancels. */
+  addResume(makeDefault?: boolean): Promise<Resume | null>
+  setDefaultResume(resumeId: number): Promise<Resume[]>
+  renameResume(resumeId: number, label: string): Promise<Resume[]>
+  /** Hides a resume from the picker. Items already pointing at it keep it. */
+  archiveResume(resumeId: number): Promise<Resume[]>
+  /** Opens the file in the OS default application. */
+  openResume(resumeId: number): Promise<void>
+  /** Shows the file in Finder. Takes an id, never a path. */
+  revealResume(resumeId: number): Promise<void>
+  /** Attaches a resume to an item, or clears it with null. Clears any skip. */
+  setItemResume(itemId: number, resumeId: number | null): Promise<Item>
+  /** Dismisses the resume question for an item. Pass false to ask again. */
+  skipItemResume(itemId: number, skipped: boolean): Promise<Item>
 
   // ── timeline ──────────────────────────────────────────────────────────────
   listUpcomingEvents(limit?: number): Promise<UpcomingEvent[]>
@@ -1053,6 +1103,15 @@ export const IPC_METHODS = [
   'deleteItem',
   'linkMessage',
   'unlinkMessage',
+  'listResumes',
+  'addResume',
+  'setDefaultResume',
+  'renameResume',
+  'archiveResume',
+  'openResume',
+  'revealResume',
+  'setItemResume',
+  'skipItemResume',
   'listUpcomingEvents',
   'addEvent',
   'updateEvent',
@@ -1080,6 +1139,7 @@ export const EVENT_NAMES = [
   'proposalsChanged',
   'mailChanged',
   'itemsChanged',
+  'resumesChanged',
   'settingsChanged',
   'updateAvailable'
 ] as const satisfies readonly RecruitEventName[]

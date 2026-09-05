@@ -10,11 +10,13 @@
 
 import { useRef } from 'react'
 import { Icon } from '@renderer/components'
-import type { ItemSummary } from '@shared/types'
+import type { ItemSummary, Resume } from '@shared/types'
 import type { DragEvent, JSX } from 'react'
 import { itemSignal } from './format'
 import type { ItemMenuTarget } from './ItemMenu'
 import { itemMenuTargetFromElement, itemMenuTargetFromEvent } from './ItemMenu'
+import type { ResumeMenuTarget } from './ResumeMenu'
+import { resumeMenuTargetFromElement } from './ResumeMenu'
 import type { StatusIndex } from './useTracker'
 
 export const ITEM_DRAG_TYPE = 'application/x-recruit-item'
@@ -26,8 +28,11 @@ export function ItemCard({
   selected,
   dragging,
   menuOpen,
+  resume,
+  needsResume,
   onOpen,
   onRequestMenu,
+  onRequestResumeMenu,
   onDragStateChange
 }: {
   item: ItemSummary
@@ -37,13 +42,21 @@ export function ItemCard({
   dragging?: boolean
   /** The open menu belongs to this card — see `.is-menu-target`. */
   menuOpen?: boolean
+  /** The resume this application was sent with, resolved from item.resumeId. */
+  resume?: Resume | null
+  /** The item has reached Applied and nobody has answered the resume question. */
+  needsResume?: boolean
   onOpen: (itemId: number) => void
   /** Opens the shared contextual menu the board mounts once for every card. */
   onRequestMenu: (target: ItemMenuTarget) => void
+  /** Opens the shared resume picker. Omit to leave the resume line off the card. */
+  onRequestResumeMenu?: (target: ResumeMenuTarget) => void
   onDragStateChange?: (itemId: number | null) => void
 }): JSX.Element {
   const menuButton = useRef<HTMLButtonElement | null>(null)
+  const resumeButton = useRef<HTMLButtonElement | null>(null)
   const signal = itemSignal(item, statusIndex.kindOf(item), now)
+  const showResume = Boolean(onRequestResumeMenu) && (needsResume || resume != null)
 
   const handleDragStart = (e: DragEvent<HTMLDivElement>): void => {
     e.dataTransfer.setData(ITEM_DRAG_TYPE, String(item.id))
@@ -130,6 +143,26 @@ export function ItemCard({
           </span>
         ) : null}
       </div>
+
+      {showResume ? (
+        <button
+          ref={resumeButton}
+          type="button"
+          className={needsResume ? 'item-card-resume is-unanswered' : 'item-card-resume'}
+          title={
+            resume ? `Applied with ${resume.label}` : 'Which resume did you apply with?'
+          }
+          onClick={(e) => {
+            e.stopPropagation()
+            if (resumeButton.current) {
+              onRequestResumeMenu?.(resumeMenuTargetFromElement(item, resumeButton.current))
+            }
+          }}
+        >
+          <Icon name="doc" size={11} />
+          <span className="truncate">{resume ? resume.label : 'Resume?'}</span>
+        </button>
+      ) : null}
 
       <div className={`item-signal is-${signal.tone}`} title={signal.title}>
         <Icon name={signal.icon} size={11} />

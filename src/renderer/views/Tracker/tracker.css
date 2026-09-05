@@ -360,6 +360,45 @@
   color: var(--text-tertiary);
 }
 
+/* ── the resume line ───────────────────────────────────────────────────────── */
+
+/* A pill on the card, not a row: it is one fact with one action behind it. Unanswered it
+   carries the accent tint so a column of applications shows at a glance which ones still
+   owe an answer; answered it drops back to the tertiary weight of the rest of the card. */
+.item-card-resume {
+  position: relative;
+  z-index: 1;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  margin-top: 4px;
+  padding: 0 7px;
+  height: 18px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--neutral-tint);
+  color: var(--text-tertiary);
+  font: inherit;
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+  cursor: default;
+}
+
+.item-card-resume:hover {
+  color: var(--text-secondary);
+}
+
+.item-card-resume.is-unanswered {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+}
+
+.item-card-resume svg {
+  flex: 0 0 auto;
+}
+
 /* ── the signal line ───────────────────────────────────────────────────────── */
 
 /* One line per item, coloured by urgency rather than by category — see `itemSignal`.
@@ -1036,4 +1075,29 @@
   margin: 12px 0;
   border: 0;
   border-top: var(--hairline) solid var(--border);
+}
+
+/* ── resume (detail inspector) ─────────────────────────────────────────────── */
+
+.detail-resume {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.detail-resume-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.detail-resume .chip {
+  flex: 0 0 auto;
+  border: none;
+  font: inherit;
+  font-size: var(--fs-xs);
+  cursor: default;
 }

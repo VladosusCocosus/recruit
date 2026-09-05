@@ -30,6 +30,7 @@ import { Board } from './Board'
 import { ItemDetail } from './ItemDetail'
 import { ItemList } from './ItemList'
 import { useNow, useTracker } from './useTracker'
+import { useResumePicker } from './useResumePicker'
 
 export type TrackerMode = 'board' | 'list'
 
@@ -85,6 +86,7 @@ export function TrackerView({
 
   const store = useTracker(query)
   const now = useNow(60_000)
+  const resumePicker = useResumePicker()
 
   const handleCreate = useCallback(
     async (statusKey: string) => {
@@ -147,6 +149,9 @@ export function TrackerView({
       </header>
 
       {store.error ? <ErrorBanner error={store.error} onDismiss={store.clearError} /> : null}
+      {resumePicker.error ? (
+        <ErrorBanner error={resumePicker.error} onDismiss={resumePicker.clearError} />
+      ) : null}
 
       <SplitView>
         <Pane kind="detail">
@@ -162,6 +167,8 @@ export function TrackerView({
               onChangeStatus={changeStatus}
               onArchiveItem={archiveItem}
               onCreateItem={(statusKey) => void handleCreate(statusKey)}
+              resumesById={resumePicker.byId}
+              resumeActions={resumePicker.actions}
             />
           ) : (
             <PaneBody>

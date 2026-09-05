@@ -323,6 +323,42 @@ export function updateItem(itemId: number, patch: ItemPatch): Item {
   return item
 }
 
+/* ── resume ─────────────────────────────────────────────────────────────── */
+
+/**
+ * Attaches a resume to an item, or clears it with null. Either way the skip is cleared, so
+ * clearing puts the item back to unanswered and the board asks again.
+ */
+export function setItemResume(itemId: number, resumeId: number | null): Item {
+  execute(
+    'UPDATE items SET resume_id = ?, resume_skipped_at = NULL, updated_at = ? WHERE id = ?',
+    resumeId,
+    nowIso(),
+    itemId
+  )
+  const item = getItem(itemId)
+  if (!item) throw new Error(`Item ${itemId} not found`)
+  return item
+}
+
+/** Dismisses the resume question, or reopens it with `skipped` false. */
+export function skipItemResume(itemId: number, skipped = true): Item {
+  execute(
+    'UPDATE items SET resume_skipped_at = ?, updated_at = ? WHERE id = ?',
+    skipped ? nowIso() : null,
+    nowIso(),
+    itemId
+  )
+  const item = getItem(itemId)
+  if (!item) throw new Error(`Item ${itemId} not found`)
+  return item
+}
+
+/** Points every item using `resumeId` at nothing, leaving them unanswered. */
+export function detachResume(resumeId: number): void {
+  execute('UPDATE items SET resume_id = NULL WHERE resume_id = ?', resumeId)
+}
+
 /**
  * Status change + (by default) the matching `status_change` timeline event.
  * Returns the event too, because the proposal applier reports createdEventId.

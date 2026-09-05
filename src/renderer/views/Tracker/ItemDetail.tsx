@@ -26,6 +26,7 @@ import type { JSX } from 'react'
 import type { ItemDetail as ItemDetailData, ItemPatch, WorkMode } from '@shared/types'
 import { AddEntry } from './AddEntry'
 import { Description } from './Description'
+import { ItemResume } from './ItemResume'
 import { closeReasonLabel, formatDateTime, lastMessageAt, staleness } from './format'
 import { StatusSelect } from './StatusSelect'
 import { Timeline } from './Timeline'
@@ -282,6 +283,8 @@ export function ItemDetail({
 
       <div className="detail-body">
         <Description item={detail} now={now} onSave={(md) => store.saveDescription(md)} />
+
+        <ItemResume item={detail} statuses={statusIndex.statuses} />
 
         <section className="detail-section">
           <div className="detail-section-head">

@@ -34,6 +34,7 @@ export type IconName =
   | 'clock'
   | 'pin'
   | 'image'
+  | 'doc'
 
 export interface IconProps {
   name: IconName
@@ -194,6 +195,12 @@ const PATHS: Record<IconName, JSX.Element> = {
       <rect x="2.2" y="3.2" width="11.6" height="9.6" rx="1.6" />
       <path d="m2.9 11.3 3.2-3.2 2.3 2.3 1.9-1.9 2.8 2.8" />
       <circle cx="6" cy="6.3" r="1" />
+    </g>
+  ),
+  doc: (
+    <g {...STROKE}>
+      <path d="M9.2 1.9H4.6a1.4 1.4 0 0 0-1.4 1.4v9.4a1.4 1.4 0 0 0 1.4 1.4h6.8a1.4 1.4 0 0 0 1.4-1.4V5.5z" />
+      <path d="M9.1 2v3.4h3.5" />
     </g>
   )
 }
