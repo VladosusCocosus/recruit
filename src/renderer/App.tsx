@@ -7,7 +7,13 @@
 import './index.css'
 
 import { useCallback } from 'react'
-import { AGENT_ENGINE_LABEL, type AppCounts, type NavKey, type SyncStatus } from '@shared/types'
+import {
+  AGENT_ENGINE_LABEL,
+  type AppCounts,
+  type NavKey,
+  type PendingDebrief,
+  type SyncStatus
+} from '@shared/types'
 import type { Navigate, RouteTarget } from '@renderer/components'
 import {
   AgentErrorBanner,
@@ -41,6 +47,7 @@ import CandidatesView from './views/Mail/CandidatesView'
 import BoardView from './views/Tracker/BoardView'
 import ReviewView from './views/Review/ReviewView'
 import UpNextView from './views/UpNext/UpNextView'
+import { DebriefModal, useDebriefs } from './views/Debrief'
 
 /* ════════════════════════════════════════════════════════════════════════════
    VIEW REGISTRY
@@ -68,6 +75,9 @@ export interface ViewProps {
   counts: AppCounts
   /** Force a badge refresh. Counts also self-refresh on main's change events. */
   refreshCounts: () => void
+  /** Calls that have finished and still owe a debrief. Only Up next renders them. */
+  pendingDebriefs: PendingDebrief[]
+  openDebrief: (eventId: number) => void
 }
 
 type ViewComponent = (props: ViewProps) => JSX.Element
@@ -110,6 +120,7 @@ function Shell(): JSX.Element {
   const run = useRun()
   const accounts = useAccounts()
   const appInfo = useAppInfo()
+  const debriefs = useDebriefs()
 
   useTheme(settings.settings?.theme)
 
@@ -231,6 +242,8 @@ function Shell(): JSX.Element {
                   focusNonce={route.nonce}
                   counts={counts}
                   refreshCounts={refreshCounts}
+                  pendingDebriefs={debriefs.pending}
+                  openDebrief={debriefs.open}
                 />
               ) : (
                 <LoadingState />
@@ -239,6 +252,17 @@ function Shell(): JSX.Element {
           )}
         </div>
       </div>
+
+      {/* Outside .app-body, so switching views does not unmount an open debrief. */}
+      {debriefs.active ? (
+        <DebriefModal
+          call={debriefs.active}
+          onSave={debriefs.save}
+          onSnooze={debriefs.snooze}
+          onSkip={debriefs.skip}
+          onClose={debriefs.close}
+        />
+      ) : null}
     </div>
   )
 }

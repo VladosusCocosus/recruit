@@ -11,6 +11,8 @@ import {
   type AgentRunKind,
   type AgentRunSummary,
   type Attachment,
+  type CallOutcome,
+  type CallType,
   type CloseReason,
   type DescriptionSource,
   type EmailAddress,
@@ -347,6 +349,11 @@ export interface TimelineEventRow {
   ics_sequence: number | null
   source: string | null
   superseded_by: number | null
+  call_type: string | null
+  call_with: string | null
+  outcome: string | null
+  debriefed_at: string | null
+  snooze_until: string | null
   created_at: string
 }
 
@@ -368,6 +375,11 @@ export function rowToTimelineEvent(row: TimelineEventRow): TimelineEvent {
     icsSequence: row.ics_sequence,
     source: (row.source ?? 'user') as TimelineEventSource,
     supersededBy: row.superseded_by,
+    callType: (row.call_type as CallType | null) ?? null,
+    callWith: row.call_with ?? null,
+    outcome: (row.outcome as CallOutcome | null) ?? null,
+    debriefedAt: row.debriefed_at ?? null,
+    snoozeUntil: row.snooze_until ?? null,
     createdAt: row.created_at
   }
 }

@@ -289,6 +289,22 @@ export function registerIpcHandlers(services: AppServices): void {
     notifyItems([event?.itemId])
   })
 
+  /* ── call debriefs ──────────────────────────────────────────────────────── */
+
+  handle('listPendingDebriefs', () => db.pendingDebriefs())
+
+  handle('saveDebrief', async (input) => {
+    notifyItems([db.saveDebrief(input)])
+  })
+
+  handle('snoozeDebrief', async (eventId, untilIso) => {
+    notifyItems([db.snoozeDebrief(eventId, untilIso)])
+  })
+
+  handle('skipDebrief', async (eventId) => {
+    notifyItems([db.skipDebrief(eventId)])
+  })
+
   /* ── review queue ───────────────────────────────────────────────────────── */
 
   handle('listProposals', (query) => db.listProposalCards(query))

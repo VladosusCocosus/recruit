@@ -1,0 +1,162 @@
+/* The debrief modal's own layout. Everything structural is in .modal. */
+
+.db-sub-line {
+  line-height: 1.4;
+}
+
+.db-outcome {
+  margin: 6px 0 14px;
+}
+
+/* The three outcomes split the width evenly. */
+.db-outcome .segmented {
+  width: 100%;
+}
+
+.db-outcome .segmented-option {
+  flex: 1;
+}
+
+.db-notes {
+  min-height: 64px;
+  resize: vertical;
+}
+
+.db-section {
+  margin-top: 14px;
+}
+
+.db-section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.db-section-label {
+  flex: 1;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.db-hint {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+}
+
+.db-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Title flexes, the date keeps a fixed box so a column of rows lines up. */
+.db-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.db-row > .input:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.db-date {
+  width: 132px;
+  flex: none;
+}
+
+.db-nudge {
+  margin-top: 14px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  background: var(--bg-subtle);
+}
+
+.db-nudge-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+}
+
+.db-nudge-title {
+  flex: 1;
+  font-size: var(--fs-sm);
+}
+
+.db-nudge.is-on .db-nudge-title {
+  color: var(--text);
+}
+
+.db-nudge-row {
+  margin-top: 8px;
+}
+
+.db-error {
+  margin: 12px 0 0;
+  font-size: var(--fs-sm);
+  color: var(--danger);
+}
+
+.db-foot-spacer {
+  flex: 1;
+}
+
+/* ── the prompt row Up next shows for a call still owing one ─────────────── */
+
+.db-pending {
+  margin-bottom: 12px;
+}
+
+.db-pending-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--warning);
+}
+
+.db-pending-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.db-pending-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 10px;
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  font-family: inherit;
+  font-size: var(--fs-md);
+  color: var(--text);
+  text-align: left;
+  cursor: default;
+}
+
+.db-pending-row:hover {
+  background: var(--bg-hover);
+}
+
+.db-pending-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.db-pending-when {
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+}

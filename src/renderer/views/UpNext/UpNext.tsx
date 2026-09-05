@@ -10,7 +10,8 @@ import {
   useRecruitEvent,
   useStatuses
 } from '@renderer/components'
-import type { Status } from '@shared/types'
+import type { PendingDebrief, Status } from '@shared/types'
+import { PendingDebriefs } from '@renderer/views/Debrief'
 import { groupByDay, todayLabel } from './datetime'
 import { EventRow } from './EventRow'
 import './upnext.css'
@@ -20,6 +21,9 @@ export interface UpNextProps {
   onOpenItem?: (itemId: number) => void
   /** How many events to pull. This is a horizon, not an archive. */
   limit?: number
+  /** Finished calls still owing a debrief. Pinned above the schedule. */
+  pendingDebriefs?: PendingDebrief[]
+  onOpenDebrief?: (eventId: number) => void
 }
 
 const DEFAULT_LIMIT = 100
@@ -38,7 +42,12 @@ const TICK_MS = 60_000
  * The view leads with today, and says so when today is already done; the absence of a
  * "Today" heading is otherwise silent, and reads as though something failed to load.
  */
-export function UpNext({ onOpenItem, limit = DEFAULT_LIMIT }: UpNextProps): JSX.Element {
+export function UpNext({
+  onOpenItem,
+  limit = DEFAULT_LIMIT,
+  pendingDebriefs = [],
+  onOpenDebrief
+}: UpNextProps): JSX.Element {
   const events = useAsync(() => window.recruit.listUpcomingEvents(limit), [limit])
   const statuses = useStatuses()
   const [now, setNow] = useState(() => Date.now())
@@ -67,23 +76,31 @@ export function UpNext({ onOpenItem, limit = DEFAULT_LIMIT }: UpNextProps): JSX.
     void window.recruit.openExternal(url).catch(() => undefined)
   }, [])
 
-  // The horizon is capped. Saying so beats letting a full page look like the whole future.
   const capped = (events.data?.length ?? 0) >= limit
+
+  const debriefs =
+    onOpenDebrief && pendingDebriefs.length > 0 ? (
+      <PendingDebriefs pending={pendingDebriefs} onOpen={onOpenDebrief} now={now} />
+    ) : null
 
   let body: JSX.Element
   if (events.loading && events.data === null) {
     body = <LoadingState label="Loading schedule…" />
   } else if (days.length === 0) {
     body = (
-      <EmptyState
-        icon="calendar"
-        title="Nothing scheduled"
-        message="Interviews, calls and deadlines land here as soon as an invite is parsed or you add an event to an application."
-      />
+      <>
+        {debriefs}
+        <EmptyState
+          icon="calendar"
+          title="Nothing scheduled"
+          message="Interviews, calls and deadlines land here as soon as an invite is parsed or you add an event to an application."
+        />
+      </>
     )
   } else {
     body = (
       <div className="un-col">
+        {debriefs}
         {days[0]?.isToday ? null : <p className="un-clear">Nothing left today.</p>}
 
         {days.map((day) => (

@@ -291,7 +291,10 @@ export function ItemDetail({
             <h2 className="detail-section-title">Timeline</h2>
             <span className="tertiary">{pluralize(detail.eventCount, 'entry', 'entries')}</span>
           </div>
-          <AddEntry onAdd={(entry) => void store.addEvent(entry)} />
+          <AddEntry
+            onAdd={(entry) => void store.addEvent(entry)}
+            contactName={detail.contactName}
+          />
           <Timeline
             events={detail.timeline}
             now={now}

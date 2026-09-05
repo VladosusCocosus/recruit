@@ -1,5 +1,12 @@
-import type { TimelineEvent, TimelineEventInput, UpcomingEvent } from '@shared/types'
-import { count, execute, placeholders, queryAll, queryOne } from '../connection'
+import type {
+  CallDebriefInput,
+  PendingDebrief,
+  TimelineEvent,
+  TimelineEventInput,
+  UpcomingEvent
+} from '@shared/types'
+import { isDebriefPending } from '@shared/debrief'
+import { count, execute, placeholders, queryAll, queryOne, transact } from '../connection'
 import { nowIso, rowToTimelineEvent, type TimelineEventRow } from '../rows'
 
 const SELECT = 'SELECT * FROM timeline_events'
@@ -27,8 +34,9 @@ export function addEvent(input: TimelineEventInput): TimelineEvent {
   const info = execute(
     `INSERT INTO timeline_events (
        item_id, kind, title, body_md, occurred_at, starts_at, ends_at, tz,
-       location, meeting_url, message_id, ics_uid, ics_sequence, source, created_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       location, meeting_url, message_id, ics_uid, ics_sequence, source,
+       call_type, call_with, created_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     input.itemId,
     input.kind,
     input.title,
@@ -43,6 +51,8 @@ export function addEvent(input: TimelineEventInput): TimelineEvent {
     input.icsUid ?? null,
     input.icsSequence ?? null,
     input.source ?? 'user',
+    input.callType ?? null,
+    input.callWith ?? null,
     nowIso()
   )
   return getEvent(Number(info.lastInsertRowid)) as TimelineEvent
@@ -70,6 +80,8 @@ export function updateEvent(eventId: number, patch: Partial<TimelineEventInput>)
   if (patch.icsUid !== undefined) put('ics_uid', patch.icsUid)
   if (patch.icsSequence !== undefined) put('ics_sequence', patch.icsSequence)
   if (patch.source !== undefined) put('source', patch.source)
+  if (patch.callType !== undefined) put('call_type', patch.callType)
+  if (patch.callWith !== undefined) put('call_with', patch.callWith)
 
   if (sets.length) {
     params.push(eventId)
@@ -187,4 +199,119 @@ export function findLiveEventsByIcsUid(itemId: number, icsUid: string): Timeline
 /** Point `eventId` at its replacement. A superseded event stays for history but is hidden. */
 export function supersedeEvent(eventId: number, supersededBy: number): void {
   execute('UPDATE timeline_events SET superseded_by = ? WHERE id = ?', supersededBy, eventId)
+}
+
+/* ── call debriefs ─────────────────────────────────────────────────────────── */
+
+/**
+ * Logged calls that still owe a debrief: finished, unanswered, not snoozed, on a live
+ * item. The SQL selects candidates; `isDebriefPending` applies the grace and snooze
+ * windows.
+ */
+export function pendingDebriefs(now: number = Date.now()): PendingDebrief[] {
+  const rows = queryAll<
+    TimelineEventRow & {
+      item_company: string
+      item_role: string | null
+      item_status_key: string
+      item_contact_name: string | null
+    }
+  >(
+    `SELECT te.*, i.company AS item_company, i.role AS item_role,
+            i.contact_name AS item_contact_name, s.key AS item_status_key
+     FROM timeline_events te
+     JOIN items i ON i.id = te.item_id
+     JOIN statuses s ON s.id = i.status_id
+     WHERE te.superseded_by IS NULL
+       AND te.kind = 'meeting'
+       AND te.call_type IS NOT NULL
+       AND te.debriefed_at IS NULL
+       AND te.ends_at IS NOT NULL
+       AND i.archived_at IS NULL
+     ORDER BY te.ends_at ASC, te.id ASC`
+  )
+
+  const out: PendingDebrief[] = []
+  for (const row of rows) {
+    const event = rowToTimelineEvent(row)
+    if (!isDebriefPending(event, now)) continue
+    out.push({
+      ...event,
+      item: {
+        id: row.item_id,
+        company: row.item_company,
+        role: row.item_role,
+        statusKey: row.item_status_key,
+        contactName: row.item_contact_name
+      }
+    })
+  }
+  return out
+}
+
+/**
+ * Stamps the call with its outcome and appends the debrief's output in one transaction:
+ * a `note` event for the write-up, and a `task` event per follow-up and for the nudge.
+ *
+ * Returns the id of the item the call belongs to. Throws when `eventId` is not a call.
+ */
+export function saveDebrief(input: CallDebriefInput): number {
+  return transact(() => {
+    const call = getEvent(input.eventId)
+    if (!call) throw new Error(`Timeline event ${input.eventId} not found`)
+    if (call.callType === null) throw new Error(`Timeline event ${input.eventId} is not a call`)
+
+    const answeredAt = nowIso()
+    execute(
+      'UPDATE timeline_events SET outcome = ?, debriefed_at = ?, snooze_until = NULL WHERE id = ?',
+      input.outcome,
+      answeredAt,
+      input.eventId
+    )
+
+    const notes = input.notes?.trim()
+    if (notes) {
+      addEvent({
+        itemId: call.itemId,
+        kind: 'note',
+        title: `Debrief — ${call.title}`,
+        bodyMd: notes,
+        occurredAt: answeredAt,
+        source: 'user'
+      })
+    }
+
+    const tasks = [...(input.followUps ?? [])]
+    if (input.nudge) tasks.push(input.nudge)
+    for (const task of tasks) {
+      const title = task.title.trim()
+      if (!title) continue
+      addEvent({
+        itemId: call.itemId,
+        kind: 'task',
+        title,
+        startsAt: task.dueAt,
+        tz: call.tz,
+        source: 'user'
+      })
+    }
+
+    return call.itemId
+  })
+}
+
+/** Holds the debrief back until `untilIso`. Returns the call's item id. */
+export function snoozeDebrief(eventId: number, untilIso: string): number | null {
+  execute('UPDATE timeline_events SET snooze_until = ? WHERE id = ?', untilIso, eventId)
+  return getEvent(eventId)?.itemId ?? null
+}
+
+/** Marks the debrief answered with no outcome. Returns the call's item id. */
+export function skipDebrief(eventId: number): number | null {
+  execute(
+    'UPDATE timeline_events SET debriefed_at = ?, snooze_until = NULL WHERE id = ?',
+    nowIso(),
+    eventId
+  )
+  return getEvent(eventId)?.itemId ?? null
 }

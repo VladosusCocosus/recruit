@@ -1778,3 +1778,78 @@ hr.rule {
   margin: 20px 0;
   max-width: 620px;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MODAL
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Native <dialog>: rendered in the top layer, so it takes no z-index. */
+.modal {
+  width: min(440px, calc(100vw - 48px));
+  max-height: calc(100vh - 96px);
+  padding: 0;
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-elevated);
+  color: var(--text);
+  box-shadow: 0 16px 48px var(--overlay);
+  font-family: var(--font-ui);
+  font-size: var(--fs-md);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal.is-wide {
+  width: min(620px, calc(100vw - 48px));
+}
+
+.modal::backdrop {
+  background: rgba(0, 0, 0, 0.32);
+}
+
+.modal:not([open]) {
+  display: none;
+}
+
+.modal-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 14px 14px 10px 16px;
+}
+
+.modal-titles {
+  flex: 1;
+  min-width: 0;
+}
+
+.modal-title {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: 600;
+}
+
+.modal-subtitle {
+  margin-top: 3px;
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+/* The dialog's only scrolling region; the head and foot stay fixed. */
+.modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 16px 14px;
+}
+
+.modal-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-top: var(--hairline) solid var(--border);
+  background: var(--bg-subtle);
+}

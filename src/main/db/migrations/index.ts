@@ -3,6 +3,7 @@ import * as m001 from './001_init'
 import * as m002 from './002_message_read_at'
 import * as m003 from './003_message_deleted_at'
 import * as m004 from './004_resumes'
+import * as m005 from './005_call_debrief'
 
 export interface Migration {
   version: number
@@ -11,7 +12,7 @@ export interface Migration {
 }
 
 /** Ordered. Append new migrations; never renumber or edit a shipped one. */
-export const MIGRATIONS: readonly Migration[] = [m001, m002, m003, m004]
+export const MIGRATIONS: readonly Migration[] = [m001, m002, m003, m004, m005]
 
 export const LATEST_VERSION = MIGRATIONS.reduce((max, m) => Math.max(max, m.version), 0)
 

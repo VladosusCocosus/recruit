@@ -71,6 +71,9 @@ export type {
   SegmentedProps
 } from './Field'
 
+export { Modal } from './Modal'
+export type { ModalProps } from './Modal'
+
 export { RunButton } from './RunButton'
 export type { RunButtonProps } from './RunButton'
 

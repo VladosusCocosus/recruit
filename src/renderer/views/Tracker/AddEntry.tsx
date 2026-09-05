@@ -1,15 +1,16 @@
 /**
- * Inline composers for the two manual timeline actions: "Add note" and "Add event".
- * Inline rather than modal — the timeline stays on screen while you write.
+ * Inline composers for the manual timeline actions: "Add note", "Add event" and
+ * "Log a call". Inline rather than modal — the timeline stays on screen while you write.
  */
 
 import { useState } from 'react'
 import { Button, Field, FieldRow, Select, TextInput } from '@renderer/components'
 import type { JSX } from 'react'
 import type { TimelineEventInput } from '@shared/types'
+import { LogCall } from './LogCall'
 import { fromLocalInputValue, nowIso, toLocalInputValue } from './format'
 
-type Mode = 'none' | 'note' | 'event'
+type Mode = 'none' | 'note' | 'event' | 'call'
 
 export type NewEntry = Omit<TimelineEventInput, 'itemId'>
 
@@ -181,7 +182,14 @@ function EventForm({
   )
 }
 
-export function AddEntry({ onAdd }: { onAdd: (entry: NewEntry) => void }): JSX.Element {
+export function AddEntry({
+  onAdd,
+  contactName
+}: {
+  onAdd: (entry: NewEntry) => void
+  /** Seeds "Log a call" with the recruiter already on the application. */
+  contactName?: string | null
+}): JSX.Element {
   const [mode, setMode] = useState<Mode>('none')
   const close = (): void => setMode('none')
   const submit = (entry: NewEntry): void => {
@@ -191,6 +199,8 @@ export function AddEntry({ onAdd }: { onAdd: (entry: NewEntry) => void }): JSX.E
 
   if (mode === 'note') return <NoteForm onSubmit={submit} onCancel={close} />
   if (mode === 'event') return <EventForm onSubmit={submit} onCancel={close} />
+  if (mode === 'call')
+    return <LogCall onSubmit={submit} onCancel={close} defaultWith={contactName} />
 
   return (
     <div className="row add-entry-actions">
@@ -199,6 +209,9 @@ export function AddEntry({ onAdd }: { onAdd: (entry: NewEntry) => void }): JSX.E
       </Button>
       <Button size="sm" variant="outline" icon="calendar" onClick={() => setMode('event')}>
         Add event
+      </Button>
+      <Button size="sm" variant="outline" icon="clock" onClick={() => setMode('call')}>
+        Log a call
       </Button>
       <span className="tertiary add-entry-hint">Manual entries are marked as yours.</span>
     </div>

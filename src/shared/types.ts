@@ -29,6 +29,34 @@ export type DescriptionSource = 'agent' | 'user'
 export type TimelineEventKind = 'email' | 'status_change' | 'meeting' | 'note' | 'task'
 export type TimelineEventSource = 'agent' | 'user' | 'ics'
 
+/** What kind of conversation a logged call was. */
+export type CallType = 'recruiter_screen' | 'technical' | 'hiring_manager' | 'onsite' | 'other'
+
+/** How the call went, as answered in the debrief. */
+export type CallOutcome = 'well' | 'mixed' | 'badly'
+
+export const CALL_TYPES = [
+  'recruiter_screen',
+  'technical',
+  'hiring_manager',
+  'onsite',
+  'other'
+] as const satisfies readonly CallType[]
+
+export const CALL_TYPE_LABEL: Record<CallType, string> = {
+  recruiter_screen: 'Recruiter screen',
+  technical: 'Technical screen',
+  hiring_manager: 'Hiring manager',
+  onsite: 'Onsite',
+  other: 'Call'
+}
+
+export const CALL_OUTCOME_LABEL: Record<CallOutcome, string> = {
+  well: 'Went well',
+  mixed: 'Mixed',
+  badly: 'Went badly'
+}
+
 export type ProposalKind =
   | 'create_item'
   | 'update_item'
@@ -381,6 +409,19 @@ export interface TimelineEvent {
   source: TimelineEventSource
   /** Set when a newer .ics SEQUENCE replaced this event. */
   supersededBy: number | null
+  /**
+   * Set only on a meeting logged as a call. Null on every other event, including
+   * meetings from Add event and parsed .ics invites, which are never debriefed.
+   */
+  callType: CallType | null
+  /** Who the call was with. Seeded from the item's contact. */
+  callWith: string | null
+  /** How it went. Null while the debrief is unanswered, and after a skip. */
+  outcome: CallOutcome | null
+  /** When the debrief was answered or skipped. */
+  debriefedAt: string | null
+  /** While set and in the future, the debrief is pending but not surfaced. */
+  snoozeUntil: string | null
   createdAt: string
 }
 
@@ -399,11 +440,33 @@ export interface TimelineEventInput {
   icsUid?: string | null
   icsSequence?: number | null
   source?: TimelineEventSource
+  callType?: CallType | null
+  callWith?: string | null
 }
 
 /** "Up next" row: a future event plus just enough of its item to render. */
 export interface UpcomingEvent extends TimelineEvent {
   item: Pick<Item, 'id' | 'company' | 'role' | 'statusKey'>
+}
+
+/** A finished call still owing a debrief, with the item fields the form needs. */
+export interface PendingDebrief extends TimelineEvent {
+  item: Pick<Item, 'id' | 'company' | 'role' | 'statusKey' | 'contactName'>
+}
+
+/** A dated commitment from a debrief. Stored as a `task` timeline event. */
+export interface DebriefFollowUp {
+  title: string
+  dueAt: string
+}
+
+export interface CallDebriefInput {
+  eventId: number
+  outcome: CallOutcome
+  notes?: string | null
+  followUps?: DebriefFollowUp[]
+  /** Omit or null to save the debrief without a reminder. */
+  nudge?: DebriefFollowUp | null
 }
 
 /**
@@ -1024,6 +1087,16 @@ export interface RecruitApi {
   updateEvent(eventId: number, patch: Partial<TimelineEventInput>): Promise<TimelineEvent>
   deleteEvent(eventId: number): Promise<void>
 
+  // ── call debriefs ──────────────────────────────────────────────────
+  /** Calls that have finished, are past the grace period, and have not been answered. */
+  listPendingDebriefs(): Promise<PendingDebrief[]>
+  /** Stamps the call and appends the note, the follow-ups and the nudge in one transaction. */
+  saveDebrief(input: CallDebriefInput): Promise<void>
+  /** Holds the debrief back until `untilIso`. */
+  snoozeDebrief(eventId: number, untilIso: string): Promise<void>
+  /** Marks the debrief answered with no outcome. */
+  skipDebrief(eventId: number): Promise<void>
+
   // ── review queue ──────────────────────────────────────────────────────────
   listProposals(query?: ProposalQuery): Promise<ProposalCard[]>
   acceptProposal(proposalId: number): Promise<ProposalDecisionResult>
@@ -1116,6 +1189,10 @@ export const IPC_METHODS = [
   'addEvent',
   'updateEvent',
   'deleteEvent',
+  'listPendingDebriefs',
+  'saveDebrief',
+  'snoozeDebrief',
+  'skipDebrief',
   'listProposals',
   'acceptProposal',
   'rejectProposal',

@@ -16,7 +16,13 @@ export interface UpNextViewProps extends ViewProps {
  * Registry entry for NavKey 'upnext'. Everything real lives in UpNext; this only adapts the
  * shell's ViewProps to it.
  */
-export default function UpNextView({ navigate, onOpenItem, limit }: UpNextViewProps): JSX.Element {
+export default function UpNextView({
+  navigate,
+  onOpenItem,
+  limit,
+  pendingDebriefs,
+  openDebrief
+}: UpNextViewProps): JSX.Element {
   const openItem = useCallback(
     (itemId: number) => {
       if (onOpenItem) onOpenItem(itemId)
@@ -25,7 +31,14 @@ export default function UpNextView({ navigate, onOpenItem, limit }: UpNextViewPr
     [navigate, onOpenItem]
   )
 
-  return <UpNext onOpenItem={openItem} limit={limit} />
+  return (
+    <UpNext
+      onOpenItem={openItem}
+      limit={limit}
+      pendingDebriefs={pendingDebriefs}
+      onOpenDebrief={openDebrief}
+    />
+  )
 }
 
 export { UpNextView }
