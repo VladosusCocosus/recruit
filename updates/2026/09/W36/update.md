@@ -17,7 +17,15 @@ with it. Files are copied into Jobbox's own storage, so renaming or moving the o
 on disk does not break the record.
 
 Applications still sitting at **Saved** stay quiet — you have not applied yet, so there is
-nothing to record.
+nothing to record. Ones you have already closed are still asked, since you applied before
+they closed. And **Skip for now** is a real answer rather than a way of dismissing the
+question: the chip stops asking about that application. Reopen the picker and choose **Ask
+about this one again** if you change your mind.
+
+Removing a resume from the library takes it out of the picker without touching the
+applications that were sent with it. None of this reaches the agent either — resumes are
+not part of what it reads when it goes through your mail, and it has no way to propose one
+for you. Recording what went out stays yours.
 
 ## Jobbox asks how your calls went
 
