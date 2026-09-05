@@ -26,6 +26,9 @@ export type CloseReason = 'rejected' | 'withdrawn' | 'accepted' | 'ghosted'
 export type WorkMode = 'onsite' | 'hybrid' | 'remote'
 export type DescriptionSource = 'agent' | 'user'
 
+/** Where an item's verbatim job description came from. */
+export type JobDescriptionSource = 'pasted' | 'url' | 'email'
+
 export type TimelineEventKind = 'email' | 'status_change' | 'meeting' | 'note' | 'task'
 export type TimelineEventSource = 'agent' | 'user' | 'ics'
 
@@ -65,8 +68,15 @@ export type ProposalKind =
   | 'link_message'
 export type ProposalState = 'pending' | 'accepted' | 'rejected' | 'superseded'
 
-export type AgentRunKind = 'triage' | 'enrich'
+export type AgentRunKind = 'triage' | 'enrich' | 'tailor'
 export type AgentRunState = 'starting' | 'running' | 'finished' | 'error' | 'stopped'
+
+/** Run-kind copy for the review queue and the run history. */
+export const AGENT_RUN_KIND_LABEL: Record<AgentRunKind, string> = {
+  triage: 'Triage run',
+  enrich: 'Enrich run',
+  tailor: 'Tailor run'
+}
 
 /**
  * Which CLI the agent bridge spawns. Both run as a subprocess on the user's own
@@ -274,6 +284,30 @@ export interface Resume {
   archivedAt: string | null
   /** Applications pointing at this resume. */
   usageCount: number
+  /** Set on a resume the apply flow rendered. Null on one the user uploaded. */
+  derivedFromMasterId: number | null
+}
+
+/**
+ * A resume in markdown, the source the apply flow tailors from.
+ *
+ * Deliberately not a row in `resumes`: that table records files that were SENT, keyed by
+ * content hash and never rewritten, whereas a master is edited in place. The two are
+ * linked one way, by `Resume.derivedFromMasterId`.
+ */
+export interface ResumeMaster {
+  id: number
+  label: string
+  contentMd: string
+  isDefault: boolean
+  createdAt: string
+  updatedAt: string
+  archivedAt: string | null
+}
+
+export interface ResumeMasterInput {
+  label: string
+  contentMd: string
 }
 
 /** Extensions the resume file dialog accepts. */
@@ -328,6 +362,13 @@ export interface Item {
   resumeId: number | null
   /** Set when the resume question was dismissed without an answer. */
   resumeSkippedAt: string | null
+  /**
+   * The job description, verbatim. Distinct from `descriptionMd`, which is a short brief
+   * on the company that the enrich run owns and overwrites.
+   */
+  jdMd: string | null
+  jdSource: JobDescriptionSource | null
+  jdUpdatedAt: string | null
   createdAt: string
   updatedAt: string
   archivedAt: string | null
@@ -369,6 +410,8 @@ export interface ItemInput {
   statusKey?: string
   descriptionMd?: string | null
   descriptionSource?: DescriptionSource | null
+  jdMd?: string | null
+  jdSource?: JobDescriptionSource | null
   contactName?: string | null
   contactEmail?: string | null
 }
@@ -698,8 +741,76 @@ export interface StartRunInput {
   company?: string
   /** enrich only — where the returned description lands once accepted. */
   itemId?: number
+  /** tailor only — a pasted job description, or a single http(s) URL to fetch. */
+  jobInput?: string
+  /** tailor only — the master resume to tailor. */
+  masterId?: number
   /** Overrides AppSettings.model for this run. */
   model?: string
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * apply flow — what a tailor run returns
+ *
+ * The run does not rewrite the resume. It returns REPLACEMENTS, so the review screen can
+ * show each one with its reason and the user can take a subset. The final document is
+ * built locally by applying the accepted changes to the master.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+export interface TailorChange {
+  /** Which part of the resume this touches. Groups the review rows. */
+  section: string
+  /** Text in the master this replaces, verbatim. Empty string for an insertion. */
+  before: string
+  /** What it becomes. Empty string for a deletion. */
+  after: string
+  /** One sentence naming the evidence in the job description. */
+  reason: string
+}
+
+/** Something the job description asks for that the master resume does not show. */
+export interface TailorGap {
+  requirement: string
+  note: string
+}
+
+export interface TailorResult {
+  company: string | null
+  role: string | null
+  location: string | null
+  workMode: WorkMode | null
+  /** The job description the run worked from — fetched text when the input was a URL. */
+  jdMd: string
+  changes: TailorChange[]
+  gaps: TailorGap[]
+  /** The cover-letter seam. Always null in v1. */
+  coverLetterMd: string | null
+}
+
+/** One accepted change that could not be located in the master. */
+export interface UnappliedChange {
+  change: TailorChange
+  reason: 'not_found' | 'ambiguous'
+}
+
+export interface AppliedResume {
+  markdown: string
+  applied: TailorChange[]
+  unapplied: UnappliedChange[]
+}
+
+/** Everything the commit step needs. The renderer has already resolved the diff. */
+export interface ApplyDraftInput {
+  masterId: number
+  /** The finished resume, after the accepted changes were applied. */
+  resumeMd: string
+  company: string
+  role: string | null
+  location: string | null
+  workMode: WorkMode | null
+  jobUrl: string | null
+  jdMd: string
+  jdSource: JobDescriptionSource
 }
 
 /** Live state pushed to the toolbar RUN button while a run is in flight. */
@@ -1002,6 +1113,7 @@ export interface RecruitEvents {
   mailChanged: { accountId: number; newMessages: number; newCandidates: number }
   itemsChanged: { itemIds: number[] }
   resumesChanged: { resumes: Resume[] }
+  resumeMastersChanged: { masters: ResumeMaster[] }
   settingsChanged: AppSettings
   updateAvailable: UpdateStatus
 }
@@ -1080,6 +1192,19 @@ export interface RecruitApi {
   setItemResume(itemId: number, resumeId: number | null): Promise<Item>
   /** Dismisses the resume question for an item. Pass false to ask again. */
   skipItemResume(itemId: number, skipped: boolean): Promise<Item>
+
+  // ── resume masters + apply ────────────────────────────────────────────────
+  listResumeMasters(): Promise<ResumeMaster[]>
+  createResumeMaster(input: ResumeMasterInput): Promise<ResumeMaster>
+  updateResumeMaster(masterId: number, patch: Partial<ResumeMasterInput>): Promise<ResumeMaster>
+  setDefaultResumeMaster(masterId: number): Promise<ResumeMaster[]>
+  archiveResumeMaster(masterId: number): Promise<ResumeMaster[]>
+  /**
+   * Commits an apply draft: renders the resume to PDF, files it as a variant, creates the
+   * application at Applied and attaches the rendered file. One transaction from the
+   * renderer's point of view — either you have an application or you have an error.
+   */
+  applyDraft(input: ApplyDraftInput): Promise<Item>
 
   // ── timeline ──────────────────────────────────────────────────────────────
   listUpcomingEvents(limit?: number): Promise<UpcomingEvent[]>
@@ -1185,6 +1310,12 @@ export const IPC_METHODS = [
   'revealResume',
   'setItemResume',
   'skipItemResume',
+  'listResumeMasters',
+  'createResumeMaster',
+  'updateResumeMaster',
+  'setDefaultResumeMaster',
+  'archiveResumeMaster',
+  'applyDraft',
   'listUpcomingEvents',
   'addEvent',
   'updateEvent',
@@ -1217,6 +1348,7 @@ export const EVENT_NAMES = [
   'mailChanged',
   'itemsChanged',
   'resumesChanged',
+  'resumeMastersChanged',
   'settingsChanged',
   'updateAvailable'
 ] as const satisfies readonly RecruitEventName[]
