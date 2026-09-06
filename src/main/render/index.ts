@@ -37,46 +37,81 @@ const PRINT_CSS = `
 
 html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
+:root {
+  --sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Helvetica,
+    Arial, sans-serif;
+}
+
 body {
   margin: 0;
   background: #ffffff;
-  color: #111111;
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Helvetica,
-    Arial, sans-serif;
+  color: #1a1a1c;
+  font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;
   font-size: 10.5pt;
-  line-height: 1.34;
+  line-height: 1.44;
   -webkit-font-smoothing: antialiased;
   overflow-wrap: break-word;
+  orphans: 2;
+  widows: 2;
 }
 
-h1, h2, h3, h4, h5, h6 {
+h1, h2, h3, h4 {
   margin: 0;
   font-weight: 600;
   break-after: avoid;
   page-break-after: avoid;
 }
 
-h1 { font-size: 18pt; letter-spacing: -0.01em; line-height: 1.15; }
+h1 { font-size: 22pt; letter-spacing: -0.005em; line-height: 1.12; }
 h2 {
-  margin-top: 13pt;
-  padding-bottom: 2pt;
-  border-bottom: 0.5pt solid #b8b8bd;
-  font-size: 11pt;
-  letter-spacing: 0.04em;
+  margin-top: 18pt;
+  padding-bottom: 3pt;
+  border-bottom: 0.75pt solid #26262c;
+  font-family: var(--sans);
+  font-size: 8.25pt;
+  font-weight: 700;
+  letter-spacing: 0.13em;
   text-transform: uppercase;
+  color: #3a3a42;
 }
-h3 { margin-top: 9pt; font-size: 10.5pt; }
-h4, h5, h6 { margin-top: 8pt; font-size: 10pt; }
+h3 { margin-top: 12pt; font-size: 11pt; }
+h4 { margin-top: 8pt; font-size: 10pt; }
+h2 + h3 { margin-top: 7pt; }
 
-h1 + p, h2 + p, h3 + p, h1 + ul, h2 + ul, h3 + ul { margin-top: 4pt; }
+h1 + p, h2 + p, h1 + ul, h2 + ul, h3 + ul { margin-top: 5pt; }
+
+/** The contact line: the paragraph directly under the name. */
+.markdown > h1 + p {
+  margin-top: 6pt;
+  font-family: var(--sans);
+  font-size: 9.5pt;
+  letter-spacing: 0.015em;
+  color: #4c4c55;
+}
+
+/** A role's meta line: the paragraph between its heading and its bullets. */
+h3 + p {
+  margin-top: 2pt;
+  break-after: avoid;
+  page-break-after: avoid;
+}
+h3 + p em {
+  font-family: var(--sans);
+  font-style: normal;
+  font-size: 8.75pt;
+  letter-spacing: 0.015em;
+  color: #6a6a74;
+}
+h3 + p + ul { margin-top: 5pt; }
 
 .markdown > :first-child { margin-top: 0; }
 
-p { margin: 4pt 0 0; }
+p { margin: 5pt 0 0; }
 
-ul, ol { margin: 4pt 0 0; padding-left: 14pt; }
-li { margin: 0 0 2pt; break-inside: avoid; page-break-inside: avoid; }
-li > ul, li > ol { margin-top: 2pt; }
+ul, ol { margin: 5pt 0 0; padding-left: 13pt; }
+li { margin: 0 0 3.5pt; break-inside: avoid; page-break-inside: avoid; }
+li::marker { color: #9a9aa2; }
+li > ul, li > ol { margin-top: 2.5pt; }
 
 strong { font-weight: 600; }
 em { font-style: italic; }
@@ -105,13 +140,7 @@ blockquote {
   color: #3c3c43;
 }
 
-hr { margin: 9pt 0; border: 0; border-top: 0.5pt solid #c8c8cd; }
-
-table { width: 100%; border-collapse: collapse; margin-top: 5pt; font-size: 10pt; }
-th, td { padding: 2pt 4pt; text-align: left; vertical-align: top; }
-th { font-weight: 600; border-bottom: 0.5pt solid #c8c8cd; }
-
-img { max-width: 100%; }
+hr { margin: 10pt 0; border: 0; border-top: 0.5pt solid #c8c8cd; }
 `
 
 /** Wraps an HTML fragment in a self-contained print document. No network references. */
