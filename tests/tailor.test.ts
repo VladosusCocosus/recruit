@@ -162,7 +162,20 @@ describe('parseTailorResult', () => {
     expect(result?.gaps).toEqual([])
   })
 
-  it('always reports coverLetterMd as null', () => {
-    expect(parseTailorResult(fenced({ ...RESULT, cover_letter_md: 'Dear hiring manager' }))?.coverLetterMd).toBeNull()
+  it('reads the cover letter into coverLetterMd', () => {
+    const letter = 'Dear hiring manager,\n\nI have run three platform migrations.\n\nAlex'
+    expect(parseTailorResult(fenced({ ...RESULT, cover_letter_md: letter }))?.coverLetterMd).toBe(
+      letter
+    )
+  })
+
+  it('nulls a cover letter that is absent, blank, or not a string', () => {
+    expect(parseTailorResult(fenced(RESULT))?.coverLetterMd).toBeNull()
+    expect(parseTailorResult(fenced({ ...RESULT, cover_letter_md: null }))?.coverLetterMd).toBeNull()
+    expect(parseTailorResult(fenced({ ...RESULT, cover_letter_md: '' }))?.coverLetterMd).toBeNull()
+    expect(
+      parseTailorResult(fenced({ ...RESULT, cover_letter_md: '  \n\t ' }))?.coverLetterMd
+    ).toBeNull()
+    expect(parseTailorResult(fenced({ ...RESULT, cover_letter_md: 42 }))?.coverLetterMd).toBeNull()
   })
 })
