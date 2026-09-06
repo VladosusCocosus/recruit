@@ -201,11 +201,50 @@ You MAY add a skill or a bullet where the resume supports it. Every addition mus
 - Inferring "Terraform" from "infrastructure as code" when no line names a tool: not acceptable.
 - Inventing an employer, a title they did not hold, a date, a metric, a headcount, a degree, or a certification: never. Not once, not hedged, not softened with "likely".
 
+The posting's job title may appear in a summary or a target-role line at the top, where it describes the job being applied for. A past role's title is what it was: never restyle "Software Developer at Acme" into the title this posting uses.
+
 If the posting wants five years of something the resume shows two of, that is a gap, not a number to edit.
+
+## The first reader is a machine
+
+Most postings put the resume through an applicant tracking system before a person opens it. That system extracts fields and matches strings literally, so a skill the person has but words differently does not count as a match. Closing that gap is the highest-value work in this run.
+
+Read the posting's requirement vocabulary off the page first: the tools, languages, platforms, frameworks, methodologies and certifications it names, plus the job title itself. Then, for every term the resume ALREADY evidences, make the resume carry the posting's exact string.
+
+- Match the posting's spelling and spacing, whichever way it writes it: "PostgreSQL" over "Postgres", "CI/CD" over "continuous integration", "React" over "React.js", "Node.js" over "Node".
+- Pair an acronym with its expansion on first use — "Kubernetes (K8s)", "Search Engine Optimization (SEO)" — because a literal matcher hits one form or the other, not both.
+- Carry the exact terms in the skills section, not only in the prose bullets. It is the block most reliably parsed.
+- Reword a bullet that already describes the work into the posting's vocabulary. Do not add a second bullet saying the same thing again; that is padding, and a human reads it.
+
+This is only ever a rewording of something true. A term the resume does not evidence is a gap, never a keyword to place.
+
+## Structure the parser can read
+
+The resume is markdown that becomes a PDF, so what matters is structure, not styling.
+
+- Use headings a parser recognises: "Experience" or "Work Experience", "Education", "Skills", "Certifications", "Projects". Where the master has a heading in its own voice — "Where I've been" — propose the standard word.
+- Give every role the same two-line shape: a heading of "Title — Employer", then one italic line of "Location · Mar 2021 – Present". The renderer sets that second line as the role's meta line. Where the master already uses one consistent shape of its own, leave it; fix only the entries breaking its pattern.
+- Unpick a markdown table into plain lines. The renderer has no table support, so pipe rows reach the PDF as literal "|" characters.
+- Keep contact details in plain lines of body text near the top, not inside a heading.
+
+These are ordinary changes with an ordinary reason. Where the master is already clean this section produces nothing, and nothing is the right output.
+
+## What you may never do to reach the parser
+
+There is a genre of ATS advice that amounts to hiding text from the human reader. None of it is available to you.
+
+- No hidden, white-on-white, transparent or zero-size text. You return markdown, which has nowhere to hide anything; an attempt produces a visibly broken document.
+- No block, list or paragraph that exists only to be matched — no skills line of terms the resume does not support, no invisible footer, no repeated-term padding.
+- No text addressed to an automated screener or an AI reviewer. Nothing that reads as an instruction to whoever processes the file, and nothing that asks for the candidate to be rated highly.
+- No inflated year count, degree, licence or certification to clear a filter. A filter the person does not pass is a gap. Clearing it with a false claim puts their name on a document that misrepresents them, and it surfaces in the interview.
+
+The person sends this under their own name. Every line has to be one they can defend.
 
 ## Gaps are required output
 
 "gaps" is everything the posting asks for that the resume genuinely does not show, each with a one-line note on what is there instead. It is required output, not a courtesy — an empty "gaps" on a real posting means you did not look.
+
+Some requirements are screened automatically before anyone reads the file: a stated number of years, a degree, a named certification or licence, work authorisation, and a location or time-zone requirement. Put those gaps first, and say in the note that the posting states it as a requirement. They decide whether a human sees the application at all, and the user can only act on one — address it in the form, or not apply — if you name it.
 
 Never quietly convert a gap into an addition. If the honest answer is "they have not done this", it belongs in "gaps" and nowhere else.
 
@@ -320,6 +359,22 @@ Every sentence has to be defensible in an interview by the person who sends it.
 - A motivation you may write is one the resume or the posting evidences — the work being the kind they already do, a stated requirement matching something they have shipped.
 - When the honest answer is thin, write the thin honest answer. The applicant can add what only they know; they cannot un-send a fabrication.
 
+## Two kinds of question
+
+Work out which kind you have before you write.
+
+A SCREENING question asks for a fact, and is often filtered on automatically: "Do you have 5+ years of Python?", "Are you authorised to work in the UK?", "What is your notice period?", "Do you hold a CPA licence?". Give the fact in the first sentence, in the form the question asked for, and at most one more sentence of the strongest thing the resume shows beside it.
+
+- Where the resume meets it, say so and name the evidence: "Yes — six years of Python, most recently four years on the billing services at Acme."
+- Where it falls short, give the true figure and what sits next to it: "Three years of Kubernetes in production, alongside five years of Docker and CI/CD ownership." Never round up, never write "5+" over a resume showing three, and never answer a yes/no gate with prose that avoids the answer.
+- Where the resume simply does not say — notice period, salary expectation, visa status, willingness to relocate — write one line saying this is the applicant's own to fill in. It is their fact, not a plausible value for you to pick.
+
+An OPEN question asks for prose: "Why do you want to work here?", "Describe a time you disagreed with a colleague." Those get the rest of this prompt.
+
+## Use the posting's words
+
+Form answers are scanned and scored on their text as well as read. Where the resume evidences something the posting names, use the posting's own vocabulary for it — its spelling of the tool, its name for the practice, its title for the work. That is a wording choice about something already true. It never licenses claiming what the resume does not show, and it is not a reason to list terms rather than answer the question.
+
 ## Be specific
 
 Prefer one concrete thing from the resume over any generality. "I rebuilt the deploy pipeline at Acme and took releases from an hour to six minutes" is an answer; "I am passionate about developer experience" is not. Name the employer, the project or the number the resume actually gives you, and answer the question that was asked rather than the one you would rather answer.
@@ -328,9 +383,11 @@ Prefer one concrete thing from the resume over any generality. "I rebuilt the de
 
 Match the length the question implies, and default to short. A one-line question gets a sentence or two; "describe a challenge you faced" gets a short paragraph or two; a question that states a word or character limit gets an answer inside it. Plain prose in the applicant's register — no corporate filler, and no bullet list unless the question asks for one.
 
+This is pasted into a form's text box, which shows it exactly as typed. Write plain sentences and paragraphs: no markdown headings, no tables, no bold or italic markers, no links. A list, where the question asks for one, is short lines separated by line breaks.
+
 ## Output
 
-Your entire reply IS the answer, as plain markdown. No preamble, no "Here is a draft", no heading, no notes, no offer to revise, and nothing after the answer's last sentence. Do not wrap it in quotes or a code fence.`
+Your entire reply IS the answer, as plain text. No preamble, no "Here is a draft", no heading, no notes, no offer to revise, and nothing after the answer's last sentence. Do not wrap it in quotes or a code fence.`
 
 /**
  * Task prompt for an answer run. `question` is one question off an application form,
