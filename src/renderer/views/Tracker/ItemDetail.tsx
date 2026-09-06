@@ -24,8 +24,10 @@ import {
 } from '@renderer/components'
 import type { JSX } from 'react'
 import type { ItemDetail as ItemDetailData, ItemPatch, WorkMode } from '@shared/types'
+import { Answers, useAnswers } from '../Answers'
 import { AddEntry } from './AddEntry'
 import { Description } from './Description'
+import { ItemDocuments } from './ItemDocuments'
 import { ItemResume } from './ItemResume'
 import { closeReasonLabel, formatDateTime, lastMessageAt, staleness } from './format'
 import { StatusSelect } from './StatusSelect'
@@ -153,6 +155,24 @@ function FieldsEditor({
         </Button>
       </div>
     </form>
+  )
+}
+
+/** The questions section of the inspector, mounted once the item has loaded. */
+function ItemAnswers({ itemId }: { itemId: number }): JSX.Element {
+  const store = useAnswers({ kind: 'item', itemId })
+  return (
+    <section className="detail-section">
+      <div className="detail-section-head">
+        <h2 className="detail-section-title">Application questions</h2>
+        <span className="tertiary">
+          {store.cards.length > 0
+            ? pluralize(store.cards.length, 'question')
+            : 'Asked by the form'}
+        </span>
+      </div>
+      <Answers store={store} />
+    </section>
   )
 }
 
@@ -292,6 +312,10 @@ export function ItemDetail({
           statuses={statusIndex.statuses}
           onOpenResumeSettings={onOpenResumeSettings}
         />
+
+        <ItemDocuments item={detail} />
+
+        <ItemAnswers itemId={detail.id} />
 
         <section className="detail-section">
           <div className="detail-section-head">

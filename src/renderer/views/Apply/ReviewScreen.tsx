@@ -1,14 +1,20 @@
 /**
  * Screen 2: the tailored resume, before it becomes an application.
  *
- * Three regions — the extracted fields, the changes with a live preview of the document
- * they produce, and the gaps. The gap list is read-only: a gap is a fact about the resume,
- * not a pending edit, and nothing on it can be turned into one.
+ * Five regions — the extracted fields, the changes with a live preview of the document
+ * they produce, the cover letter, the form's questions, and the gaps. The gap list is
+ * read-only: a gap is a fact about the resume, not a pending edit, and nothing on it can
+ * be turned into one.
+ *
+ * The cover letter and the questions are disclosures, shut on arrival, each with a
+ * summary line naming what is inside. Only the diff is at full height.
  */
 
+import { useState } from 'react'
 import { Field, Icon, Markdown, Select, TextInput, pluralize } from '@renderer/components'
-import type { JSX } from 'react'
+import type { JSX, ReactNode } from 'react'
 import type { AppliedResume, Resume, TailorResult, WorkMode } from '@shared/types'
+import { Answers, type AnswersStore } from '../Answers'
 import { ChangeList } from './ChangeList'
 import type { ApplyFields } from './useApply'
 
@@ -24,6 +30,14 @@ const UNAPPLIED_REASON: Record<'not_found' | 'ambiguous', string> = {
   ambiguous: 'the text it replaces appears more than once'
 }
 
+const COVER_LETTER_PLACEHOLDER =
+  'The letter this application is sent with. Markdown; edit it as freely as you like.'
+
+function countWords(text: string): number {
+  const trimmed = text.trim()
+  return trimmed === '' ? 0 : trimmed.split(/\s+/).length
+}
+
 interface Props {
   result: TailorResult
   resume: Resume
@@ -34,6 +48,11 @@ interface Props {
   onToggle: (index: number, accepted: boolean) => void
   onAcceptAll: () => void
   onRejectAll: () => void
+  /** False when there is no template in Settings, so no letter was written. */
+  hasCoverLetter: boolean
+  coverLetterMd: string
+  onCoverLetterChange: (markdown: string) => void
+  answers: AnswersStore
   disabled: boolean
 }
 
@@ -47,6 +66,10 @@ export function ReviewScreen({
   onToggle,
   onAcceptAll,
   onRejectAll,
+  hasCoverLetter,
+  coverLetterMd,
+  onCoverLetterChange,
+  answers,
   disabled
 }: Props): JSX.Element {
   const unapplied = applied?.unapplied ?? []
@@ -138,6 +161,50 @@ export function ReviewScreen({
         </div>
       </section>
 
+      <Disclosure
+        title="Cover letter"
+        summary={
+          !hasCoverLetter
+            ? 'No template — none will be sent'
+            : coverLetterMd.trim() === ''
+              ? 'Cleared — none will be sent'
+              : `${pluralize(countWords(coverLetterMd), 'word')}, adapted for this job`
+        }
+      >
+        {hasCoverLetter ? (
+          <>
+            <textarea
+              className="input ap-letter"
+              value={coverLetterMd}
+              placeholder={COVER_LETTER_PLACEHOLDER}
+              aria-label="Cover letter in markdown"
+              disabled={disabled}
+              onChange={(e) => onCoverLetterChange(e.currentTarget.value)}
+            />
+            <p className="ap-note tertiary">
+              Your template, rewritten for {fields.company.trim() || 'this company'}. What is
+              in the box is what gets filed — clear it to send no letter at all.
+            </p>
+          </>
+        ) : (
+          <p className="ap-note tertiary">
+            No cover letter was written, because there is no template to adapt. Write one
+            under Settings → Resume and the next tailor run will adapt it for the job.
+          </p>
+        )}
+      </Disclosure>
+
+      <Disclosure
+        title="Questions on the form"
+        summary={
+          answers.cards.length === 0
+            ? 'None added'
+            : pluralize(answers.cards.length, 'question')
+        }
+      >
+        <Answers store={answers} disabled={disabled} />
+      </Disclosure>
+
       {result.gaps.length > 0 ? (
         <section className="ap-section">
           <div className="ap-section-head">
@@ -159,5 +226,36 @@ export function ReviewScreen({
         </section>
       ) : null}
     </div>
+  )
+}
+
+/* ── a secondary region, shut until it is wanted ──────────────────────────── */
+
+function Disclosure({
+  title,
+  summary,
+  children
+}: {
+  title: string
+  /** One line naming what is inside, shown while the section is shut. */
+  summary: string
+  children: ReactNode
+}): JSX.Element {
+  const [open, setOpen] = useState(false)
+  return (
+    <section className={'ap-section ap-fold' + (open ? ' is-open' : '')}>
+      {/* A <button> takes phrasing content only. */}
+      <button
+        type="button"
+        className="ap-fold-head"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <Icon name="chevronRight" size={11} className="ap-fold-chevron" />
+        <span className="ap-section-title">{title}</span>
+        <span className="ap-section-note tertiary truncate">{summary}</span>
+      </button>
+      {open ? <div className="ap-fold-body">{children}</div> : null}
+    </section>
   )
 }

@@ -4,11 +4,14 @@
  * Mounts its own copy of the picker menu, so the inspector answers the question without
  * going back to the board. Renders nothing at all for an application that has not reached
  * Applied — there is no resume to have sent yet.
+ *
+ * The file itself is <ItemDocuments>, below: this section names the resume, that one hands
+ * it over.
  */
 
 import { useRef, useState, type JSX } from 'react'
 import { isEditableResume, type ItemSummary, type Status } from '@shared/types'
-import { Button, Icon } from '@renderer/components'
+import { Icon } from '@renderer/components'
 import { isAppliedOrLater, resumeAnswer } from '@shared/resume'
 import { ResumeMenu, resumeMenuTargetFromElement, type ResumeMenuTarget } from './ResumeMenu'
 import { useResumePicker } from './useResumePicker'
@@ -50,24 +53,7 @@ export function ItemResume({
               <Icon name="doc" size={12} />
               {name}
             </span>
-            {renderable ? (
-              <>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => picker.actions.onOpenPdf(resume.id)}
-                >
-                  Open
-                </Button>
-                <Button
-                  size="sm"
-                  variant="subtle"
-                  onClick={() => picker.actions.onSavePdf(resume.id)}
-                >
-                  Save PDF…
-                </Button>
-              </>
-            ) : (
+            {renderable ? null : (
               <span className="detail-resume-note tertiary">no longer stored</span>
             )}
           </>

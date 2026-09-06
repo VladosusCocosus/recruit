@@ -52,18 +52,20 @@ generic error.
 
 ### What each run kind can reach
 
-Three run kinds, isolated on purpose. Triage reads untrusted email, so it must have no way
+Four run kinds, isolated on purpose. Triage reads untrusted email, so it must have no way
 to send anything out; enrich reaches the web, so it must have no way to see anything
 private. Tailor is the exception to that rule and the one to understand before you use it:
-it holds your resume *and* reaches the web. See *The tailor run's exposure* below.
+it holds your resume *and* reaches the web. See *The tailor run's exposure* below. Answer is
+the most locked-down of the four — it holds private text like tailor, but has no way out at
+all.
 
-| | triage | enrich | tailor |
-|---|---|---|---|
-| tracker MCP tools | yes, allowlisted | **no server configured at all** | **no server configured at all** |
-| email | this run's allowlist only | never — input is a company name string | never |
-| web | Claude Code: no. Codex: **yes, see below** | yes — `WebSearch` + `WebFetch` | yes — `WebSearch` + `WebFetch` |
-| private data in context | this run's messages | none | **the resume being tailored** |
-| shell / files / subagents | no | no | no |
+| | triage | enrich | tailor | answer |
+|---|---|---|---|---|
+| tracker MCP tools | yes, allowlisted | **none configured** | **none configured** | **none configured** |
+| email | this run's allowlist only | never | never | never |
+| web | Claude Code: no. Codex: **yes, see below** | yes — `WebSearch` + `WebFetch` | yes — `WebSearch` + `WebFetch` | Claude Code: no. Codex: **yes, see below** |
+| private data in context | this run's messages | none — a company name string | **the resume being tailored** | **the resume and the job description** |
+| shell / files / subagents | no | no | no | no |
 
 On Claude Code that is `--tools ""` (no built-ins whatsoever) plus `--strict-mcp-config`.
 On Codex it is `--ignore-user-config` (so your own `~/.codex/config.toml` MCP servers are
@@ -125,22 +127,50 @@ accept, never from a rewritten copy the model returned. Alongside them is a **ga
 what the posting asks for that your resume does not show. Gaps are required output and are
 never quietly turned into additions.
 
-Accepting records the tailored markdown as its own resume, derived from the one it started
-from, creates the application at **Applied** with it attached, and then asks where to save
-the PDF — so the flow ends with the file you are about to upload, not just a tracker row.
-Cancel that save and the application is still filed; the modal stays put with **Save PDF…**
-and **Open** rather than dropping you with no document. Either way the flow that writes the
-application is the same one that answers "which resume did I send".
+Accepting records the tailored markdown as its own resume, renders both documents to PDF and
+keeps them, creates the application at **Applied**, and then asks where to save the resume —
+so the flow ends with the file you are about to upload, not just a tracker row. Cancel that
+save and the application is still filed; the modal stays put with **Save PDF…** and **Open**
+rather than dropping you with no document. Either way the flow that writes the application
+is the same one that answers "which resume did I send".
+
+The application keeps both PDFs. Its **Documents** row has **Open**, **Save PDF…** and
+**Reveal in Finder** for the resume and the cover letter, so the copy you sent is retrievable
+long after. Editing that resume in Settings later does **not** rewrite them — the markdown is
+the living document, the stored PDF is what went out.
+
+### The cover letter
+
+**Settings → Resume** holds one cover-letter template in markdown. The tailor run adapts it
+to the posting in the same pass as the resume — same run, no extra wait — keeping your voice
+and structure while swapping in the company, the role and what the posting actually asks
+for. You edit it on the review screen before filing, and it is held to the same honesty rule
+as the resume: no claimed experience, motivation or connection the resume and posting do not
+support. **No template means no cover letter**, silently; nothing is invented from nothing.
+
+### Application questions
+
+Forms ask things a resume does not answer — "what appeals to you about this role", "describe
+a challenge you faced". Paste the question, on the review screen while applying or on the
+application afterwards, and an **answer** run drafts a reply from your resume and the job
+description. Edit it, and it is saved on the application with its question.
+
+Answer runs are the most constrained in the app: no tracker, no email and **no web**. They
+need none — the job description is already stored — so on Claude Code the run gets `--tools ""`,
+the same total lockout triage has. The draft is held to the same rule as everything else
+here: it uses what the resume and the posting support, prefers a concrete specific over a
+generality, and does not invent a project, a metric, or enthusiasm for a product you have
+never used.
 
 **Resumes are markdown**, and live in **Settings → Resume** — write one there or import a
 `.md` or `.txt` file. That is the one-time cost of this feature: a resume has to exist as
 text before anything can tailor it, and a PDF is bytes nobody can read. Apply never asks you
 to create one; with none it points you at Settings and does nothing else.
 
-**PDFs are rendered on demand, never stored.** Markdown → HTML → PDF inside Jobbox, from
-**Open** or **Save PDF…** wherever a resume appears. So every application you send looks the
-same, and the record of what you sent is the markdown itself rather than a file that could
-go missing.
+**Rendering is markdown → HTML → PDF inside Jobbox**, so every application you send looks the
+same. A resume sitting in the library renders on demand from **Open** or **Save PDF…**; the
+two documents an application was actually sent are rendered once at that moment and kept
+under `userData/documents`, so they stay exactly as they went out.
 
 Two limits worth stating plainly. **Jobbox does not submit anything** — mail is read-only
 and SMTP is unused, so you still apply on the company's own site with the PDF it produced.
@@ -240,6 +270,12 @@ in principle. Claude Code remains the default engine.
 
 Paste job descriptions you are willing to have a model read adversarially, and treat the
 resume as something that has been in a web-enabled context.
+
+**Answer runs are the counter-example**, and worth contrasting. They hold the same private
+text — the resume and the job description — but have no web, no tracker and no mail, so on
+Claude Code there is no egress path to reason about rather than one held shut by a prompt.
+That is possible only because the job description is already stored by then. Where a run can
+do its job without the web, it does not get the web.
 
 ## Known gaps
 

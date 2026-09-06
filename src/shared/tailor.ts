@@ -116,6 +116,6 @@ export function parseTailorResult(raw: string): TailorResult | null {
     jdMd: typeof object['jd_md'] === 'string' ? object['jd_md'] : '',
     changes: rows(object['changes'], toChange),
     gaps: rows(object['gaps'], toGap),
-    coverLetterMd: null
+    coverLetterMd: text(object['cover_letter_md'])
   }
 }

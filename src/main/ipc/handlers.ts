@@ -7,12 +7,15 @@
 import { app, nativeTheme, shell } from 'electron'
 import type {
   AgentRunSummary,
+  ApplicationDocumentKind,
   AppSettings,
+  Item,
   ProposalDecisionResult,
   Resume,
   StartRunInput
 } from '@shared/types'
 import * as db from '@main/db'
+import { renderDocumentPdf } from '@main/render'
 import * as resumes from '@main/resumes'
 import { sanitizeMessageBody } from '@main/mail/sanitize'
 import { getSettings, updateSettings } from '@main/settings'
@@ -44,6 +47,66 @@ function requireResume(resumeId: number): Resume {
   const resume = db.getResume(resumeId)
   if (!resume) throw new Error(`Resume ${resumeId} not found.`)
   return resume
+}
+
+/** The markdown of a resume, or an error naming the row that has none. */
+function requireResumeText(resume: Resume, what: string): string {
+  if (resume.contentMd === null) {
+    throw new Error(
+      `"${resume.label}" is a record of a file that is no longer stored, so ${what}.`
+    )
+  }
+  return resume.contentMd
+}
+
+function requireItem(itemId: number): Item {
+  const item = db.getItem(itemId)
+  if (!item) throw new Error(`Application ${itemId} not found.`)
+  return item
+}
+
+/** The app_kv key holding the cover letter a tailor run adapts. */
+const COVER_LETTER_TEMPLATE_KEY = 'cover_letter_template'
+
+/** The stored template. Empty string when there is none. */
+function coverLetterTemplate(): string {
+  const stored = db.kvGet<string>(COVER_LETTER_TEMPLATE_KEY, '')
+  return typeof stored === 'string' ? stored : ''
+}
+
+/** The same template as a tailor run takes it: the text, or null when it is blank. */
+function coverLetterTemplateForRun(): string | null {
+  const template = coverLetterTemplate()
+  return template.trim() === '' ? null : template
+}
+
+const DOCUMENT_LABEL: Record<ApplicationDocumentKind, string> = {
+  resume: 'resume',
+  cover_letter: 'cover letter'
+}
+
+/**
+ * The stored PDF an application was sent, and the name a "save a copy" dialog should
+ * offer. The path comes from the database — the renderer names an item and a kind.
+ */
+function itemDocument(
+  itemId: number,
+  kind: ApplicationDocumentKind
+): { path: string; defaultName: string } {
+  const item = requireItem(itemId)
+  const path =
+    kind === 'resume'
+      ? item.resumeId === null
+        ? null
+        : db.resumePdfPath(item.resumeId)
+      : db.itemCoverLetterPdfPath(itemId)
+
+  if (!path) {
+    throw new Error(`No ${DOCUMENT_LABEL[kind]} PDF is stored for the ${item.company} application.`)
+  }
+
+  const suffix = kind === 'resume' ? 'Resume' : 'Cover letter'
+  return { path, defaultName: `${item.company} — ${suffix}` }
 }
 
 function afterDecisions(results: ProposalDecisionResult[]): void {
@@ -268,6 +331,43 @@ export function registerIpcHandlers(services: AppServices): void {
 
   handle('saveResumePdf', (resumeId) => resumes.saveResumePdf(requireResume(resumeId)))
 
+  handle('getCoverLetterTemplate', async () => coverLetterTemplate())
+
+  handle('setCoverLetterTemplate', async (markdown) => {
+    db.kvSet(COVER_LETTER_TEMPLATE_KEY, markdown)
+  })
+
+  /* ── what an application was sent ───────────────────────────────────────── */
+
+  handle('openItemDocument', (itemId, kind) =>
+    resumes.openStoredPdf(itemDocument(itemId, kind).path)
+  )
+
+  handle('saveItemDocument', (itemId, kind) => {
+    const document = itemDocument(itemId, kind)
+    return resumes.saveStoredPdfAs(document.path, document.defaultName)
+  })
+
+  handle('revealItemDocument', async (itemId, kind) => {
+    resumes.revealStoredPdf(itemDocument(itemId, kind).path)
+  })
+
+  /* ── application questions ──────────────────────────────────────────────── */
+
+  handle('listItemAnswers', (itemId) => db.listItemAnswers(itemId))
+
+  handle('saveItemAnswer', async (input) => {
+    const answer = db.saveItemAnswer(input)
+    notifyItems([answer.itemId])
+    return answer
+  })
+
+  handle('deleteItemAnswer', async (answerId) => {
+    const answer = db.getItemAnswer(answerId)
+    db.deleteItemAnswer(answerId)
+    notifyItems([answer?.itemId])
+  })
+
   handle('setItemResume', async (itemId, resumeId) => {
     const item = db.setItemResume(itemId, resumeId)
     notifyItems([itemId])
@@ -281,23 +381,33 @@ export function registerIpcHandlers(services: AppServices): void {
     return item
   })
 
-  // The tailored markdown is filed as a resume derived from the one it started from.
-  // No PDF is written: @main/resumes renders one on demand.
-  handle('applyDraft', (input) => {
+  // The tailored markdown is filed as a resume derived from the one it started from. Both
+  // documents are rendered and stored as the copy that was sent, and every question the
+  // form asked is filed against the new application.
+  handle('applyDraft', async (input) => {
     const company = input.company.trim()
     if (!company) throw new Error('An application needs a company.')
     if (!input.resumeMd.trim()) throw new Error('The tailored resume is empty.')
 
     const source = requireResume(input.resumeId)
-    if (source.contentMd === null) {
-      throw new Error(`"${source.label}" is a record of a file that is no longer stored.`)
-    }
+    requireResumeText(source, 'there is nothing to apply with')
+
+    const label = `${source.label} — ${company}`
+    const coverLetterMd = input.coverLetterMd?.trim() ? input.coverLetterMd : null
+
+    const resumePdf = await renderDocumentPdf(input.resumeMd)
+    const coverLetterPdf = coverLetterMd ? await renderDocumentPdf(coverLetterMd) : null
+    const resumePdfPath = resumes.storeDocumentPdf(resumePdf, label)
+    const coverLetterPdfPath = coverLetterPdf
+      ? resumes.storeDocumentPdf(coverLetterPdf, `${company} — Cover letter`)
+      : null
 
     const resume = db.createResume({
-      label: `${source.label} — ${company}`,
+      label,
       contentMd: input.resumeMd,
       derivedFromId: source.id
     })
+    db.setResumePdf(resume.id, resumePdfPath)
 
     const created = db.createItem({
       company,
@@ -310,7 +420,13 @@ export function registerIpcHandlers(services: AppServices): void {
       source: 'apply',
       statusKey: 'applied'
     })
-    const item = db.setItemResume(created.id, resume.id)
+    db.setItemResume(created.id, resume.id)
+    const item = db.setItemCoverLetter(created.id, coverLetterMd, coverLetterPdfPath)
+
+    for (const entry of input.questions) {
+      if (!entry.question.trim()) continue
+      db.saveItemAnswer({ itemId: item.id, question: entry.question, answerMd: entry.answerMd })
+    }
 
     notifyItems([item.id])
     notifyResumes()
@@ -413,12 +529,33 @@ export function registerIpcHandlers(services: AppServices): void {
       if (!jobInput) throw new Error('A tailor run needs a job description or a link.')
       if (input.resumeId === undefined) throw new Error('A tailor run needs a resume.')
       const resume = requireResume(input.resumeId)
-      if (resume.contentMd === null) {
-        throw new Error(
-          `"${resume.label}" is a record of a file that is no longer stored, so it cannot be tailored.`
-        )
+      const resumeMd = requireResumeText(resume, 'it cannot be tailored')
+      const started = await runner.spawnTailorRun(
+        jobInput,
+        resumeMd,
+        coverLetterTemplateForRun(),
+        { model: input.model }
+      )
+      watchRun(started)
+      return runSummary(started.runId)
+    }
+
+    // An answer run files nothing either: its whole reply is the drafted answer, which
+    // the apply modal reads back with getRun.
+    if (input.kind === 'answer') {
+      const question = input.question?.trim()
+      if (!question) throw new Error('An answer run needs a question.')
+
+      const item = input.itemId === undefined ? null : requireItem(input.itemId)
+      const jdMd = item?.jdMd ?? input.jdMd ?? ''
+      const resumeId = item?.resumeId ?? input.resumeId
+      if (resumeId === undefined || resumeId === null) {
+        throw new Error('An answer run needs a resume.')
       }
-      const started = await runner.spawnTailorRun(jobInput, resume.contentMd, {
+      const resume = requireResume(resumeId)
+      const resumeMd = requireResumeText(resume, 'it cannot be used to draft an answer')
+
+      const started = await runner.spawnAnswerRun(question, jdMd, resumeMd, {
         model: input.model
       })
       watchRun(started)

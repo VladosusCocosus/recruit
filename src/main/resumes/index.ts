@@ -1,24 +1,42 @@
 /**
- * The resume file seam: reading a resume in from a text file, and handing one back out
- * as a PDF.
+ * The document file seam: reading a resume in from a text file, and handing a resume or a
+ * cover letter back out as a PDF.
  *
- * A resume is markdown in the database. Nothing is kept on disk: `@main/render` builds a
- * PDF on demand, and it lands in a temp file the OS opens or wherever the user saves it.
+ * Two paths out, for two kinds of document:
  *
- * Nothing here takes a path from the renderer. The PDF entry points take a `Resume`, and
- * the handler resolves the id — the same rule `revealDatabase` follows.
+ *   ON DEMAND — a library resume that was never sent. It is markdown in the database and
+ *   nothing else; `@main/render` builds a PDF each time, and it lands in a temp file the
+ *   OS opens or wherever the user saves it.
+ *
+ *   STORED — the resume and the cover letter an application was actually sent with. Those
+ *   renders live under `userData/documents`, and the database holds their paths, so what
+ *   was sent stays byte-for-byte what is on file.
+ *
+ * Nothing here takes a path from the renderer. The on-demand entry points take a `Resume`
+ * and the stored ones take a path the database gave the handler — the same rule
+ * `revealDatabase` follows.
  */
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { randomBytes } from 'node:crypto'
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, extname, join } from 'node:path'
-import { BrowserWindow, dialog, shell } from 'electron'
+import { app, BrowserWindow, dialog, shell } from 'electron'
 import {
   RESUME_MAX_BYTES,
   RESUME_TEXT_EXTENSIONS,
   type Resume,
   type ResumeInput
 } from '@shared/types'
-import { renderResumePdf } from '@main/render'
+import { renderDocumentPdf } from '@main/render'
 
 /** Filename without its extension, trimmed, falling back to the whole name. */
 function labelFor(filename: string): string {
@@ -87,9 +105,18 @@ export async function pickResumeText(): Promise<ResumeInput | null> {
   return { label: labelFor(basename(chosen)), contentMd }
 }
 
+/** The chosen path, or null when the user cancels. Presented as a sheet on the focused window. */
+async function askWhereToSave(options: Electron.SaveDialogOptions): Promise<string | null> {
+  const parent = BrowserWindow.getFocusedWindow()
+  const result = parent
+    ? await dialog.showSaveDialog(parent, options)
+    : await dialog.showSaveDialog(options)
+  return result.canceled || !result.filePath ? null : result.filePath
+}
+
 /** Renders a resume to a temp PDF and opens it in the OS default application. */
 export async function openResumePdf(resume: Resume): Promise<void> {
-  const pdf = await renderResumePdf(contentOf(resume))
+  const pdf = await renderDocumentPdf(contentOf(resume))
   const dir = mkdtempSync(join(tmpdir(), 'recruit-resume-'))
   const path = join(dir, `${filenameFor(resume.label)}.pdf`)
   writeFileSync(path, pdf, { mode: 0o600 })
@@ -103,21 +130,88 @@ export async function openResumePdf(resume: Resume): Promise<void> {
  * when the user cancels.
  */
 export async function saveResumePdf(resume: Resume): Promise<string | null> {
-  const pdf = await renderResumePdf(contentOf(resume))
+  const pdf = await renderDocumentPdf(contentOf(resume))
 
-  const options: Electron.SaveDialogOptions = {
+  const path = await askWhereToSave({
     title: 'Save resume as PDF',
     buttonLabel: 'Save',
     defaultPath: `${filenameFor(resume.label)}.pdf`,
     filters: [{ name: 'PDF', extensions: ['pdf'] }]
+  })
+
+  if (!path) return null
+  writeFileSync(path, pdf)
+  return path
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * stored documents — the renders an application was actually sent
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** `userData/documents`, created on first use. */
+function documentsDir(): string {
+  const dir = join(app.getPath('userData'), 'documents')
+  mkdirSync(dir, { recursive: true })
+  return dir
+}
+
+/**
+ * Writes a rendered PDF under `userData/documents` and returns its absolute path.
+ *
+ * The write is atomic: a temp file in the same directory, renamed into place. The
+ * filename is `name` plus a random suffix, so two applications to the same company get
+ * two files.
+ */
+export function storeDocumentPdf(pdf: Buffer, name: string): string {
+  const dir = documentsDir()
+  const stem = `${filenameFor(name)} ${randomBytes(6).toString('hex')}`
+  const path = join(dir, `${stem}.pdf`)
+  const temp = join(dir, `.${stem}.pdf.part`)
+
+  try {
+    writeFileSync(temp, pdf, { mode: 0o600 })
+    renameSync(temp, path)
+  } catch (error) {
+    rmSync(temp, { force: true })
+    throw error
   }
+  return path
+}
 
-  const parent = BrowserWindow.getFocusedWindow()
-  const result = parent
-    ? await dialog.showSaveDialog(parent, options)
-    : await dialog.showSaveDialog(options)
+/** The path, or a clear error naming the file that is gone. */
+function requireStored(path: string): string {
+  if (!existsSync(path)) {
+    throw new Error(`That PDF is no longer on disk: ${path}`)
+  }
+  return path
+}
 
-  if (result.canceled || !result.filePath) return null
-  writeFileSync(result.filePath, pdf)
-  return result.filePath
+/** Opens a stored PDF in the OS default application. */
+export async function openStoredPdf(path: string): Promise<void> {
+  const error = await shell.openPath(requireStored(path))
+  if (error) throw new Error(error)
+}
+
+/** Shows a stored PDF in Finder. */
+export function revealStoredPdf(path: string): void {
+  shell.showItemInFolder(requireStored(path))
+}
+
+/**
+ * Copies a stored PDF to where the user chooses. Returns the new path, or null when the
+ * user cancels.
+ */
+export async function saveStoredPdfAs(path: string, defaultName: string): Promise<string | null> {
+  requireStored(path)
+
+  const target = await askWhereToSave({
+    title: 'Save a copy as PDF',
+    buttonLabel: 'Save',
+    defaultPath: `${filenameFor(defaultName)}.pdf`,
+    filters: [{ name: 'PDF', extensions: ['pdf'] }]
+  })
+
+  if (!target) return null
+  copyFileSync(path, target)
+  return target
 }

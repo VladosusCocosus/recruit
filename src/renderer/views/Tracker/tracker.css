@@ -1033,3 +1033,84 @@
   font-size: var(--fs-xs);
   cursor: default;
 }
+
+/* ── documents (detail inspector) ──────────────────────────────────────────── */
+
+.detail-docs {
+  display: flex;
+  flex-direction: column;
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  overflow: hidden;
+}
+
+/* Two columns that wrap: the buttons drop under the name rather than squeezing it. */
+.detail-doc {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 11px;
+}
+
+.detail-doc + .detail-doc {
+  border-top: var(--hairline) solid var(--border);
+}
+
+.detail-doc-lead {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 140px;
+}
+
+.detail-doc-lead > svg {
+  align-self: center;
+}
+
+.detail-doc-label {
+  flex: 0 0 auto;
+  font-size: var(--fs-md);
+  font-weight: 500;
+}
+
+.detail-doc-name {
+  min-width: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+}
+
+.detail-doc-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.detail-doc-flag {
+  font-size: var(--fs-xs);
+}
+
+/* Full-width under both columns. */
+.detail-doc-note {
+  flex: 1 0 100%;
+  margin: 0;
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+}
+
+.detail-doc-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  padding: 7px 10px;
+  border-radius: var(--radius);
+  background: var(--danger-tint);
+  color: var(--danger);
+  font-size: var(--fs-sm);
+}

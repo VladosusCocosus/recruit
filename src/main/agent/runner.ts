@@ -11,12 +11,14 @@
  * back any environment that argv needs, read the output into an AgentEnvelope. Everything
  * below this line is engine-agnostic and runs identically for Claude Code and Codex.
  *
- * Three run kinds, deliberately non-overlapping:
+ * Four run kinds, deliberately non-overlapping:
  *   triage — tracker MCP tools and nothing else. Sees email; must not be able to send.
  *   enrich — web search, and an empty MCP config, so it cannot reach the tracker at all.
  *            Its only input is a company name; it never sees email.
  *   tailor — the enrich isolation, over a job description and the user's resume. It is
  *            the apply flow's own step, so it is not gated on the enrichment setting.
+ *   answer — no tracker, no email and no web, over one application-form question, the
+ *            posting and the resume.
  * What each kind may reach is RUN_KIND_POLICY in ./engines; see that header for how each
  * engine enforces it, including the one place Codex currently cannot.
  */
@@ -37,7 +39,7 @@ import {
 import type { AgentDeps, AgentToolCallEvent } from './deps'
 import { adapterFor, type AgentEngineAdapter, type McpTarget } from './engines'
 import { createMcpServer, type McpBridge } from './mcpServer'
-import { enrichTaskPrompt, tailorTaskPrompt, triageTaskPrompt } from './prompts'
+import { answerTaskPrompt, enrichTaskPrompt, tailorTaskPrompt, triageTaskPrompt } from './prompts'
 
 /** spawn() with stdio ['ignore','pipe','pipe'] — stdin is null by construction. */
 type AgentChild = ChildProcessByStdio<null, Readable, Readable>
@@ -58,8 +60,8 @@ const TICK_MS = 1000
 /**
  * Ceiling on the task prompt, in bytes. The prompt is a single argv element and the OS
  * caps the whole argv: past its limit execve fails with E2BIG, which surfaces as a bare
- * spawn error with nothing in it a user could act on. A tailor run carries a job
- * description plus the resume, so it is the kind that can reach this.
+ * spawn error with nothing in it a user could act on. A tailor or answer run carries a job
+ * description plus the resume, so those are the kinds that can reach this.
  */
 export const MAX_PROMPT_BYTES = 256 * 1024
 
@@ -118,10 +120,26 @@ export interface AgentRunner {
   spawnEnrichRun(companyName: string, options?: RunOptions): Promise<StartedRun>
   /**
    * The apply flow's run: web on, no tracker tools, no email. `jobInput` is a pasted job
-   * description or one URL to fetch; `resumeMd` is the resume to tailor. Unlike enrich it
-   * is not gated on the enrichment setting.
+   * description or one URL to fetch; `resumeMd` is the resume to tailor;
+   * `coverLetterTemplate` is the user's own letter to adapt, or null when they have none.
+   * Unlike enrich it is not gated on the enrichment setting.
    */
-  spawnTailorRun(jobInput: string, resumeMd: string, options?: RunOptions): Promise<StartedRun>
+  spawnTailorRun(
+    jobInput: string,
+    resumeMd: string,
+    coverLetterTemplate: string | null,
+    options?: RunOptions
+  ): Promise<StartedRun>
+  /**
+   * One application-form question, drafted with no tracker, no email and no web. Its
+   * whole reply is the answer — it files no proposals and returns no envelope.
+   */
+  spawnAnswerRun(
+    question: string,
+    jdMd: string,
+    resumeMd: string,
+    options?: RunOptions
+  ): Promise<StartedRun>
   /** Kills the child. The run finishes as {kind:'error', errorKind:'stopped'}. */
   cancelRun(runId: number): void
   /** Newest in-flight run, for RecruitApi.getActiveRun(). */
@@ -584,9 +602,19 @@ export function createAgentRunner(deps: AgentDeps): AgentRunner {
       return begin('enrich', [], enrichTaskPrompt(companyName), false, options)
     },
 
-    async spawnTailorRun(jobInput, resumeMd, options) {
+    async spawnTailorRun(jobInput, resumeMd, coverLetterTemplate, options) {
       // No allowlist and no bridge: the job input and the resume are the whole input.
-      return begin('tailor', [], tailorTaskPrompt(jobInput, resumeMd), false, options)
+      return begin(
+        'tailor',
+        [],
+        tailorTaskPrompt(jobInput, resumeMd, coverLetterTemplate),
+        false,
+        options
+      )
+    },
+
+    async spawnAnswerRun(question, jdMd, resumeMd, options) {
+      return begin('answer', [], answerTaskPrompt(question, jdMd, resumeMd), false, options)
     },
 
     cancelRun(runId) {

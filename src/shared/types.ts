@@ -68,14 +68,15 @@ export type ProposalKind =
   | 'link_message'
 export type ProposalState = 'pending' | 'accepted' | 'rejected' | 'superseded'
 
-export type AgentRunKind = 'triage' | 'enrich' | 'tailor'
+export type AgentRunKind = 'triage' | 'enrich' | 'tailor' | 'answer'
 export type AgentRunState = 'starting' | 'running' | 'finished' | 'error' | 'stopped'
 
 /** Run-kind copy for the review queue and the run history. */
 export const AGENT_RUN_KIND_LABEL: Record<AgentRunKind, string> = {
   triage: 'Triage run',
   enrich: 'Enrich run',
-  tailor: 'Tailor run'
+  tailor: 'Tailor run',
+  answer: 'Answer run'
 }
 
 /**
@@ -290,6 +291,8 @@ export interface Resume {
   archivedAt: string | null
   /** The file this row used to be. Null on a markdown resume. */
   filename: string | null
+  /** True when a rendered PDF is stored for this document — the copy that was sent. */
+  hasPdf: boolean
 }
 
 export interface ResumeInput {
@@ -361,6 +364,10 @@ export interface Item {
   jdMd: string | null
   jdSource: JobDescriptionSource | null
   jdUpdatedAt: string | null
+  /** The cover letter sent with this application, tailored from the template. */
+  coverLetterMd: string | null
+  /** True when a rendered cover-letter PDF is stored — the copy that was sent. */
+  hasCoverLetterPdf: boolean
   createdAt: string
   updatedAt: string
   archivedAt: string | null
@@ -388,6 +395,7 @@ export interface ItemSummary extends Item {
 export interface ItemDetail extends ItemSummary {
   timeline: TimelineEvent[]
   messages: MessageSummary[]
+  answers: ItemAnswer[]
 }
 
 export interface ItemInput {
@@ -735,8 +743,12 @@ export interface StartRunInput {
   itemId?: number
   /** tailor only — a pasted job description, or a single http(s) URL to fetch. */
   jobInput?: string
-  /** tailor only — the resume to tailor. */
+  /** tailor and answer — the resume in context. */
   resumeId?: number
+  /** answer only — the question to draft a reply to. */
+  question?: string
+  /** answer only — the job description, when there is no `itemId` to read it from. */
+  jdMd?: string
   /** Overrides AppSettings.model for this run. */
   model?: string
 }
@@ -791,6 +803,37 @@ export interface AppliedResume {
   unapplied: UnappliedChange[]
 }
 
+/**
+ * A question an application form asked, and what was written back. The answer is drafted
+ * by an `answer` run and edited by hand; either half may be empty while it is being worked
+ * on.
+ */
+export interface ItemAnswer {
+  id: number
+  itemId: number
+  question: string
+  answerMd: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+/** Omit `id` to add one; pass it to replace one. */
+export interface ItemAnswerInput {
+  id?: number
+  itemId: number
+  question: string
+  answerMd: string | null
+}
+
+/** A question carried out of the apply flow, before the application exists. */
+export interface ApplyQuestion {
+  question: string
+  answerMd: string | null
+}
+
+/** The two documents an application is sent with. */
+export type ApplicationDocumentKind = 'resume' | 'cover_letter'
+
 /** Everything the commit step needs. The renderer has already resolved the diff. */
 export interface ApplyDraftInput {
   resumeId: number
@@ -803,6 +846,9 @@ export interface ApplyDraftInput {
   jobUrl: string | null
   jdMd: string
   jdSource: JobDescriptionSource
+  /** Null when there is no cover-letter template, or the user cleared it. */
+  coverLetterMd: string | null
+  questions: ApplyQuestion[]
 }
 
 /** Live state pushed to the toolbar RUN button while a run is in flight. */
@@ -1180,6 +1226,23 @@ export interface RecruitApi {
   openResumePdf(resumeId: number): Promise<void>
   /** Renders the resume to PDF and saves it where the user chooses. Null when cancelled. */
   saveResumePdf(resumeId: number): Promise<string | null>
+  /** The cover-letter template the tailor run adapts. Empty string when unset. */
+  getCoverLetterTemplate(): Promise<string>
+  setCoverLetterTemplate(markdown: string): Promise<void>
+
+  // ── what an application was sent ──────────────────────────────────────────
+  /** Opens the stored PDF an application was sent with. */
+  openItemDocument(itemId: number, kind: ApplicationDocumentKind): Promise<void>
+  /** Saves a copy of it. Null when the user cancels. */
+  saveItemDocument(itemId: number, kind: ApplicationDocumentKind): Promise<string | null>
+  /** Shows it in Finder. */
+  revealItemDocument(itemId: number, kind: ApplicationDocumentKind): Promise<void>
+
+  // ── application questions ─────────────────────────────────────────────────
+  listItemAnswers(itemId: number): Promise<ItemAnswer[]>
+  /** Adds or replaces one. */
+  saveItemAnswer(input: ItemAnswerInput): Promise<ItemAnswer>
+  deleteItemAnswer(answerId: number): Promise<void>
   /** Attaches a resume to an item, or clears it with null. Clears any skip. */
   setItemResume(itemId: number, resumeId: number | null): Promise<Item>
   /** Dismisses the resume question for an item. Pass false to ask again. */
@@ -1294,6 +1357,14 @@ export const IPC_METHODS = [
   'archiveResume',
   'openResumePdf',
   'saveResumePdf',
+  'getCoverLetterTemplate',
+  'setCoverLetterTemplate',
+  'openItemDocument',
+  'saveItemDocument',
+  'revealItemDocument',
+  'listItemAnswers',
+  'saveItemAnswer',
+  'deleteItemAnswer',
   'setItemResume',
   'skipItemResume',
   'applyDraft',

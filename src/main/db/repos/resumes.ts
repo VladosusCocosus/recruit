@@ -4,6 +4,9 @@
  * A row whose `content_md` is null came from the file library that predated markdown
  * resumes. It is a record that an application was sent something, and nothing more —
  * it cannot be edited, tailored or rendered.
+ *
+ * `pdf_path` never leaves this layer as part of a `Resume`; `resumePdfPath()` is the single
+ * accessor, and it takes an id.
  */
 import type { Resume, ResumeInput } from '@shared/types'
 import { count, execute, queryAll, queryOne, transact } from '../connection'
@@ -14,6 +17,7 @@ export interface ResumeRow {
   label: string
   content_md: string | null
   filename: string | null
+  pdf_path: string | null
   derived_from_id: number | null
   is_default: number
   created_at: string
@@ -38,7 +42,8 @@ function rowToResume(row: ResumeRow): Resume {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     archivedAt: row.archived_at,
-    filename: row.filename
+    filename: row.filename,
+    hasPdf: row.pdf_path !== null
   }
 }
 
@@ -84,6 +89,15 @@ export function getDefaultResume(): Resume | null {
     `SELECT ${COLUMNS} FROM resumes r WHERE r.is_default = 1 AND r.archived_at IS NULL`
   )
   return row ? rowToResume(row) : null
+}
+
+/** Absolute path of the rendered PDF, or null. The only way out of the row layer. */
+export function resumePdfPath(resumeId: number): string | null {
+  const row = queryOne<{ pdf_path: string | null }>(
+    'SELECT pdf_path FROM resumes WHERE id = ?',
+    resumeId
+  )
+  return row?.pdf_path ?? null
 }
 
 /** Live, editable resumes — everything the apply flow can start from. */
@@ -156,6 +170,11 @@ export function updateResume(resumeId: number, patch: Partial<ResumeInput>): Res
   const updated = getResume(resumeId)
   if (!updated) throw new Error(`Resume ${resumeId} not found`)
   return updated
+}
+
+/** Records the render @main/render produced, or forgets it with null. */
+export function setResumePdf(resumeId: number, pdfPath: string | null): void {
+  execute('UPDATE resumes SET pdf_path = ? WHERE id = ?', pdfPath, resumeId)
 }
 
 /** Clears the flag everywhere, then sets it here. Un-archives, so the default is live. */

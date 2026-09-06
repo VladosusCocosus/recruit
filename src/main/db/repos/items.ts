@@ -23,6 +23,7 @@ import {
   type MessageRow,
   type StatusRow
 } from '../rows'
+import { listItemAnswers } from './answers'
 import { addEvent, listTimeline, nextEventsFor } from './timeline'
 
 /** Compact row the agent sees from `list_items` / `search_items`. No bodies, no timeline. */
@@ -160,11 +161,16 @@ export function getItemSummary(itemId: number): ItemSummary | null {
   return rowToItemSummary(row, nextEventsFor([itemId]).get(itemId) ?? null)
 }
 
-/** The Item detail view: summary + full timeline + linked message summaries. */
+/** The Item detail view: summary + full timeline + linked messages + form answers. */
 export function getItemWithTimeline(itemId: number): ItemDetail | null {
   const summary = getItemSummary(itemId)
   if (!summary) return null
-  return { ...summary, timeline: listTimeline(itemId), messages: listItemMessages(itemId) }
+  return {
+    ...summary,
+    timeline: listTimeline(itemId),
+    messages: listItemMessages(itemId),
+    answers: listItemAnswers(itemId)
+  }
 }
 
 export function listItemMessages(itemId: number): MessageSummary[] {
@@ -363,6 +369,38 @@ export function skipItemResume(itemId: number, skipped = true): Item {
   const item = getItem(itemId)
   if (!item) throw new Error(`Item ${itemId} not found`)
   return item
+}
+
+/* ── cover letter ───────────────────────────────────────────────────────── */
+
+/**
+ * Writes the cover letter and the render of it that was sent. The only way to set either:
+ * `ItemInput` / `ItemPatch` do not carry them.
+ */
+export function setItemCoverLetter(
+  itemId: number,
+  markdown: string | null,
+  pdfPath: string | null
+): Item {
+  execute(
+    'UPDATE items SET cover_letter_md = ?, cover_letter_pdf_path = ?, updated_at = ? WHERE id = ?',
+    markdown,
+    pdfPath,
+    nowIso(),
+    itemId
+  )
+  const item = getItem(itemId)
+  if (!item) throw new Error(`Item ${itemId} not found`)
+  return item
+}
+
+/** Absolute path of the rendered cover letter, or null. The only way out of the row layer. */
+export function itemCoverLetterPdfPath(itemId: number): string | null {
+  const row = queryOne<{ cover_letter_pdf_path: string | null }>(
+    'SELECT cover_letter_pdf_path FROM items WHERE id = ?',
+    itemId
+  )
+  return row?.cover_letter_pdf_path ?? null
 }
 
 /**

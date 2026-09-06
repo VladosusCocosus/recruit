@@ -1,11 +1,12 @@
 /**
- * Settings → Resume. One list: every resume, as markdown.
+ * Settings → Resume. One list of resumes as markdown, and the cover-letter template
+ * underneath it.
  *
  * A row whose `contentMd` is null is a record of a file an application was sent before
  * resumes became markdown. The file itself is gone, so such a row can only be removed.
  */
 
-import { useState, type JSX } from 'react'
+import { useEffect, useState, type JSX } from 'react'
 import { isEditableResume, type Resume } from '@shared/types'
 import {
   Button,
@@ -16,6 +17,7 @@ import {
   errorMessage,
   formatRelative,
   pluralize,
+  useAsync,
   useResumes
 } from '@renderer/components'
 import { SettingsBlock, SettingsRow, SettingsValue } from './SettingsGroup'
@@ -39,6 +41,17 @@ Backend engineer, 9 years, distributed systems and payments.
 
 ## Skills
 Go, Postgres, Kafka, Terraform`
+
+const COVER_LETTER_PLACEHOLDER = `Dear hiring team,
+
+I am applying for the {role} role at {company}. I have spent the last nine years on
+backend systems where latency and correctness both mattered — most recently cutting
+checkout p99 from 1.8s to 240ms at Northwind Labs.
+
+What draws me to this one is …
+
+Ada Lovelace
+ada@example.com`
 
 interface RowActions {
   onMakeDefault: (id: number) => void
@@ -112,6 +125,87 @@ function ResumeRow({
         </Button>
       </span>
     </SettingsRow>
+  )
+}
+
+/**
+ * The one cover letter the tailor run works from. Same composer shape as the resume
+ * editor above it: a markdown box, Save, and the word count.
+ */
+function CoverLetterTemplate(): JSX.Element {
+  const state = useAsync(() => window.recruit.getCoverLetterTemplate(), [])
+  const [draft, setDraft] = useState('')
+  const [dirty, setDirty] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const stored = state.data ?? ''
+
+  useEffect(() => {
+    if (!dirty) setDraft(stored)
+  }, [stored, dirty])
+
+  const save = (): void => {
+    setBusy(true)
+    setError(null)
+    window.recruit
+      .setCoverLetterTemplate(draft)
+      .then(() => {
+        state.set(draft)
+        setDirty(false)
+      })
+      .catch((e: unknown) => setError(errorMessage(e)))
+      .finally(() => setBusy(false))
+  }
+
+  const revert = (): void => {
+    setDraft(stored)
+    setDirty(false)
+  }
+
+  let status: string
+  if (state.loading) status = 'Loading…'
+  else if (dirty) status = `${pluralize(countWords(draft), 'word')} · unsaved`
+  else if (stored.trim() === '') status = 'No template — no cover letter will be written'
+  else status = `${pluralize(countWords(stored), 'word')} · saved`
+
+  return (
+    <section className="set-block">
+      <h3 className="set-block-title">Cover letter template</h3>
+      <div className="stack">
+        <textarea
+          className="input mono"
+          rows={14}
+          value={draft}
+          placeholder={COVER_LETTER_PLACEHOLDER}
+          aria-label="Cover letter template in markdown"
+          disabled={busy || state.loading}
+          onChange={(e) => {
+            setDraft(e.currentTarget.value)
+            setDirty(true)
+          }}
+        />
+        <div className="row">
+          <Button size="sm" variant="primary" busy={busy} disabled={!dirty} onClick={save}>
+            Save
+          </Button>
+          <Button size="sm" variant="subtle" disabled={busy || !dirty} onClick={revert}>
+            Revert
+          </Button>
+          <span className="tertiary">{status}</span>
+        </div>
+        {error ?? state.error ? (
+          <p className="set-row-error selectable">{error ?? state.error}</p>
+        ) : null}
+      </div>
+      <p className="set-block-foot">
+        Markdown. The tailor run adapts this to the job it is reading — your voice, your
+        facts, rewritten for that company and role — and the adapted letter is yours to edit
+        before the application is filed. Leave this empty and no cover letter is written at
+        all. Markdown joins consecutive lines into one paragraph, so an address block or a
+        sign-off wants a blank line between its lines, or two spaces at the end of each.
+      </p>
+    </section>
   )
 }
 
@@ -275,6 +369,8 @@ export function ResumeSection(): JSX.Element {
           </p>
         </section>
       ) : null}
+
+      <CoverLetterTemplate />
     </>
   )
 }

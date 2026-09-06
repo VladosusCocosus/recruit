@@ -19,6 +19,7 @@ import type {
   TailorResult,
   WorkMode
 } from '@shared/types'
+import { useAnswers, type AnswersStore } from '../Answers'
 
 /** Which of the two screens the modal is on. */
 export type ApplyScreen = 'input' | 'review'
@@ -103,6 +104,16 @@ export interface ApplyStore {
   rejectAll: () => void
   /** The resume with the accepted changes applied. Null until the result lands. */
   applied: AppliedResume | null
+  /**
+   * True when the run adapted a cover letter. False means there is no template in
+   * Settings, so no letter was written and none will be filed.
+   */
+  hasCoverLetter: boolean
+  /** The adapted letter as the user has it. Filed verbatim; empty files nothing. */
+  coverLetterMd: string
+  setCoverLetter: (markdown: string) => void
+  /** The questions this application will be filed with. Local until `commit`. */
+  answers: AnswersStore
   committing: boolean
   commitError: string | null
   /** Set once the application exists. The flow cannot file a second one after this. */
@@ -137,6 +148,7 @@ export function useApply(): ApplyStore {
   const [runError, setRunError] = useState<string | null>(null)
   const [result, setResult] = useState<TailorResult | null>(null)
   const [fields, setFields] = useState<ApplyFields>(EMPTY_FIELDS)
+  const [coverLetterMd, setCoverLetterMd] = useState('')
   const [rejected, setRejected] = useState<ReadonlySet<number>>(() => new Set())
   const [committing, setCommitting] = useState(false)
   const [commitError, setCommitError] = useState<string | null>(null)
@@ -161,6 +173,14 @@ export function useApply(): ApplyStore {
     [resumes, resumeId]
   )
 
+  const jobSource: JobDescriptionSource = isJobUrl(jobInput) ? 'url' : 'pasted'
+
+  /** The description the answer runs read: what the run returned, else what was pasted. */
+  const jdMd = (result?.jdMd ?? '').trim() || (jobSource === 'pasted' ? jobInput.trim() : '')
+
+  const answers = useAnswers({ kind: 'draft', jdMd, resumeId: resume?.id ?? null })
+  const resetAnswers = answers.reset
+
   const openApply = useCallback(() => setOpen(true), [])
 
   const close = useCallback(() => {
@@ -173,10 +193,12 @@ export function useApply(): ApplyStore {
     setRunError(null)
     setResult(null)
     setFields(EMPTY_FIELDS)
+    setCoverLetterMd('')
     setRejected(new Set())
     setCommitError(null)
     setFiled(null)
-  }, [])
+    resetAnswers()
+  }, [resetAnswers])
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent): void => {
@@ -213,6 +235,7 @@ export function useApply(): ApplyStore {
         location: parsed.location ?? '',
         workMode: parsed.workMode ?? ''
       })
+      setCoverLetterMd(parsed.coverLetterMd ?? '')
       setRejected(new Set())
       setPhase('ready')
     } catch (e) {
@@ -254,6 +277,7 @@ export function useApply(): ApplyStore {
     (input: string, selected: Resume): void => {
       setResult(null)
       setFields(EMPTY_FIELDS)
+      setCoverLetterMd('')
       setRejected(new Set())
       setCommitError(null)
       setRunError(null)
@@ -266,7 +290,6 @@ export function useApply(): ApplyStore {
     [run]
   )
 
-  const jobSource: JobDescriptionSource = isJobUrl(jobInput) ? 'url' : 'pasted'
   const busy = pending || run.starting
   const blockedByOtherRun = !busy && run.active !== null
 
@@ -346,6 +369,9 @@ export function useApply(): ApplyStore {
         ? 'Company is required.'
         : null
 
+  const hasCoverLetter = (result?.coverLetterMd ?? null) !== null
+  const questions = answers.questions
+
   const commit = useCallback(async (): Promise<number | null> => {
     if (!result || !resume || !applied) return null
     const company = fields.company.trim()
@@ -364,8 +390,10 @@ export function useApply(): ApplyStore {
         location: fields.location.trim() || null,
         workMode: fields.workMode === '' ? null : fields.workMode,
         jobUrl: jobSource === 'url' ? jobInput.trim() : null,
-        jdMd: result.jdMd.trim() || (jobSource === 'pasted' ? jobInput.trim() : ''),
-        jdSource: jobSource
+        jdMd,
+        jdSource: jobSource,
+        coverLetterMd: coverLetterMd.trim() === '' ? null : coverLetterMd,
+        questions
       })
       setFiled({ itemId: item.id, resumeId: item.resumeId, company })
       return item.id
@@ -375,7 +403,7 @@ export function useApply(): ApplyStore {
     } finally {
       setCommitting(false)
     }
-  }, [result, resume, applied, fields, jobSource, jobInput])
+  }, [result, resume, applied, fields, jobSource, jobInput, jdMd, coverLetterMd, questions])
 
   /* ── the file the user came for ──────────────────────────────────────────── */
 
@@ -440,6 +468,10 @@ export function useApply(): ApplyStore {
     acceptAll,
     rejectAll,
     applied,
+    hasCoverLetter,
+    coverLetterMd,
+    setCoverLetter: setCoverLetterMd,
+    answers,
     committing,
     commitError,
     commitDisabledReason,

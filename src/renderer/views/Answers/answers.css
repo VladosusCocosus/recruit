@@ -1,0 +1,146 @@
+/* Application questions — the cards and the composer. Prefix: .an-
+   Structure only; the shared components own .btn/.input/.icon-btn.
+   Tokens only, hairlines and flat fills — no shadows. */
+
+.an {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.an-spacer {
+  flex: 1;
+  min-width: 0;
+}
+
+.an-empty {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+}
+
+.an-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 7px 10px;
+  border-radius: var(--radius);
+  background: var(--danger-tint);
+  color: var(--danger);
+  font-size: var(--fs-sm);
+}
+
+.an-dismiss {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: var(--fs-xs);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* ── the cards ─────────────────────────────────────────────────────────── */
+
+.an-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.an-card {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 9px 11px 10px;
+  border: var(--hairline) solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+
+.an-card.is-drafting {
+  border-color: var(--accent);
+}
+
+.an-card.is-failed {
+  border-color: var(--danger);
+}
+
+.an-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.an-question {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: 500;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.an-card .an-answer {
+  min-height: 84px;
+  max-height: 40vh;
+  line-height: 1.5;
+}
+
+.an-card-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: var(--fs-sm);
+}
+
+.an-elapsed {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+}
+
+/* The reason Draft is off, on the trailing edge and never wider than the row. */
+.an-blocked {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: var(--fs-sm);
+  text-align: right;
+}
+
+.an-card-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+  color: var(--danger);
+}
+
+/* ── the composer ──────────────────────────────────────────────────────── */
+
+.an-add {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.an-add .an-add-input {
+  min-height: 52px;
+  max-height: 24vh;
+  line-height: 1.45;
+}
+
+.an-add-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-sm);
+}

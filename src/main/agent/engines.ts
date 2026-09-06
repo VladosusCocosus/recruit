@@ -21,15 +21,19 @@
  *   tailor  the enrich shape exactly — web, and NO MCP server at all. It is the one run
  *           holding private text (the resume being tailored) on a web-enabled process; nothing
  *           in its tool surface can post, and the prompt forbids repeating it.
+ *   answer  the narrowest of the four: no tracker, no email, and no web either. It holds
+ *           the resume like tailor does, over a job description already in hand, so it is
+ *           given no tool that leaves the process.
  *
  * KNOWN GAP, codex only: `codex exec` cannot turn web search off. `tools.web_search=false`
  * is accepted and does remove Codex's own web_search tool, but the ChatGPT backend still
  * exposes a server-side web tool to the model, and it answers. Verified against
  * codex-cli 0.147.0 on gpt-5.6-sol, gpt-5.5 and gpt-5.4-mini, and it is not something a
  * local flag can reach — built-in model providers cannot be overridden either. So a
- * triage run on Codex has an egress path a triage run on Claude Code does not. The flag
- * is still passed (it costs nothing and closes the gap the day Codex honours it), the
- * Settings screen says so in as many words, and Claude Code remains the default engine.
+ * triage run on Codex has an egress path a triage run on Claude Code does not, and so
+ * does an answer run, whose Claude Code form has no web at all. The flag is still passed
+ * (it costs nothing and closes the gap the day Codex honours it), the Settings screen
+ * says so in as many words, and Claude Code remains the default engine.
  */
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -42,7 +46,12 @@ import {
   type AgentEnvelope,
   type AgentRunKind
 } from '@shared/types'
-import { ENRICH_SYSTEM_PROMPT, TAILOR_SYSTEM_PROMPT, TRIAGE_SYSTEM_PROMPT } from './prompts'
+import {
+  ANSWER_SYSTEM_PROMPT,
+  ENRICH_SYSTEM_PROMPT,
+  TAILOR_SYSTEM_PROMPT,
+  TRIAGE_SYSTEM_PROMPT
+} from './prompts'
 import { MCP_SERVER_NAME, TRACKER_ALLOWED_TOOLS, TRACKER_TOOL_NAMES } from './schemas'
 
 /** Where the run's in-process MCP listener is, and the token that opens it. */
@@ -155,6 +164,15 @@ export const RUN_KIND_POLICY: Record<AgentRunKind, RunKindPolicy> = {
     tracker: false,
     web: true,
     systemPrompt: TAILOR_SYSTEM_PROMPT
+  },
+  answer: {
+    builtinTools: NO_TOOLS,
+    // One empty value rather than none: --allowedTools is variadic and a bare flag with
+    // nothing after it is a parse error.
+    allowedTools: [NO_TOOLS],
+    tracker: false,
+    web: false,
+    systemPrompt: ANSWER_SYSTEM_PROMPT
   }
 }
 

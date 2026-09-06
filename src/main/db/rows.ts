@@ -275,6 +275,12 @@ export interface ItemRow {
   jd_md: string | null
   jd_source: string | null
   jd_updated_at: string | null
+  cover_letter_md: string | null
+  /**
+   * Path of the rendered cover letter. Never leaves the row layer:
+   * `itemCoverLetterPdfPath()` is the accessor, and `Item` carries only `hasCoverLetterPdf`.
+   */
+  cover_letter_pdf_path: string | null
   created_at: string
   updated_at: string
   archived_at: string | null
@@ -316,6 +322,8 @@ export function rowToItem(row: ItemRow): Item {
     jdMd: row.jd_md,
     jdSource: row.jd_source as JobDescriptionSource | null,
     jdUpdatedAt: row.jd_updated_at,
+    coverLetterMd: row.cover_letter_md,
+    hasCoverLetterPdf: row.cover_letter_pdf_path !== null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     archivedAt: row.archived_at

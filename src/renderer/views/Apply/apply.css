@@ -375,6 +375,68 @@
   color: var(--text-secondary);
 }
 
+/* ── the secondary regions ─────────────────────────────────────────────── */
+
+/* A disclosure, not a card: the head is a row of text, and only the chevron moves. */
+.ap-fold-head {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ap-fold-chevron {
+  flex: 0 0 auto;
+  align-self: center;
+  color: var(--text-tertiary);
+  transition: transform 120ms ease;
+}
+
+.ap-fold.is-open .ap-fold-chevron {
+  transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ap-fold-chevron {
+    transition: none;
+  }
+}
+
+.ap-fold-head:hover .ap-fold-chevron {
+  color: var(--text-secondary);
+}
+
+.ap-fold-head:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: var(--radius);
+}
+
+/* Indented to the title: 11 + 7 = the chevron and its gap. */
+.ap-fold-body {
+  margin-top: 9px;
+  padding-left: 18px;
+}
+
+/* ── the cover letter ──────────────────────────────────────────────────── */
+
+.ap-fold-body .ap-letter {
+  min-height: 220px;
+  max-height: 46vh;
+  line-height: 1.55;
+}
+
+.ap-fold-body .ap-note {
+  margin: 7px 0 0;
+}
+
 /* ── footer ────────────────────────────────────────────────────────────── */
 
 .ap-foot-reason {

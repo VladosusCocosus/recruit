@@ -1,5 +1,6 @@
 /**
- * Markdown -> PDF, through a hidden BrowserWindow and `webContents.printToPDF()`.
+ * Markdown -> PDF, through a hidden BrowserWindow and `webContents.printToPDF()`. One
+ * page style for both documents an application is sent: the resume and the cover letter.
  *
  * The page carries text lifted from a job description. It is loaded as a `data:` URL into
  * a sandboxed window with no preload, no node integration, a deny-all window-open handler,
@@ -121,7 +122,7 @@ function printDocument(fragment: string): string {
     '<head>',
     '<meta charset="utf-8" />',
     `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:" />`,
-    '<title>Resume</title>',
+    '<title>Document</title>',
     `<style>${PRINT_CSS}</style>`,
     '</head>',
     `<body>${fragment}</body>`,
@@ -133,7 +134,8 @@ async function withTimeout<T>(work: Promise<T>, what: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined
   const expiry = new Promise<never>((_resolve, reject) => {
     timer = setTimeout(
-      () => reject(new Error(`Rendering the resume timed out after ${STEP_TIMEOUT_MS} ms ${what}.`)),
+      () =>
+        reject(new Error(`Rendering the document timed out after ${STEP_TIMEOUT_MS} ms ${what}.`)),
       STEP_TIMEOUT_MS
     )
   })
@@ -155,7 +157,7 @@ function harden(win: BrowserWindow): void {
  * Rejects when the document fails to load, when either step exceeds STEP_TIMEOUT_MS, or
  * when printing fails.
  */
-export async function renderResumePdf(markdown: string): Promise<Buffer> {
+export async function renderDocumentPdf(markdown: string): Promise<Buffer> {
   const html = printDocument(renderMarkdownToHtml(markdown))
 
   const win = new BrowserWindow({

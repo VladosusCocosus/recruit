@@ -168,6 +168,10 @@ function ApplyDialog({ store, onOpenItem, onOpenResumeSettings }: Props): JSX.El
         onToggle={store.toggleChange}
         onAcceptAll={store.acceptAll}
         onRejectAll={store.rejectAll}
+        hasCoverLetter={store.hasCoverLetter}
+        coverLetterMd={store.coverLetterMd}
+        onCoverLetterChange={store.setCoverLetter}
+        answers={store.answers}
         disabled={store.committing}
       />
     )
