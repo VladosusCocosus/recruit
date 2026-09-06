@@ -5,6 +5,8 @@
 
 import type { EmailAddress } from '@shared/types'
 
+export { isAllDay } from '@shared/calendar'
+
 const MINUTE = 60_000
 const HOUR = 60 * MINUTE
 const DAY = 24 * HOUR
@@ -85,18 +87,6 @@ export function formatTime(iso: string | null | undefined): string {
   return timeFmt.format(new Date(t))
 }
 
-/**
- * An all-day .ics event arrives as tz:null with both stamps at UTC midnight
- * (see the mail agent's note on RFC 5545). Detect it so views can drop the time.
- */
-export function isAllDay(startsAt: string | null, endsAt: string | null, tz: string | null): boolean {
-  if (tz !== null) return false
-  const s = parse(startsAt)
-  if (s === null) return false
-  if (s % DAY !== 0) return false
-  const e = parse(endsAt)
-  return e === null || e % DAY === 0
-}
 
 /** Run-button clock: "7s" under a minute, then "1:05". */
 export function formatElapsed(ms: number): string {

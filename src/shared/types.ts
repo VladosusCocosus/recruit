@@ -1061,6 +1061,16 @@ export interface AppSettings {
   setupDismissed: boolean
   /** How far back the FIRST sync of an account reaches. Applied on reconnect. */
   syncBackfillDays: number
+  /**
+   * Whether the first-run checklist has already put the notifications question. Set by
+   * either answer, so the step is offered once and never again.
+   */
+  notificationsAsked: boolean
+  notifyInterviews: boolean
+  notifyProposals: boolean
+  notifyDebriefs: boolean
+  /** How long before a timed event its reminder fires. */
+  notifyLeadMinutes: number
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -1075,7 +1085,14 @@ export const DEFAULT_SETTINGS: AppSettings = {
   maxCandidatesPerRun: 250,
   theme: 'system',
   setupDismissed: false,
-  syncBackfillDays: 90
+  syncBackfillDays: 90,
+  // All three default off. Nothing is posted until the first-run step is answered, so
+  // macOS never raises its own permission prompt uninvited.
+  notificationsAsked: false,
+  notifyInterviews: false,
+  notifyProposals: false,
+  notifyDebriefs: false,
+  notifyLeadMinutes: 15
 }
 
 export interface AppInfo {
@@ -1107,15 +1124,25 @@ export interface AppCounts {
    * prompt. See `countEventsSoon` for why the window is rolling rather than "today".
    */
   eventsSoon: number
+  /** Calls that have finished and still owe a debrief. Waiting on you, like proposals. */
+  pendingDebriefs: number
   items: number
 }
 
-/** Drives the first-run checklist: add account -> sync -> first scan -> review. */
+/**
+ * Drives the first-run checklist: add account -> sync -> first scan -> review, then the
+ * notifications question.
+ *
+ * The first four come from the database; `notificationsAsked` is a settings key, merged
+ * in by the IPC layer. `complete` covers only the four steps that lead to value, so
+ * leaving the notifications question unanswered never holds the checklist open.
+ */
 export interface SetupState {
   hasAccount: boolean
   hasSynced: boolean
   hasRun: boolean
   hasReviewed: boolean
+  notificationsAsked: boolean
   complete: boolean
 }
 
@@ -1153,6 +1180,8 @@ export interface RecruitEvents {
   resumesChanged: { resumes: Resume[] }
   settingsChanged: AppSettings
   updateAvailable: UpdateStatus
+  /** A clicked notification: bring the window forward and follow this route. */
+  navigateTo: { nav: NavKey; itemId?: number }
 }
 
 export type RecruitEventName = keyof RecruitEvents
@@ -1401,7 +1430,8 @@ export const EVENT_NAMES = [
   'itemsChanged',
   'resumesChanged',
   'settingsChanged',
-  'updateAvailable'
+  'updateAvailable',
+  'navigateTo'
 ] as const satisfies readonly RecruitEventName[]
 
 /**

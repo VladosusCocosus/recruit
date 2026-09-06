@@ -94,6 +94,10 @@ function boot(): void {
 
   mainWindow = createWindow()
 
+  // Reminders and the dock badge. Needs the window, because a clicked notification
+  // focuses it and a badge belongs to a running app.
+  services.notifier.refresh()
+
   // Background mail sync: backfill, then IDLE + poll. Never blocks the window.
   void services.mail.startAll().catch((error: unknown) => {
     console.error('[main] mail sync failed to start:', error)

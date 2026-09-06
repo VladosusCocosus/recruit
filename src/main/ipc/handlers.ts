@@ -22,6 +22,7 @@ import { getSettings, updateSettings } from '@main/settings'
 import * as updates from '@main/update'
 import { testConnection } from '@main/settings/verify'
 import type { StartedRun } from '@main/agent'
+import type { Notifier } from '@main/notifications'
 import { deleteAccountWithSecrets, saveAccountWithSecrets } from './accounts'
 import { broadcast, handle } from './bridge'
 import type { AppServices } from './services'
@@ -29,13 +30,22 @@ import type { AppServices } from './services'
 /** Schemes the renderer is allowed to hand to the OS. Mail bodies are hostile input. */
 const EXTERNAL_SCHEMES = new Set(['http:', 'https:', 'mailto:'])
 
+/**
+ * Set by registerIpcHandlers. The notify* helpers below are module-level and predate
+ * services, so the notifier reaches them this way rather than through a parameter on
+ * every call site.
+ */
+let notifier: Notifier | null = null
+
 function notifyProposals(): void {
   broadcast('proposalsChanged', { pending: db.countPendingProposals() })
+  notifier?.refresh()
 }
 
 function notifyItems(itemIds: Array<number | null | undefined>): void {
   const ids = [...new Set(itemIds.filter((id): id is number => typeof id === 'number'))]
   broadcast('itemsChanged', { itemIds: ids })
+  notifier?.refresh()
 }
 
 function notifyResumes(): void {
@@ -122,6 +132,7 @@ function runSummary(runId: number): AgentRunSummary {
 
 export function registerIpcHandlers(services: AppServices): void {
   const { mail, runner } = services
+  notifier = services.notifier
 
   /* ── app / settings ─────────────────────────────────────────────────────── */
 
@@ -157,12 +168,32 @@ export function registerIpcHandlers(services: AppServices): void {
       }
     }
 
+    // Any switch from "nothing enabled" to "something enabled" posts the confirmation,
+    // whether it came from the first-run step or from Settings. That post is what raises
+    // the macOS permission prompt, so it lands while the user is still looking at the
+    // control they just used.
+    const wasOn = before.notifyInterviews || before.notifyProposals || before.notifyDebriefs
+    const isOn = next.notifyInterviews || next.notifyProposals || next.notifyDebriefs
+    if (!wasOn && isOn) services.notifier.confirmEnabled()
+
+    if (
+      wasOn !== isOn ||
+      next.notifyInterviews !== before.notifyInterviews ||
+      next.notifyDebriefs !== before.notifyDebriefs ||
+      next.notifyLeadMinutes !== before.notifyLeadMinutes
+    ) {
+      services.notifier.refresh()
+    }
+
     broadcast('settingsChanged', next)
     return next
   })
 
   handle('getCounts', () => db.getAppCounts())
-  handle('getSetupState', () => db.getSetupState())
+  handle('getSetupState', () => ({
+    ...db.getSetupState(),
+    notificationsAsked: getSettings().notificationsAsked
+  }))
 
   handle('openExternal', async (url: string) => {
     let parsed: URL
@@ -649,5 +680,6 @@ function watchRun(
 
     notifyProposals()
     if (enrichItemId !== null) notifyItems([enrichItemId])
+    if (result.kind === 'ok') notifier?.proposalsReady(db.countPendingProposalsByRun(result.runId))
   })
 }

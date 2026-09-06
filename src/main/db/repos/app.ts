@@ -6,7 +6,7 @@ import { countCandidates, countMessages, countUnread } from './messages'
 import { countItems } from './items'
 import { countPendingProposals } from './proposals'
 import { countRuns } from './runs'
-import { countEventsSoon } from './timeline'
+import { countEventsSoon, countPendingDebriefs } from './timeline'
 
 export function getAppCounts(): AppCounts {
   return {
@@ -14,12 +14,17 @@ export function getAppCounts(): AppCounts {
     pendingProposals: countPendingProposals(),
     unreadInbox: countUnread(),
     eventsSoon: countEventsSoon(),
+    pendingDebriefs: countPendingDebriefs(),
     items: countItems()
   }
 }
 
-/** add account -> sync -> first scan -> review. */
-export function getSetupState(): SetupState {
+/**
+ * add account -> sync -> first scan -> review. The checklist's fifth step, the
+ * notifications question, is a settings key rather than a table, so the IPC layer merges
+ * it in — this repo only reports what the database can answer.
+ */
+export function getSetupState(): Omit<SetupState, 'notificationsAsked'> {
   const hasAccount = countAccounts() > 0
   const hasSynced = countMessages() > 0
   const hasRun = countRuns() > 0

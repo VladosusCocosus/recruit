@@ -7,6 +7,7 @@
  * IPC handlers.
  */
 import { createAgentRunner, type AgentRunner } from '@main/agent'
+import { createNotifier, type Notifier } from '@main/notifications'
 import { getSettings, resolveAgentBinary } from '@main/settings'
 import type { AgentEngine } from '@shared/types'
 import { createAgentRepo } from './agentRepo'
@@ -16,11 +17,13 @@ import { createMailService, type MailService } from './mail'
 export interface AppServices {
   mail: MailService
   runner: AgentRunner
+  notifier: Notifier
   dispose(): Promise<void>
 }
 
 export function createServices(): AppServices {
   const mail = createMailService()
+  const notifier = createNotifier()
 
   const runner = createAgentRunner({
     repo: createAgentRepo(),
@@ -56,10 +59,12 @@ export function createServices(): AppServices {
   return {
     mail,
     runner,
+    notifier,
     async dispose() {
       // Agent first: it holds child processes and an HTTP listener.
       await runner.dispose().catch(() => undefined)
       await mail.dispose().catch(() => undefined)
+      notifier.dispose()
     }
   }
 }

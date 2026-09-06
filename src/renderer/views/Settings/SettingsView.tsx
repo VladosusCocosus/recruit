@@ -58,6 +58,7 @@ const SECTIONS = [
   { key: 'general', label: 'General', icon: 'gear' },
   { key: 'accounts', label: 'Accounts', icon: 'mail' },
   { key: 'triage', label: 'Triage', icon: 'target' },
+  { key: 'notifications', label: 'Notifications', icon: 'clock' },
   { key: 'resume', label: 'Resume', icon: 'doc' },
   { key: 'agent', label: 'Agent', icon: 'sparkle' },
   { key: 'privacy', label: 'Privacy', icon: 'image' },
@@ -150,6 +151,8 @@ export default function SettingsView({
                 <GeneralSection settings={settings} onUpdate={onUpdateSettings} />
               ) : section === 'triage' ? (
                 <TriageSection settings={settings} onUpdate={onUpdateSettings} />
+              ) : section === 'notifications' ? (
+                <NotificationsSection settings={settings} onUpdate={onUpdateSettings} />
               ) : section === 'resume' ? (
                 <ResumeSection />
               ) : section === 'agent' ? (
@@ -223,6 +226,60 @@ function GeneralSection({ settings, onUpdate }: SectionProps): JSX.Element {
             checked={!settings.setupDismissed}
             onCheckedChange={(v) => void onUpdate({ setupDismissed: !v })}
             label="Show the setup checklist above every view"
+          />
+        </SettingsRow>
+      </SettingsBlock>
+    </>
+  )
+}
+
+/* ── notifications ───────────────────────────────────────────────────────── */
+
+function NotificationsSection({ settings, onUpdate }: SectionProps): JSX.Element {
+  return (
+    <>
+      <SettingsBlock
+        title="Notifications"
+        footnote="Jobbox only notifies while it is running — it has no background agent, so a reminder for an interview you are not at your Mac for will not arrive. macOS asks for its own permission the first time one of these is switched on."
+      >
+        <SettingsRow
+          label="Before an interview"
+          description="A reminder for timed events. All-day entries are never announced."
+        >
+          <Toggle
+            checked={settings.notifyInterviews}
+            onCheckedChange={(v) => void onUpdate({ notifyInterviews: v, notificationsAsked: true })}
+            label="Notify before an interview"
+          />
+        </SettingsRow>
+        <SettingsRow label="Remind me">
+          <CommittedNumber
+            value={settings.notifyLeadMinutes}
+            min={1}
+            max={1440}
+            label="Minutes before an event"
+            onCommit={(v) => void onUpdate({ notifyLeadMinutes: v })}
+          />
+          <SettingsValue>{unit(settings.notifyLeadMinutes, 'minute')} before</SettingsValue>
+        </SettingsRow>
+        <SettingsRow
+          label="After a call"
+          description="Asks how it went once the call has finished."
+        >
+          <Toggle
+            checked={settings.notifyDebriefs}
+            onCheckedChange={(v) => void onUpdate({ notifyDebriefs: v, notificationsAsked: true })}
+            label="Notify when a call needs a debrief"
+          />
+        </SettingsRow>
+        <SettingsRow
+          label="When the agent finds something"
+          description="Only when Jobbox is in the background — the Review badge already says so in front of you."
+        >
+          <Toggle
+            checked={settings.notifyProposals}
+            onCheckedChange={(v) => void onUpdate({ notifyProposals: v, notificationsAsked: true })}
+            label="Notify when a run leaves proposals to review"
           />
         </SettingsRow>
       </SettingsBlock>
