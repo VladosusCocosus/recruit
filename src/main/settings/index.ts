@@ -89,7 +89,12 @@ export function normalizeSettings(raw: unknown): MainSettings {
     maxCandidatesPerRun: num(r['maxCandidatesPerRun'], d.maxCandidatesPerRun, 1, 1000),
     theme: THEMES.includes(r['theme'] as ThemePreference) ? (r['theme'] as ThemePreference) : d.theme,
     setupDismissed: bool(r['setupDismissed'], d.setupDismissed),
-    syncBackfillDays: num(r['syncBackfillDays'], d.syncBackfillDays, 1, 3650)
+    syncBackfillDays: num(r['syncBackfillDays'], d.syncBackfillDays, 1, 3650),
+    notificationsAsked: bool(r['notificationsAsked'], d.notificationsAsked),
+    notifyInterviews: bool(r['notifyInterviews'], d.notifyInterviews),
+    notifyProposals: bool(r['notifyProposals'], d.notifyProposals),
+    notifyDebriefs: bool(r['notifyDebriefs'], d.notifyDebriefs),
+    notifyLeadMinutes: num(r['notifyLeadMinutes'], d.notifyLeadMinutes, 1, 1440)
   }
 }
 

@@ -33,6 +33,7 @@ import {
   useAppInfo,
   useCounts,
   useHashRoute,
+  useRecruitEvent,
   useRun,
   useSetupState,
   useSettings,
@@ -124,6 +125,12 @@ function Shell(): JSX.Element {
 
   useTheme(settings.settings?.theme)
 
+  // A clicked notification. Main has already brought the window forward; this only picks
+  // the destination, through the same hash route a click inside the app would take.
+  useRecruitEvent('navigateTo', ({ nav, itemId }) => {
+    navigate(nav, itemId === undefined ? undefined : { item: itemId })
+  })
+
   const account = accounts.data?.[0] ?? null
   const agentCliMissing = appInfo.data ? !appInfo.data.agentCliAvailable : false
   const agentCliMissingReason = appInfo.data
@@ -133,10 +140,27 @@ function Shell(): JSX.Element {
   const startRun = useCallback(() => void run.start({ kind: 'triage' }), [run])
   const syncNow = useCallback(() => void sync.syncNow(), [sync])
 
+  const enableNotifications = useCallback(
+    () =>
+      void settings.update({
+        notificationsAsked: true,
+        notifyInterviews: true,
+        notifyProposals: true,
+        notifyDebriefs: true
+      }),
+    [settings]
+  )
+  const declineNotifications = useCallback(
+    () => void settings.update({ notificationsAsked: true }),
+    [settings]
+  )
+
   const setupActions = {
     onNavigate: navigate,
     onSync: syncNow,
     onRun: startRun,
+    onEnableNotifications: enableNotifications,
+    onDeclineNotifications: declineNotifications,
     syncing: sync.busy,
     running: run.active !== null,
     runDisabledReason: agentCliMissing
@@ -152,7 +176,7 @@ function Shell(): JSX.Element {
 
   const showChecklist =
     setup.data !== null &&
-    !setup.data.complete &&
+    (!setup.data.complete || !setup.data.notificationsAsked) &&
     setup.data.hasAccount &&
     settings.settings?.setupDismissed !== true &&
     nav !== 'settings'

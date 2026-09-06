@@ -94,6 +94,11 @@ export function countProposalsByRun(runId: number): number {
   return count('SELECT count(*) FROM proposals WHERE run_id = ?', runId)
 }
 
+/** What one run left in the review queue. Excludes anything already superseded. */
+export function countPendingProposalsByRun(runId: number): number {
+  return count("SELECT count(*) FROM proposals WHERE run_id = ? AND state = 'pending'", runId)
+}
+
 /**
  * Review-queue cards: the proposal plus its item, its ref siblings, the run, and the
  * source messages (which carry prefilterReasons, i.e. "why was this flagged?").

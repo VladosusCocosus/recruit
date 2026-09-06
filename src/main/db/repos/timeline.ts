@@ -204,11 +204,11 @@ export function supersedeEvent(eventId: number, supersededBy: number): void {
 /* ── call debriefs ─────────────────────────────────────────────────────────── */
 
 /**
- * Logged calls that still owe a debrief: finished, unanswered, not snoozed, on a live
- * item. The SQL selects candidates; `isDebriefPending` applies the grace and snooze
- * windows.
+ * Every logged call that could still owe a debrief: finished, unanswered, on a live item.
+ * The grace and snooze windows are NOT applied, so a caller can see a call before it comes
+ * due — which is what the notification scheduler needs in order to schedule it.
  */
-export function pendingDebriefs(now: number = Date.now()): PendingDebrief[] {
+export function debriefCandidates(): PendingDebrief[] {
   const rows = queryAll<
     TimelineEventRow & {
       item_company: string
@@ -231,22 +231,29 @@ export function pendingDebriefs(now: number = Date.now()): PendingDebrief[] {
      ORDER BY te.ends_at ASC, te.id ASC`
   )
 
-  const out: PendingDebrief[] = []
-  for (const row of rows) {
-    const event = rowToTimelineEvent(row)
-    if (!isDebriefPending(event, now)) continue
-    out.push({
-      ...event,
-      item: {
-        id: row.item_id,
-        company: row.item_company,
-        role: row.item_role,
-        statusKey: row.item_status_key,
-        contactName: row.item_contact_name
-      }
-    })
-  }
-  return out
+  return rows.map((row) => ({
+    ...rowToTimelineEvent(row),
+    item: {
+      id: row.item_id,
+      company: row.item_company,
+      role: row.item_role,
+      statusKey: row.item_status_key,
+      contactName: row.item_contact_name
+    }
+  }))
+}
+
+/**
+ * Logged calls that still owe a debrief: finished, unanswered, not snoozed, on a live
+ * item. `isDebriefPending` applies the grace and snooze windows.
+ */
+export function pendingDebriefs(now: number = Date.now()): PendingDebrief[] {
+  return debriefCandidates().filter((call) => isDebriefPending(call, now))
+}
+
+/** How many calls are asking for a debrief right now. */
+export function countPendingDebriefs(now: number = Date.now()): number {
+  return pendingDebriefs(now).length
 }
 
 /**

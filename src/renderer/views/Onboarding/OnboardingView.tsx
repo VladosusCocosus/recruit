@@ -17,6 +17,8 @@ export interface SetupActions {
   running?: boolean
   /** Disables the "first scan" action and explains why (no candidates, no agent CLI). */
   runDisabledReason?: string | null
+  onEnableNotifications: () => void
+  onDeclineNotifications: () => void
 }
 
 interface Step {
@@ -27,6 +29,9 @@ interface Step {
   onAction: () => void
   busy?: boolean
   disabledReason?: string | null
+  /** A second verb beside the first, for a step that can be declined as well as taken. */
+  secondaryLabel?: string
+  onSecondary?: () => void
 }
 
 function buildSteps(setup: SetupState, actions: SetupActions): Step[] {
@@ -65,6 +70,16 @@ function buildSteps(setup: SetupState, actions: SetupActions): Step[] {
       actionLabel: 'Open review',
       onAction: () => actions.onNavigate('review'),
       disabledReason: setup.hasRun ? null : 'Run a scan first'
+    },
+    {
+      title: 'Turn on notifications',
+      description:
+        'A reminder before an interview, a nudge to debrief a finished call, and a note when the agent has proposals waiting. Say no and macOS never asks you either.',
+      done: setup.notificationsAsked,
+      actionLabel: 'Turn on',
+      onAction: actions.onEnableNotifications,
+      secondaryLabel: 'No thanks',
+      onSecondary: actions.onDeclineNotifications
     }
   ]
 }
@@ -83,16 +98,23 @@ function StepRow({ step, index, isCurrent }: { step: Step; index: number; isCurr
       </div>
       <div className="checklist-action">
         {step.done && !isCurrent ? null : (
-          <Button
-            size="sm"
-            variant={isCurrent ? 'primary' : 'default'}
-            busy={step.busy}
-            disabled={Boolean(step.disabledReason)}
-            title={step.disabledReason ?? undefined}
-            onClick={step.onAction}
-          >
-            {step.actionLabel}
-          </Button>
+          <>
+            {step.secondaryLabel && step.onSecondary && !step.done ? (
+              <Button size="sm" variant="subtle" onClick={step.onSecondary}>
+                {step.secondaryLabel}
+              </Button>
+            ) : null}
+            <Button
+              size="sm"
+              variant={isCurrent ? 'primary' : 'default'}
+              busy={step.busy}
+              disabled={Boolean(step.disabledReason)}
+              title={step.disabledReason ?? undefined}
+              onClick={step.onAction}
+            >
+              {step.actionLabel}
+            </Button>
+          </>
         )}
       </div>
     </div>
@@ -126,15 +148,22 @@ export function SetupChecklist({
   onDismiss,
   ...actions
 }: SetupChecklistProps): JSX.Element | null {
-  if (setup.complete) return null
-  const done = [setup.hasAccount, setup.hasSynced, setup.hasRun, setup.hasReviewed].filter(
-    Boolean
-  ).length
+  // `complete` covers the four steps that lead to value. The notifications question is
+  // held open separately so it is actually put to the user rather than vanishing with the
+  // card the moment the fourth step lands.
+  if (setup.complete && setup.notificationsAsked) return null
+  const done = [
+    setup.hasAccount,
+    setup.hasSynced,
+    setup.hasRun,
+    setup.hasReviewed,
+    setup.notificationsAsked
+  ].filter(Boolean).length
   return (
     <Card className="setup-card">
       <CardHeader title="Finish setting up Recruit">
         <span className="secondary" style={{ fontSize: 'var(--fs-sm)' }}>
-          {done} of 4
+          {done} of 5
         </span>
         {onDismiss ? <IconButton icon="x" label="Hide setup checklist" onClick={onDismiss} size={12} /> : null}
       </CardHeader>

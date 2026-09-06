@@ -243,6 +243,7 @@ const EMPTY_COUNTS: AppCounts = {
   pendingProposals: 0,
   unreadInbox: 0,
   eventsSoon: 0,
+  pendingDebriefs: 0,
   items: 0
 }
 
@@ -262,6 +263,8 @@ export function useSetupState(): AsyncState<SetupState> {
   const state = useAsync(() => window.recruit.getSetupState(), [])
   useRecruitEvent('mailChanged', () => state.reload())
   useRecruitEvent('proposalsChanged', () => state.reload())
+  // The notifications step is a settings key, not a table.
+  useRecruitEvent('settingsChanged', () => state.reload())
   return state
 }
 
