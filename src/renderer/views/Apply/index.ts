@@ -1,7 +1,7 @@
 /**
  * The apply flow — public surface for the app shell.
  *
- *   useApply()    the store: job input, master resume, the tailor run, the review.
+ *   useApply()    the store: job input, resume, the tailor run, the review.
  *   <ApplyModal>  the two screens. Mount it beside <DebriefModal>, outside .app-body,
  *                 so switching views cannot unmount a run in flight.
  *

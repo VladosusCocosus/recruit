@@ -19,7 +19,7 @@
  *   enrich  web search only, and NO MCP server at all, so the tracker listener is
  *           unreachable. Its entire input is a company name string.
  *   tailor  the enrich shape exactly — web, and NO MCP server at all. It is the one run
- *           holding private text (the master resume) on a web-enabled process; nothing
+ *           holding private text (the resume being tailored) on a web-enabled process; nothing
  *           in its tool surface can post, and the prompt forbids repeating it.
  *
  * KNOWN GAP, codex only: `codex exec` cannot turn web search off. `tools.web_search=false`

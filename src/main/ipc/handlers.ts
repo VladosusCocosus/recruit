@@ -9,11 +9,11 @@ import type {
   AgentRunSummary,
   AppSettings,
   ProposalDecisionResult,
+  Resume,
   StartRunInput
 } from '@shared/types'
 import * as db from '@main/db'
 import * as resumes from '@main/resumes'
-import { renderResumePdf } from '@main/render'
 import { sanitizeMessageBody } from '@main/mail/sanitize'
 import { getSettings, updateSettings } from '@main/settings'
 import * as updates from '@main/update'
@@ -39,8 +39,11 @@ function notifyResumes(): void {
   broadcast('resumesChanged', { resumes: db.listResumes() })
 }
 
-function notifyResumeMasters(): void {
-  broadcast('resumeMastersChanged', { masters: db.listResumeMasters() })
+/** The row behind an id from the renderer. Resumes cross IPC as ids, never as paths. */
+function requireResume(resumeId: number): Resume {
+  const resume = db.getResume(resumeId)
+  if (!resume) throw new Error(`Resume ${resumeId} not found.`)
+  return resume
 }
 
 function afterDecisions(results: ProposalDecisionResult[]): void {
@@ -229,9 +232,23 @@ export function registerIpcHandlers(services: AppServices): void {
 
   handle('listResumes', () => db.listResumes())
 
-  handle('addResume', async (makeDefault) => {
-    const resume = await resumes.pickResumeFile(makeDefault ?? false)
-    if (resume) notifyResumes()
+  handle('createResume', async (input) => {
+    const resume = db.createResume(input)
+    notifyResumes()
+    return resume
+  })
+
+  handle('importResume', async () => {
+    const input = await resumes.pickResumeText()
+    if (!input) return null
+    const resume = db.createResume(input)
+    notifyResumes()
+    return resume
+  })
+
+  handle('updateResume', async (resumeId, patch) => {
+    const resume = db.updateResume(resumeId, patch)
+    notifyResumes()
     return resume
   })
 
@@ -241,23 +258,15 @@ export function registerIpcHandlers(services: AppServices): void {
     return db.listResumes()
   })
 
-  handle('renameResume', async (resumeId, label) => {
-    db.renameResume(resumeId, label)
-    notifyResumes()
-    return db.listResumes()
-  })
-
   handle('archiveResume', async (resumeId) => {
-    resumes.archiveResume(resumeId)
+    db.archiveResume(resumeId)
     notifyResumes()
     return db.listResumes()
   })
 
-  handle('openResume', (resumeId) => resumes.openResume(resumeId))
+  handle('openResumePdf', (resumeId) => resumes.openResumePdf(requireResume(resumeId)))
 
-  handle('revealResume', async (resumeId) => {
-    resumes.revealResume(resumeId)
-  })
+  handle('saveResumePdf', (resumeId) => resumes.saveResumePdf(requireResume(resumeId)))
 
   handle('setItemResume', async (itemId, resumeId) => {
     const item = db.setItemResume(itemId, resumeId)
@@ -272,53 +281,23 @@ export function registerIpcHandlers(services: AppServices): void {
     return item
   })
 
-  /* ── resume masters + apply ─────────────────────────────────────────────── */
-
-  handle('listResumeMasters', () => db.listResumeMasters())
-
-  handle('createResumeMaster', async (input) => {
-    const master = db.createResumeMaster(input)
-    notifyResumeMasters()
-    return master
-  })
-
-  handle('importResumeMaster', async () => {
-    const input = await resumes.pickResumeMasterText()
-    if (!input) return null
-    const master = db.createResumeMaster(input)
-    notifyResumeMasters()
-    return master
-  })
-
-  handle('updateResumeMaster', async (masterId, patch) => {
-    const master = db.updateResumeMaster(masterId, patch)
-    notifyResumeMasters()
-    return master
-  })
-
-  handle('setDefaultResumeMaster', async (masterId) => {
-    db.markDefaultResumeMaster(masterId)
-    notifyResumeMasters()
-    return db.listResumeMasters()
-  })
-
-  handle('archiveResumeMaster', async (masterId) => {
-    db.archiveResumeMaster(masterId)
-    notifyResumeMasters()
-    return db.listResumeMasters()
-  })
-
-  // Render before write: a failed PDF leaves no half-built application behind, and an
-  // orphaned variant with no item pointing at it is a file nobody sees.
-  handle('applyDraft', async (input) => {
+  // The tailored markdown is filed as a resume derived from the one it started from.
+  // No PDF is written: @main/resumes renders one on demand.
+  handle('applyDraft', (input) => {
     const company = input.company.trim()
     if (!company) throw new Error('An application needs a company.')
-    const master = db.getResumeMaster(input.masterId)
-    if (!master) throw new Error(`Resume master ${input.masterId} not found.`)
     if (!input.resumeMd.trim()) throw new Error('The tailored resume is empty.')
 
-    const pdf = await renderResumePdf(input.resumeMd)
-    const resume = resumes.storeRenderedResume(pdf, `${master.label} — ${company}`, master.id)
+    const source = requireResume(input.resumeId)
+    if (source.contentMd === null) {
+      throw new Error(`"${source.label}" is a record of a file that is no longer stored.`)
+    }
+
+    const resume = db.createResume({
+      label: `${source.label} — ${company}`,
+      contentMd: input.resumeMd,
+      derivedFromId: source.id
+    })
 
     const created = db.createItem({
       company,
@@ -432,10 +411,14 @@ export function registerIpcHandlers(services: AppServices): void {
     if (input.kind === 'tailor') {
       const jobInput = input.jobInput?.trim()
       if (!jobInput) throw new Error('A tailor run needs a job description or a link.')
-      if (input.masterId === undefined) throw new Error('A tailor run needs a resume.')
-      const master = db.getResumeMaster(input.masterId)
-      if (!master) throw new Error(`Resume master ${input.masterId} not found.`)
-      const started = await runner.spawnTailorRun(jobInput, master.contentMd, {
+      if (input.resumeId === undefined) throw new Error('A tailor run needs a resume.')
+      const resume = requireResume(input.resumeId)
+      if (resume.contentMd === null) {
+        throw new Error(
+          `"${resume.label}" is a record of a file that is no longer stored, so it cannot be tailored.`
+        )
+      }
+      const started = await runner.spawnTailorRun(jobInput, resume.contentMd, {
         model: input.model
       })
       watchRun(started)

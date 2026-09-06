@@ -8,7 +8,7 @@
 
 import { Field, Icon, Markdown, Select, TextInput, pluralize } from '@renderer/components'
 import type { JSX } from 'react'
-import type { AppliedResume, ResumeMaster, TailorResult, WorkMode } from '@shared/types'
+import type { AppliedResume, Resume, TailorResult, WorkMode } from '@shared/types'
 import { ChangeList } from './ChangeList'
 import type { ApplyFields } from './useApply'
 
@@ -26,7 +26,7 @@ const UNAPPLIED_REASON: Record<'not_found' | 'ambiguous', string> = {
 
 interface Props {
   result: TailorResult
-  master: ResumeMaster
+  resume: Resume
   applied: AppliedResume | null
   fields: ApplyFields
   setField: <K extends keyof ApplyFields>(key: K, value: ApplyFields[K]) => void
@@ -39,7 +39,7 @@ interface Props {
 
 export function ReviewScreen({
   result,
-  master,
+  resume,
   applied,
   fields,
   setField,
@@ -130,7 +130,7 @@ export function ReviewScreen({
         <div className="ap-section-head">
           <h3 className="ap-section-title">Result</h3>
           <span className="ap-section-note tertiary truncate">
-            {master.label} · {pluralize(applied?.applied.length ?? 0, 'change')} applied
+            {resume.label} · {pluralize(applied?.applied.length ?? 0, 'change')} applied
           </span>
         </div>
         <div className="ap-preview">

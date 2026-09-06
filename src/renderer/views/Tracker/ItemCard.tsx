@@ -10,7 +10,7 @@
 
 import { useRef } from 'react'
 import { Icon } from '@renderer/components'
-import type { ItemSummary, Resume } from '@shared/types'
+import { isEditableResume, type ItemSummary, type Resume } from '@shared/types'
 import type { DragEvent, JSX } from 'react'
 import { itemSignal } from './format'
 import type { ItemMenuTarget } from './ItemMenu'
@@ -150,7 +150,11 @@ export function ItemCard({
           type="button"
           className={needsResume ? 'item-card-resume is-unanswered' : 'item-card-resume'}
           title={
-            resume ? `Applied with ${resume.label}` : 'Which resume did you apply with?'
+            resume
+              ? isEditableResume(resume)
+                ? `Applied with ${resume.label}`
+                : `Applied with ${resume.filename ?? resume.label} — no longer stored`
+              : 'Which resume did you apply with?'
           }
           onClick={(e) => {
             e.stopPropagation()

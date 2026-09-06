@@ -8,7 +8,7 @@
  */
 
 import type { JSX } from 'react'
-import type { ItemSummary, Resume } from '@shared/types'
+import { isEditableResume, type ItemSummary, type Resume } from '@shared/types'
 import { Menu, anchorFromElement, anchorFromEvent } from '@renderer/components'
 import type { MenuAnchor, MenuNodeList } from '@renderer/components'
 import { resumeAnswer } from '@shared/resume'
@@ -31,14 +31,17 @@ export function resumeMenuTargetFromEvent(
 
 export interface ResumeMenuActions {
   onPick: (itemId: number, resumeId: number | null) => void
-  /** Opens the file dialog, then attaches whatever comes back to this item. */
-  onUpload: (itemId: number) => void
   onSkip: (itemId: number, skipped: boolean) => void
-  onOpenFile: (resumeId: number) => void
-  onRevealFile: (resumeId: number) => void
+  /** Renders the resume to PDF and opens it. */
+  onOpenPdf: (resumeId: number) => void
+  /** Renders the resume to PDF and saves it where the user chooses. */
+  onSavePdf: (resumeId: number) => void
+  /** Opens Settings at the resume pane. */
+  onOpenSettings: () => void
 }
 
 function rowLabel(resume: Resume): string {
+  if (!isEditableResume(resume)) return `${resume.label} — no longer stored`
   const suffix = resume.isDefault
     ? ' — Default'
     : resume.usageCount > 0
@@ -54,6 +57,8 @@ function resumeMenuItems(
 ): MenuNodeList {
   const answer = resumeAnswer(item)
   const attached = item.resumeId
+  const attachedResume = resumes.find((r) => r.id === attached) ?? null
+  const renderable = attachedResume !== null && isEditableResume(attachedResume)
 
   const choices: MenuNodeList = resumes.map((resume) => ({
     kind: 'action' as const,
@@ -70,12 +75,12 @@ function resumeMenuItems(
   return [
     resumes.length > 0 && { kind: 'section' as const, id: 'sec-applied', label: 'Applied with' },
     ...choices,
-    { kind: 'separator' as const, id: 'sep-upload' },
+    { kind: 'separator' as const, id: 'sep-settings' },
     {
       kind: 'action' as const,
-      id: 'upload',
-      label: resumes.length > 0 ? 'Upload a different resume…' : 'Upload a resume…',
-      onSelect: () => actions.onUpload(item.id)
+      id: 'settings',
+      label: resumes.length > 0 ? 'Manage resumes in Settings…' : 'Add a resume in Settings…',
+      onSelect: () => actions.onOpenSettings()
     },
     {
       kind: 'action' as const,
@@ -84,17 +89,17 @@ function resumeMenuItems(
       onSelect: () => actions.onSkip(item.id, answer !== 'skipped')
     },
     attached != null && { kind: 'separator' as const, id: 'sep-file' },
-    attached != null && {
+    renderable && {
       kind: 'action' as const,
-      id: 'open-file',
+      id: 'open-pdf',
       label: 'Open',
-      onSelect: () => actions.onOpenFile(attached)
+      onSelect: () => actions.onOpenPdf(attachedResume.id)
     },
-    attached != null && {
+    renderable && {
       kind: 'action' as const,
-      id: 'reveal-file',
-      label: 'Reveal in Finder',
-      onSelect: () => actions.onRevealFile(attached)
+      id: 'save-pdf',
+      label: 'Save PDF…',
+      onSelect: () => actions.onSavePdf(attachedResume.id)
     },
     attached != null && {
       kind: 'action' as const,

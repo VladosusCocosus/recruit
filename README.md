@@ -9,8 +9,8 @@ moves, interview events, message links. Nothing it proposes touches the tracker 
 accept it in the Review queue.
 
 It also writes the other direction. **Apply** takes a job description or a link, tailors a
-markdown master resume against it, renders a PDF and opens the application at Applied — see
-*Applying to a job*.
+markdown resume against it and opens the application at Applied, with the tailored copy
+attached — see *Applying to a job*.
 
 Electron + React 18 + SQLite (better-sqlite3). The main process owns all state; the
 renderer talks to it over a typed IPC bridge and never touches the database.
@@ -31,7 +31,7 @@ Other commands:
 ```bash
 npm run build      # -> out/main, out/preload, out/renderer
 npm run typecheck  # tsc --noEmit
-npm test           # vitest — prefilter + .ics parser only, by design
+npm test           # vitest — pure functions only, by design
 npm run rebuild    # only if better-sqlite3/keytar need an Electron-ABI rebuild
 ```
 
@@ -62,7 +62,7 @@ it holds your resume *and* reaches the web. See *The tailor run's exposure* belo
 | tracker MCP tools | yes, allowlisted | **no server configured at all** | **no server configured at all** |
 | email | this run's allowlist only | never — input is a company name string | never |
 | web | Claude Code: no. Codex: **yes, see below** | yes — `WebSearch` + `WebFetch` | yes — `WebSearch` + `WebFetch` |
-| private data in context | this run's messages | none | **the master resume** |
+| private data in context | this run's messages | none | **the resume being tailored** |
 | shell / files / subagents | no | no | no |
 
 On Claude Code that is `--tools ""` (no built-ins whatsoever) plus `--strict-mcp-config`.
@@ -115,7 +115,7 @@ description you wrote yourself.
 ## Applying to a job
 
 **Apply** in the toolbar (⌘N) is the path to a new application. One box takes either a
-pasted job description or a job link; you pick a master resume; a **tailor** run reads the
+pasted job description or a job link; you pick a resume; a **tailor** run reads the
 posting and comes back with a list of proposed replacements against your resume, each with
 the evidence that motivated it.
 
@@ -125,16 +125,22 @@ accept, never from a rewritten copy the model returned. Alongside them is a **ga
 what the posting asks for that your resume does not show. Gaps are required output and are
 never quietly turned into additions.
 
-Accepting renders the result to PDF, files it as a resume variant, and creates the
-application at **Applied** with the tailored file already attached. So the flow that writes
-the application is the same one that answers "which resume did I send".
+Accepting records the tailored markdown as its own resume, derived from the one it started
+from, creates the application at **Applied** with it attached, and then asks where to save
+the PDF — so the flow ends with the file you are about to upload, not just a tracker row.
+Cancel that save and the application is still filed; the modal stays put with **Save PDF…**
+and **Open** rather than dropping you with no document. Either way the flow that writes the
+application is the same one that answers "which resume did I send".
 
-**Master resumes** live in **Settings → Resume**, in markdown — write one there or import a
+**Resumes are markdown**, and live in **Settings → Resume** — write one there or import a
 `.md` or `.txt` file. That is the one-time cost of this feature: a resume has to exist as
-text before anything can tailor it, and an uploaded PDF is bytes nobody can read. Apply
-never asks you to create one; with no master it points you at Settings and does nothing
-else. Rendering is markdown → HTML → PDF inside Jobbox, so every application you send looks
-the same.
+text before anything can tailor it, and a PDF is bytes nobody can read. Apply never asks you
+to create one; with none it points you at Settings and does nothing else.
+
+**PDFs are rendered on demand, never stored.** Markdown → HTML → PDF inside Jobbox, from
+**Open** or **Save PDF…** wherever a resume appears. So every application you send looks the
+same, and the record of what you sent is the markdown itself rather than a file that could
+go missing.
 
 Two limits worth stating plainly. **Jobbox does not submit anything** — mail is read-only
 and SMTP is unused, so you still apply on the company's own site with the PDF it produced.
@@ -146,22 +152,23 @@ is prohibited outright.
 ### Which resume you applied with
 
 Applications the apply flow created already know. For the rest — anything the triage agent
-found in your mail, or a card you made by hand — **Settings → Resume** holds a default
-resume plus every other one you have used. Once an application reaches **Applied**, its
-board card grows a **Resume?** chip; picking answers it with the default, another resume
-from the library, a file you upload there and then, or *Skip for now*. Skipping is an
-answer — the chip stops asking.
+found in your mail, or a card you made by hand — **Settings → Resume** holds a default plus
+every other resume you have written. Once an application reaches **Applied**, its board card
+grows a **Resume?** chip; picking answers it with the default, another resume, or *Skip for
+now*. Skipping is an answer — the chip stops asking.
 
-Added files are copied into `userData/resumes` and named by content hash, so renaming or
-moving the original later does not break the record, and re-adding the same file reuses the
-row instead of duplicating it. PDFs the apply flow rendered are stored the same way but
-marked as variants of the master they came from, so they stay out of the library list and
-the picker while still resolving by id for the application that was sent with one.
+A tailored resume is recorded as its own row, derived from the one it was built from, so it
+stays out of the picker while still resolving for the application that was sent with it.
+
+Resumes were files once — PDF, Word, Pages — copied into `userData/resumes` and keyed by
+content hash. Upgrading keeps each of those as a **record**: the name survives, so an
+application still says what it was sent, but there is no markdown behind it and it cannot be
+edited, tailored or rendered. The old files are left where they are; Jobbox stops reading
+them and never deletes them, so clearing out `userData/resumes` is yours to do.
 
 The triage agent has no access to any of it: resumes appear nowhere on the MCP surface, and
 which one you sent is not something it can propose. A tailor run is the one place a resume
-reaches a model, and it is given the markdown master rather than the library — see *The
-tailor run's exposure*.
+reaches a model — see *The tailor run's exposure*.
 
 Gmail and other 2FA providers need an app-specific password, not your account password.
 **Outlook and Microsoft 365 cannot connect at all** — Microsoft removed password sign-in from
@@ -210,7 +217,7 @@ in a local, web-less step. The apply flow does it anyway, deliberately, because 
 job link has to work. That is a real accepted risk, not a solved one, and this is the
 honest account of it.
 
-A tailor run holds the master resume in its prompt and can reach the web. What constrains
+A tailor run holds the resume in its prompt and can reach the web. What constrains
 it:
 
 - **No tracker tools and no email.** Same as enrich: no MCP server is configured, so the
@@ -232,7 +239,7 @@ cannot be turned off there at all, so there is no such thing as a web-less Codex
 in principle. Claude Code remains the default engine.
 
 Paste job descriptions you are willing to have a model read adversarially, and treat the
-master resume as something that has been in a web-enabled context.
+resume as something that has been in a web-enabled context.
 
 ## Known gaps
 

@@ -44,7 +44,8 @@ export function TrackerView({
   initialMode = 'board',
   focusItemId = null,
   focusNonce = 0,
-  onOpenMessage
+  onOpenMessage,
+  onOpenResumeSettings
 }: {
   initialItemId?: number | null
   initialMode?: TrackerMode
@@ -57,7 +58,9 @@ export function TrackerView({
   /** Bumped by the router per navigation, so following the same link twice still opens it. */
   focusNonce?: number
   onOpenMessage?: (messageId: number) => void
-} = {}): JSX.Element {
+  /** Opens Settings at the resume pane. */
+  onOpenResumeSettings: () => void
+}): JSX.Element {
   const [mode, setMode] = useState<TrackerMode>(initialMode)
   const [search, setSearch] = useState('')
   const [includeArchived, setIncludeArchived] = useState(false)
@@ -86,7 +89,7 @@ export function TrackerView({
 
   const store = useTracker(query)
   const now = useNow(60_000)
-  const resumePicker = useResumePicker()
+  const resumePicker = useResumePicker(onOpenResumeSettings)
 
   const handleCreate = useCallback(
     async (statusKey: string) => {
@@ -195,6 +198,7 @@ export function TrackerView({
                 now={now}
                 onBack={() => setSelectedItemId(null)}
                 onOpenMessage={onOpenMessage}
+                onOpenResumeSettings={onOpenResumeSettings}
               />
             </div>
           </Pane>

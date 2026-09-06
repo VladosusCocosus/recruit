@@ -161,13 +161,16 @@ export function ItemDetail({
   statusIndex,
   now,
   onBack,
-  onOpenMessage
+  onOpenMessage,
+  onOpenResumeSettings
 }: {
   itemId: number | null
   statusIndex: StatusIndex
   now: number
   onBack?: () => void
   onOpenMessage?: (messageId: number) => void
+  /** Opens Settings at the resume pane. */
+  onOpenResumeSettings: () => void
 }): JSX.Element {
   const store = useItemDetail(itemId)
   const [editing, setEditing] = useState(false)
@@ -284,7 +287,11 @@ export function ItemDetail({
       <div className="detail-body">
         <Description item={detail} now={now} onSave={(md) => store.saveDescription(md)} />
 
-        <ItemResume item={detail} statuses={statusIndex.statuses} />
+        <ItemResume
+          item={detail}
+          statuses={statusIndex.statuses}
+          onOpenResumeSettings={onOpenResumeSettings}
+        />
 
         <section className="detail-section">
           <div className="detail-section-head">

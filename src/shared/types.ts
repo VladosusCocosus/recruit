@@ -269,58 +269,44 @@ export interface SanitizedBody {
  * ──────────────────────────────────────────────────────────────────────────── */
 
 /**
- * One stored resume file. Carries no disk path: the renderer addresses a resume by id and
- * main resolves the path, the same rule `revealDatabase` follows.
+ * One resume, in markdown. The apply flow tailors these and renders them to PDF on
+ * demand; nothing is kept on disk.
+ *
+ * `contentMd` is null on a row carried over from the old file library — a record that an
+ * application was sent some file, kept so the tracker does not lose its history. Such a
+ * row cannot be edited, tailored or rendered, and `filename` is what it was called.
  */
 export interface Resume {
   id: number
-  /** Display name. Defaults to the filename, editable afterwards. */
   label: string
-  filename: string
-  mimeType: string | null
-  size: number
+  contentMd: string | null
+  /** Set on a resume the apply flow tailored. Points at the one it started from. */
+  derivedFromId: number | null
   isDefault: boolean
-  createdAt: string
-  archivedAt: string | null
   /** Applications pointing at this resume. */
   usageCount: number
-  /** Set on a resume the apply flow rendered. Null on one the user uploaded. */
-  derivedFromMasterId: number | null
-}
-
-/**
- * A resume in markdown, the source the apply flow tailors from.
- *
- * Deliberately not a row in `resumes`: that table records files that were SENT, keyed by
- * content hash and never rewritten, whereas a master is edited in place. The two are
- * linked one way, by `Resume.derivedFromMasterId`.
- */
-export interface ResumeMaster {
-  id: number
-  label: string
-  contentMd: string
-  isDefault: boolean
   createdAt: string
   updatedAt: string
   archivedAt: string | null
+  /** The file this row used to be. Null on a markdown resume. */
+  filename: string | null
 }
 
-export interface ResumeMasterInput {
+export interface ResumeInput {
   label: string
   contentMd: string
 }
 
-/** Extensions the master-resume import dialog accepts. Text only: it has to be readable. */
-export const RESUME_MASTER_EXTENSIONS = ['md', 'markdown', 'txt', 'text'] as const
+/** True when a resume holds markdown, so it can be edited, tailored and rendered. */
+export function isEditableResume(resume: Resume): boolean {
+  return resume.contentMd !== null
+}
 
-/** Largest master the import accepts, in bytes. */
-export const RESUME_MASTER_MAX_BYTES = 128 * 1024
+/** Extensions the resume import dialog accepts. Text only: it has to be readable. */
+export const RESUME_TEXT_EXTENSIONS = ['md', 'markdown', 'txt', 'text'] as const
 
-/** Extensions the resume file dialog accepts. */
-export const RESUME_EXTENSIONS = ['pdf', 'doc', 'docx', 'odt', 'rtf', 'txt', 'md', 'pages'] as const
-
-/** Largest file the resume store accepts, in bytes. */
-export const RESUME_MAX_BYTES = 25 * 1024 * 1024
+/** Largest resume the import accepts, in bytes. */
+export const RESUME_MAX_BYTES = 128 * 1024
 
 /* ────────────────────────────────────────────────────────────────────────────
  * statuses + items
@@ -749,8 +735,8 @@ export interface StartRunInput {
   itemId?: number
   /** tailor only — a pasted job description, or a single http(s) URL to fetch. */
   jobInput?: string
-  /** tailor only — the master resume to tailor. */
-  masterId?: number
+  /** tailor only — the resume to tailor. */
+  resumeId?: number
   /** Overrides AppSettings.model for this run. */
   model?: string
 }
@@ -807,7 +793,7 @@ export interface AppliedResume {
 
 /** Everything the commit step needs. The renderer has already resolved the diff. */
 export interface ApplyDraftInput {
-  masterId: number
+  resumeId: number
   /** The finished resume, after the accepted changes were applied. */
   resumeMd: string
   company: string
@@ -1119,7 +1105,6 @@ export interface RecruitEvents {
   mailChanged: { accountId: number; newMessages: number; newCandidates: number }
   itemsChanged: { itemIds: number[] }
   resumesChanged: { resumes: Resume[] }
-  resumeMastersChanged: { masters: ResumeMaster[] }
   settingsChanged: AppSettings
   updateAvailable: UpdateStatus
 }
@@ -1184,33 +1169,25 @@ export interface RecruitApi {
 
   // ── resumes ───────────────────────────────────────────────────────────────
   listResumes(): Promise<Resume[]>
-  /** Opens a file dialog and stores the chosen file. Null when the user cancels. */
-  addResume(makeDefault?: boolean): Promise<Resume | null>
+  createResume(input: ResumeInput): Promise<Resume>
+  /** Opens a file dialog and creates a resume from a text file. Null when cancelled. */
+  importResume(): Promise<Resume | null>
+  updateResume(resumeId: number, patch: Partial<ResumeInput>): Promise<Resume>
   setDefaultResume(resumeId: number): Promise<Resume[]>
-  renameResume(resumeId: number, label: string): Promise<Resume[]>
   /** Hides a resume from the picker. Items already pointing at it keep it. */
   archiveResume(resumeId: number): Promise<Resume[]>
-  /** Opens the file in the OS default application. */
-  openResume(resumeId: number): Promise<void>
-  /** Shows the file in Finder. Takes an id, never a path. */
-  revealResume(resumeId: number): Promise<void>
+  /** Renders the resume to PDF and opens it in the OS default application. */
+  openResumePdf(resumeId: number): Promise<void>
+  /** Renders the resume to PDF and saves it where the user chooses. Null when cancelled. */
+  saveResumePdf(resumeId: number): Promise<string | null>
   /** Attaches a resume to an item, or clears it with null. Clears any skip. */
   setItemResume(itemId: number, resumeId: number | null): Promise<Item>
   /** Dismisses the resume question for an item. Pass false to ask again. */
   skipItemResume(itemId: number, skipped: boolean): Promise<Item>
-
-  // ── resume masters + apply ────────────────────────────────────────────────
-  listResumeMasters(): Promise<ResumeMaster[]>
-  createResumeMaster(input: ResumeMasterInput): Promise<ResumeMaster>
-  /** Opens a file dialog and creates a master from a text file. Null when cancelled. */
-  importResumeMaster(): Promise<ResumeMaster | null>
-  updateResumeMaster(masterId: number, patch: Partial<ResumeMasterInput>): Promise<ResumeMaster>
-  setDefaultResumeMaster(masterId: number): Promise<ResumeMaster[]>
-  archiveResumeMaster(masterId: number): Promise<ResumeMaster[]>
   /**
-   * Commits an apply draft: renders the resume to PDF, files it as a variant, creates the
-   * application at Applied and attaches the rendered file. One transaction from the
-   * renderer's point of view — either you have an application or you have an error.
+   * Commits an apply draft: renders the resume to PDF, files the tailored markdown as a
+   * resume derived from the one it started from, creates the application at Applied and
+   * attaches it.
    */
   applyDraft(input: ApplyDraftInput): Promise<Item>
 
@@ -1310,20 +1287,15 @@ export const IPC_METHODS = [
   'linkMessage',
   'unlinkMessage',
   'listResumes',
-  'addResume',
+  'createResume',
+  'importResume',
+  'updateResume',
   'setDefaultResume',
-  'renameResume',
   'archiveResume',
-  'openResume',
-  'revealResume',
+  'openResumePdf',
+  'saveResumePdf',
   'setItemResume',
   'skipItemResume',
-  'listResumeMasters',
-  'createResumeMaster',
-  'importResumeMaster',
-  'updateResumeMaster',
-  'setDefaultResumeMaster',
-  'archiveResumeMaster',
   'applyDraft',
   'listUpcomingEvents',
   'addEvent',
@@ -1357,7 +1329,6 @@ export const EVENT_NAMES = [
   'mailChanged',
   'itemsChanged',
   'resumesChanged',
-  'resumeMastersChanged',
   'settingsChanged',
   'updateAvailable'
 ] as const satisfies readonly RecruitEventName[]

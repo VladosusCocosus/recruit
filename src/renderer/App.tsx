@@ -80,6 +80,8 @@ export interface ViewProps {
   /** Calls that have finished and still owe a debrief. Only Up next renders them. */
   pendingDebriefs: PendingDebrief[]
   openDebrief: (eventId: number) => void
+  /** Switches to Settings with the resume pane selected. */
+  onOpenResumeSettings: () => void
 }
 
 type ViewComponent = (props: ViewProps) => JSX.Element
@@ -266,6 +268,7 @@ function Shell(): JSX.Element {
                   refreshCounts={refreshCounts}
                   pendingDebriefs={debriefs.pending}
                   openDebrief={debriefs.open}
+                  onOpenResumeSettings={openResumeSettings}
                 />
               ) : (
                 <LoadingState />

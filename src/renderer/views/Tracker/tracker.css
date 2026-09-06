@@ -1017,6 +1017,15 @@
   flex: 1 1 auto;
 }
 
+.detail-resume-note {
+  flex: 0 0 auto;
+  font-size: var(--fs-xs);
+}
+
+.detail-resume .btn {
+  flex: 0 0 auto;
+}
+
 .detail-resume .chip {
   flex: 0 0 auto;
   border: none;

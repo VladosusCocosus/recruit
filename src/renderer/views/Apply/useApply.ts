@@ -1,19 +1,20 @@
 /**
- * The apply flow's state: the job input, the chosen master resume, the tailor run this
- * modal started, and the review the run comes back as. Mounted once by the shell and
- * handed to <ApplyModal>.
+ * The apply flow's state: the job input, the chosen resume, the tailor run this modal
+ * started, and the review the run comes back as. Mounted once by the shell and handed
+ * to <ApplyModal>.
  *
  * `startRun` resolves when the process is spawned; the result envelope is written after
  * it exits. The run is therefore watched to a terminal state and read from `getRun`.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { errorMessage, useResumeMasters, useRun } from '@renderer/components'
+import { errorMessage, useResumes, useRun } from '@renderer/components'
 import { parseTailorResult } from '@shared/tailor'
 import { applyTailorChanges } from '@shared/resumePatch'
+import { isEditableResume } from '@shared/types'
 import type {
   AppliedResume,
   JobDescriptionSource,
-  ResumeMaster,
+  Resume,
   TailorChange,
   TailorResult,
   WorkMode
@@ -34,6 +35,13 @@ export interface ApplyFields {
 }
 
 const EMPTY_FIELDS: ApplyFields = { company: '', role: '', location: '', workMode: '' }
+
+/** The application the flow created, and the resume it was filed with. */
+export interface FiledApplication {
+  itemId: number
+  resumeId: number | null
+  company: string
+}
 
 const BLOCKED_BY_OTHER_RUN = 'Another run is in progress.'
 
@@ -64,11 +72,12 @@ export interface ApplyStore {
   setJobInput: (value: string) => void
   /** What `jobInput` will be committed as: a pasted description or a link to fetch. */
   jobSource: JobDescriptionSource
-  masters: ResumeMaster[]
-  mastersLoading: boolean
-  mastersError: string | null
-  master: ResumeMaster | null
-  selectMaster: (masterId: number) => void
+  /** Only resumes that hold markdown: a legacy record cannot be tailored. */
+  resumes: Resume[]
+  resumesLoading: boolean
+  resumesError: string | null
+  resume: Resume | null
+  selectResume: (resumeId: number) => void
   /** Non-null when Tailor cannot be pressed, and says why. */
   tailorDisabledReason: string | null
   tailor: () => void
@@ -92,10 +101,17 @@ export interface ApplyStore {
   toggleChange: (index: number, accepted: boolean) => void
   acceptAll: () => void
   rejectAll: () => void
-  /** The master with the accepted changes applied. Null until the result lands. */
+  /** The resume with the accepted changes applied. Null until the result lands. */
   applied: AppliedResume | null
   committing: boolean
   commitError: string | null
+  /** Set once the application exists. The flow cannot file a second one after this. */
+  filed: FiledApplication | null
+  savingPdf: boolean
+  /** Renders the filed resume and saves it where the user chooses. */
+  savePdf: () => Promise<boolean>
+  /** Renders the filed resume and opens it. */
+  openPdf: () => Promise<void>
   /** Non-null when Apply cannot be pressed, and says why. */
   commitDisabledReason: string | null
   /** Files the application. Resolves with the new item's id, or null on failure. */
@@ -113,7 +129,7 @@ export function useApply(): ApplyStore {
   const [screen, setScreen] = useState<ApplyScreen>('input')
   const [phase, setPhase] = useState<ApplyPhase>('running')
   const [jobInput, setJobInput] = useState('')
-  const [masterId, setMasterId] = useState<number | null>(null)
+  const [resumeId, setResumeId] = useState<number | null>(null)
 
   /** True from our click until the tailor run reaches a terminal state. */
   const [pending, setPending] = useState(false)
@@ -124,21 +140,25 @@ export function useApply(): ApplyStore {
   const [rejected, setRejected] = useState<ReadonlySet<number>>(() => new Set())
   const [committing, setCommitting] = useState(false)
   const [commitError, setCommitError] = useState<string | null>(null)
+  const [filed, setFiled] = useState<FiledApplication | null>(null)
+  const [savingPdf, setSavingPdf] = useState(false)
 
-  const mastersState = useResumeMasters()
+  const resumesState = useResumes()
   const run = useRun()
 
-  const masters = useMemo(() => mastersState.data ?? [], [mastersState.data])
-  const reloadMasters = mastersState.reload
+  const resumes = useMemo(
+    () => (resumesState.data ?? []).filter(isEditableResume),
+    [resumesState.data]
+  )
 
-  // `masterId` is an override. With none set the selection is the default master.
-  const master = useMemo(
+  // `resumeId` is an override. With none set the selection is the default resume.
+  const resume = useMemo(
     () =>
-      masters.find((m) => m.id === masterId) ??
-      masters.find((m) => m.isDefault) ??
-      masters[0] ??
+      resumes.find((r) => r.id === resumeId) ??
+      resumes.find((r) => r.isDefault) ??
+      resumes[0] ??
       null,
-    [masters, masterId]
+    [resumes, resumeId]
   )
 
   const openApply = useCallback(() => setOpen(true), [])
@@ -155,6 +175,7 @@ export function useApply(): ApplyStore {
     setFields(EMPTY_FIELDS)
     setRejected(new Set())
     setCommitError(null)
+    setFiled(null)
   }, [])
 
   useEffect(() => {
@@ -230,7 +251,7 @@ export function useApply(): ApplyStore {
   }, [pending, startError])
 
   const startRun = useCallback(
-    (input: string, selected: ResumeMaster): void => {
+    (input: string, selected: Resume): void => {
       setResult(null)
       setFields(EMPTY_FIELDS)
       setRejected(new Set())
@@ -240,7 +261,7 @@ export function useApply(): ApplyStore {
       setScreen('review')
       setPhase('running')
       setPending(true)
-      void run.start({ kind: 'tailor', jobInput: input, masterId: selected.id })
+      void run.start({ kind: 'tailor', jobInput: input, resumeId: selected.id })
     },
     [run]
   )
@@ -250,7 +271,7 @@ export function useApply(): ApplyStore {
   const blockedByOtherRun = !busy && run.active !== null
 
   const tailorDisabledReason =
-    master === null
+    resume === null
       ? 'Add a resume first.'
       : jobInput.trim() === ''
         ? 'Paste a job description, or a link to one.'
@@ -259,14 +280,14 @@ export function useApply(): ApplyStore {
           : null
 
   const tailor = useCallback(() => {
-    if (tailorDisabledReason !== null || master === null) return
-    startRun(jobInput.trim(), master)
-  }, [tailorDisabledReason, master, jobInput, startRun])
+    if (tailorDisabledReason !== null || resume === null) return
+    startRun(jobInput.trim(), resume)
+  }, [tailorDisabledReason, resume, jobInput, startRun])
 
   const retry = useCallback(() => {
-    if (master === null || blockedByOtherRun) return
-    startRun(jobInput.trim(), master)
-  }, [master, blockedByOtherRun, jobInput, startRun])
+    if (resume === null || blockedByOtherRun) return
+    startRun(jobInput.trim(), resume)
+  }, [resume, blockedByOtherRun, jobInput, startRun])
 
   const backToInput = useCallback(() => {
     setScreen('input')
@@ -311,8 +332,11 @@ export function useApply(): ApplyStore {
   )
 
   const applied = useMemo<AppliedResume | null>(
-    () => (result && master ? applyTailorChanges(master.contentMd, accepted) : null),
-    [result, master, accepted]
+    () =>
+      result && resume && resume.contentMd !== null
+        ? applyTailorChanges(resume.contentMd, accepted)
+        : null,
+    [result, resume, accepted]
   )
 
   const commitDisabledReason =
@@ -323,7 +347,7 @@ export function useApply(): ApplyStore {
         : null
 
   const commit = useCallback(async (): Promise<number | null> => {
-    if (!result || !master || !applied) return null
+    if (!result || !resume || !applied) return null
     const company = fields.company.trim()
     if (company === '') {
       setCommitError('Company is required.')
@@ -333,7 +357,7 @@ export function useApply(): ApplyStore {
     setCommitError(null)
     try {
       const item = await window.recruit.applyDraft({
-        masterId: master.id,
+        resumeId: resume.id,
         resumeMd: applied.markdown,
         company,
         role: fields.role.trim() || null,
@@ -343,6 +367,7 @@ export function useApply(): ApplyStore {
         jdMd: result.jdMd.trim() || (jobSource === 'pasted' ? jobInput.trim() : ''),
         jdSource: jobSource
       })
+      setFiled({ itemId: item.id, resumeId: item.resumeId, company })
       return item.id
     } catch (e) {
       setCommitError(errorMessage(e))
@@ -350,7 +375,36 @@ export function useApply(): ApplyStore {
     } finally {
       setCommitting(false)
     }
-  }, [result, master, applied, fields, jobSource, jobInput])
+  }, [result, resume, applied, fields, jobSource, jobInput])
+
+  /* ── the file the user came for ──────────────────────────────────────────── */
+
+  const savePdf = useCallback(async (): Promise<boolean> => {
+    if (filed?.resumeId == null) return false
+    setSavingPdf(true)
+    setCommitError(null)
+    try {
+      return (await window.recruit.saveResumePdf(filed.resumeId)) !== null
+    } catch (e) {
+      setCommitError(errorMessage(e))
+      return false
+    } finally {
+      setSavingPdf(false)
+    }
+  }, [filed])
+
+  const openPdf = useCallback(async (): Promise<void> => {
+    if (filed?.resumeId == null) return
+    setSavingPdf(true)
+    setCommitError(null)
+    try {
+      await window.recruit.openResumePdf(filed.resumeId)
+    } catch (e) {
+      setCommitError(errorMessage(e))
+    } finally {
+      setSavingPdf(false)
+    }
+  }, [filed])
 
   return {
     open,
@@ -362,14 +416,13 @@ export function useApply(): ApplyStore {
     jobInput,
     setJobInput,
     jobSource,
-    masters,
-    mastersLoading: mastersState.loading,
-    mastersError: mastersState.error,
-    master,
-    selectMaster: setMasterId,
+    resumes,
+    resumesLoading: resumesState.loading,
+    resumesError: resumesState.error,
+    resume,
+    selectResume: setResumeId,
     tailorDisabledReason,
     tailor,
-
 
     elapsedMs: run.elapsedMs,
     currentTool: run.active?.currentTool ?? null,
@@ -390,6 +443,10 @@ export function useApply(): ApplyStore {
     committing,
     commitError,
     commitDisabledReason,
-    commit
+    commit,
+    filed,
+    savingPdf,
+    savePdf,
+    openPdf
   }
 }

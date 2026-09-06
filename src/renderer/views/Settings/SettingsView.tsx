@@ -309,7 +309,7 @@ function AgentSection({ settings, onUpdate }: SectionProps): JSX.Element {
           <>
             The agent never writes to the tracker directly. Every change it wants to make
             lands in the Review queue for you to accept or reject. Apply is the one flow
-            that hands the agent your resume: a tailor run has your master resume in
+            that hands the agent your resume: a tailor run has the resume you picked in
             context and fetches the posting over the web when the job you paste is a link.
           </>
         }

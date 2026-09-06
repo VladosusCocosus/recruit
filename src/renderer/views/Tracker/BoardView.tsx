@@ -10,7 +10,12 @@ import type { ViewProps } from '../../App'
 import { TrackerView } from './TrackerView'
 import './tracker.css'
 
-export default function BoardView({ navigate, focus, focusNonce }: ViewProps): JSX.Element {
+export default function BoardView({
+  navigate,
+  focus,
+  focusNonce,
+  onOpenResumeSettings
+}: ViewProps): JSX.Element {
   // Opening a linked message hands off to the mail view; the shell owns that route. Inbox
   // rather than Candidates: a message linked to an item need not still be a candidate.
   return (
@@ -18,6 +23,7 @@ export default function BoardView({ navigate, focus, focusNonce }: ViewProps): J
       focusItemId={focus?.kind === 'item' ? focus.id : null}
       focusNonce={focusNonce}
       onOpenMessage={(messageId) => navigate('inbox', { message: messageId })}
+      onOpenResumeSettings={onOpenResumeSettings}
     />
   )
 }

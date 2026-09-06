@@ -1,5 +1,5 @@
 /**
- * The resume library plus the five actions the picker needs, in one hook.
+ * The resume list plus the actions the picker needs, in one hook.
  *
  * Every mutation goes back to main, which broadcasts `itemsChanged` and `resumesChanged` —
  * so the board and the item detail refresh from the push rather than from a local write.
@@ -18,7 +18,8 @@ export interface ResumePicker {
   clearError: () => void
 }
 
-export function useResumePicker(): ResumePicker {
+/** `onOpenSettings` opens Settings at the resume pane. */
+export function useResumePicker(onOpenSettings: () => void): ResumePicker {
   const state = useResumes()
   const [error, setError] = useState<string | null>(null)
   const resumes = useMemo(() => state.data ?? [], [state.data])
@@ -31,18 +32,12 @@ export function useResumePicker(): ResumePicker {
   const actions = useMemo<ResumeMenuActions>(
     () => ({
       onPick: (itemId, resumeId) => run(window.recruit.setItemResume(itemId, resumeId)),
-      onUpload: (itemId) =>
-        run(
-          (async () => {
-            const resume = await window.recruit.addResume(false)
-            if (resume) await window.recruit.setItemResume(itemId, resume.id)
-          })()
-        ),
       onSkip: (itemId, skipped) => run(window.recruit.skipItemResume(itemId, skipped)),
-      onOpenFile: (resumeId) => run(window.recruit.openResume(resumeId)),
-      onRevealFile: (resumeId) => run(window.recruit.revealResume(resumeId))
+      onOpenPdf: (resumeId) => run(window.recruit.openResumePdf(resumeId)),
+      onSavePdf: (resumeId) => run(window.recruit.saveResumePdf(resumeId)),
+      onOpenSettings
     }),
-    [run]
+    [run, onOpenSettings]
   )
 
   return {

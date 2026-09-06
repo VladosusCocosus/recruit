@@ -384,3 +384,23 @@
   gap: 6px;
   min-width: 0;
 }
+
+/* A selector hook, not a box: .set-row-control lays the buttons out. */
+.set-resume-actions {
+  display: contents;
+}
+
+/* A resume row carries up to five actions: they wrap under the label rather than
+   squeezing it. */
+.set-row:has(.set-resume-actions) {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+
+.set-row:has(.set-resume-actions) .set-row-label {
+  min-width: 200px;
+}
+
+.set-row:has(.set-resume-actions) .set-row-control {
+  margin-left: auto;
+}

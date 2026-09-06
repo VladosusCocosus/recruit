@@ -7,20 +7,22 @@
  */
 
 import { useRef, useState, type JSX } from 'react'
-import type { ItemSummary, Status } from '@shared/types'
-import { Button, Icon, formatBytes } from '@renderer/components'
+import { isEditableResume, type ItemSummary, type Status } from '@shared/types'
+import { Button, Icon } from '@renderer/components'
 import { isAppliedOrLater, resumeAnswer } from '@shared/resume'
 import { ResumeMenu, resumeMenuTargetFromElement, type ResumeMenuTarget } from './ResumeMenu'
 import { useResumePicker } from './useResumePicker'
 
 export function ItemResume({
   item,
-  statuses
+  statuses,
+  onOpenResumeSettings
 }: {
   item: ItemSummary
   statuses: readonly Status[]
+  onOpenResumeSettings: () => void
 }): JSX.Element | null {
-  const picker = useResumePicker()
+  const picker = useResumePicker(onOpenResumeSettings)
   const [menu, setMenu] = useState<ResumeMenuTarget | null>(null)
   const button = useRef<HTMLButtonElement | null>(null)
 
@@ -28,6 +30,8 @@ export function ItemResume({
 
   const answer = resumeAnswer(item)
   const resume = item.resumeId != null ? (picker.byId.get(item.resumeId) ?? null) : null
+  const renderable = resume !== null && isEditableResume(resume)
+  const name = resume === null ? '' : renderable ? resume.label : (resume.filename ?? resume.label)
 
   const openMenu = (): void => {
     if (button.current) setMenu(resumeMenuTargetFromElement(item, button.current))
@@ -37,19 +41,35 @@ export function ItemResume({
     <section className="detail-section">
       <div className="detail-section-head">
         <h2 className="detail-section-title">Resume</h2>
-        {resume ? <span className="tertiary">{formatBytes(resume.size)}</span> : null}
       </div>
 
       <div className="detail-resume">
         {resume ? (
           <>
-            <span className="detail-resume-name truncate" title={resume.filename}>
+            <span className="detail-resume-name truncate" title={name}>
               <Icon name="doc" size={12} />
-              {resume.label}
+              {name}
             </span>
-            <Button size="sm" variant="outline" onClick={() => picker.actions.onOpenFile(resume.id)}>
-              Open
-            </Button>
+            {renderable ? (
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => picker.actions.onOpenPdf(resume.id)}
+                >
+                  Open
+                </Button>
+                <Button
+                  size="sm"
+                  variant="subtle"
+                  onClick={() => picker.actions.onSavePdf(resume.id)}
+                >
+                  Save PDF…
+                </Button>
+              </>
+            ) : (
+              <span className="detail-resume-note tertiary">no longer stored</span>
+            )}
           </>
         ) : (
           <span className="detail-resume-name tertiary">

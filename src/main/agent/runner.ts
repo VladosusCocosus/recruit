@@ -15,7 +15,7 @@
  *   triage — tracker MCP tools and nothing else. Sees email; must not be able to send.
  *   enrich — web search, and an empty MCP config, so it cannot reach the tracker at all.
  *            Its only input is a company name; it never sees email.
- *   tailor — the enrich isolation, over a job description and the master resume. It is
+ *   tailor — the enrich isolation, over a job description and the user's resume. It is
  *            the apply flow's own step, so it is not gated on the enrichment setting.
  * What each kind may reach is RUN_KIND_POLICY in ./engines; see that header for how each
  * engine enforces it, including the one place Codex currently cannot.
@@ -59,7 +59,7 @@ const TICK_MS = 1000
  * Ceiling on the task prompt, in bytes. The prompt is a single argv element and the OS
  * caps the whole argv: past its limit execve fails with E2BIG, which surfaces as a bare
  * spawn error with nothing in it a user could act on. A tailor run carries a job
- * description plus the master resume, so it is the kind that can reach this.
+ * description plus the resume, so it is the kind that can reach this.
  */
 export const MAX_PROMPT_BYTES = 256 * 1024
 
@@ -118,10 +118,10 @@ export interface AgentRunner {
   spawnEnrichRun(companyName: string, options?: RunOptions): Promise<StartedRun>
   /**
    * The apply flow's run: web on, no tracker tools, no email. `jobInput` is a pasted job
-   * description or one URL to fetch; `masterMd` is the resume to tailor. Unlike enrich it
+   * description or one URL to fetch; `resumeMd` is the resume to tailor. Unlike enrich it
    * is not gated on the enrichment setting.
    */
-  spawnTailorRun(jobInput: string, masterMd: string, options?: RunOptions): Promise<StartedRun>
+  spawnTailorRun(jobInput: string, resumeMd: string, options?: RunOptions): Promise<StartedRun>
   /** Kills the child. The run finishes as {kind:'error', errorKind:'stopped'}. */
   cancelRun(runId: number): void
   /** Newest in-flight run, for RecruitApi.getActiveRun(). */
@@ -584,9 +584,9 @@ export function createAgentRunner(deps: AgentDeps): AgentRunner {
       return begin('enrich', [], enrichTaskPrompt(companyName), false, options)
     },
 
-    async spawnTailorRun(jobInput, masterMd, options) {
-      // No allowlist and no bridge: the job input and the master resume are the whole input.
-      return begin('tailor', [], tailorTaskPrompt(jobInput, masterMd), false, options)
+    async spawnTailorRun(jobInput, resumeMd, options) {
+      // No allowlist and no bridge: the job input and the resume are the whole input.
+      return begin('tailor', [], tailorTaskPrompt(jobInput, resumeMd), false, options)
     },
 
     cancelRun(runId) {

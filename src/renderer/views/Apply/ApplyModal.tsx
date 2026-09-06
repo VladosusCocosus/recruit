@@ -30,7 +30,7 @@ interface Props {
   store: ApplyStore
   /** Where the filed application opens. */
   onOpenItem: (itemId: number) => void
-  /** Opens Settings at the pane where master resumes are kept. */
+  /** Opens Settings at the pane where resumes are kept. */
   onOpenResumeSettings: () => void
 }
 
@@ -45,28 +45,49 @@ function countWords(text: string): number {
 }
 
 /** Which of the two screens' states is on show. Picks the title, the body and the footer. */
-type Mode = 'loading' | 'unavailable' | 'no-master' | 'input' | 'running' | 'failed' | 'review'
+type Mode =
+  | 'loading'
+  | 'unavailable'
+  | 'no-resume'
+  | 'input'
+  | 'running'
+  | 'failed'
+  | 'review'
+  | 'filed'
 
 function modeOf(store: ApplyStore): Mode {
-  if (store.mastersLoading) return 'loading'
-  if (store.masters.length === 0) {
-    return store.mastersError === null ? 'no-master' : 'unavailable'
+  // Once the application exists there is no going back to the review: a second Apply
+  // would file a duplicate.
+  if (store.filed) return 'filed'
+  if (store.resumesLoading) return 'loading'
+  if (store.resumes.length === 0) {
+    return store.resumesError === null ? 'no-resume' : 'unavailable'
   }
   if (store.screen === 'input') return 'input'
   if (store.phase === 'running') return 'running'
-  if (store.phase === 'ready' && store.result && store.master) return 'review'
+  if (store.phase === 'ready' && store.result && store.resume) return 'review'
   return 'failed'
 }
 
 function ApplyDialog({ store, onOpenItem, onOpenResumeSettings }: Props): JSX.Element {
   const mode = modeOf(store)
-  const locked = mode === 'running' || store.committing
+  const locked = mode === 'running' || store.committing || store.savingPdf
 
+  const done = (): void => {
+    const itemId = store.filed?.itemId ?? null
+    store.close()
+    if (itemId !== null) onOpenItem(itemId)
+  }
+
+  // File, then hand over the PDF. A cancelled or failed save leaves the modal on the
+  // filed screen with the buttons rather than dropping the user with no document.
   const apply = async (): Promise<void> => {
     const itemId = await store.commit()
     if (itemId === null) return
-    store.close()
-    onOpenItem(itemId)
+    if (await store.savePdf()) {
+      store.close()
+      onOpenItem(itemId)
+    }
   }
 
   /* ── chrome ────────────────────────────────────────────────────────────── */
@@ -75,13 +96,16 @@ function ApplyDialog({ store, onOpenItem, onOpenResumeSettings }: Props): JSX.El
   let subtitle: ReactNode = null
   if (mode === 'unavailable') {
     title = 'Apply'
-  } else if (mode === 'no-master') {
+  } else if (mode === 'no-resume') {
     title = 'Apply'
   } else if (mode === 'running') {
     title = 'Tailoring your resume'
-    subtitle = store.master?.label ?? null
+    subtitle = store.resume?.label ?? null
   } else if (mode === 'failed') {
     title = 'The run came back with nothing'
+  } else if (mode === 'filed') {
+    title = `Applied to ${store.filed?.company ?? ''}`.trim()
+    subtitle = 'Saved to the tracker. Take the PDF and apply on their site.'
   } else if (mode === 'review') {
     title = 'Review before you apply'
     subtitle =
@@ -96,12 +120,12 @@ function ApplyDialog({ store, onOpenItem, onOpenResumeSettings }: Props): JSX.El
   if (mode === 'loading') {
     body = <LoadingState label="Loading your resumes…" />
   } else if (mode === 'unavailable') {
-    body = <ProblemBody title="Your resumes couldn't be read" message={store.mastersError} />
-  } else if (mode === 'no-master') {
+    body = <ProblemBody title="Your resumes couldn't be read" message={store.resumesError} />
+  } else if (mode === 'no-resume') {
     body = (
       <ProblemBody
         title="No resume to tailor yet"
-        message="Apply builds every application from a master resume kept as markdown. Add one in Settings — write it there or import a .md or .txt file — and this screen turns into the job box."
+        message="Apply builds every application from a resume kept as markdown. Add one in Settings — write it there or import a .md or .txt file — and this screen turns into the job box."
       />
     )
   } else if (mode === 'running') {
@@ -121,11 +145,22 @@ function ApplyDialog({ store, onOpenItem, onOpenResumeSettings }: Props): JSX.El
         hint="Nothing was written. Retry the run, or go back and change what you pasted."
       />
     )
-  } else if (mode === 'review' && store.result && store.master) {
+  } else if (mode === 'filed') {
+    body = (
+      <ProblemBody
+        title="The application is filed"
+        message={
+          store.filed?.resumeId == null
+            ? 'The tailored resume was recorded with it.'
+            : 'The tailored resume was recorded with it. Save the PDF to upload on their site — you can get it again from the application at any time.'
+        }
+      />
+    )
+  } else if (mode === 'review' && store.result && store.resume) {
     body = (
       <ReviewScreen
         result={store.result}
-        master={store.master}
+        resume={store.resume}
         applied={store.applied}
         fields={store.fields}
         setField={store.setField}
@@ -154,7 +189,7 @@ function ApplyDialog({ store, onOpenItem, onOpenResumeSettings }: Props): JSX.El
         </Button>
       </>
     )
-  } else if (mode === 'no-master') {
+  } else if (mode === 'no-resume') {
     footer = (
       <>
         <Button size="sm" variant="subtle" onClick={store.close}>
@@ -206,6 +241,38 @@ function ApplyDialog({ store, onOpenItem, onOpenResumeSettings }: Props): JSX.El
         </Button>
       </>
     )
+  } else if (mode === 'filed') {
+    footer = (
+      <>
+        {store.filed?.resumeId != null ? (
+          <>
+            <Button
+              size="sm"
+              variant="subtle"
+              disabled={store.savingPdf}
+              onClick={() => void store.openPdf()}
+            >
+              Open
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              busy={store.savingPdf}
+              onClick={() => void store.savePdf()}
+            >
+              Save PDF…
+            </Button>
+          </>
+        ) : null}
+        <span className="ap-spacer" />
+        {store.commitError ? (
+          <span className="ap-foot-error selectable">{store.commitError}</span>
+        ) : null}
+        <Button size="sm" variant="primary" disabled={store.savingPdf} onClick={done}>
+          Done
+        </Button>
+      </>
+    )
   } else if (mode === 'review') {
     footer = (
       <>
@@ -221,11 +288,11 @@ function ApplyDialog({ store, onOpenItem, onOpenResumeSettings }: Props): JSX.El
         <Button
           size="sm"
           variant="primary"
-          busy={store.committing}
+          busy={store.committing || store.savingPdf}
           disabled={store.commitDisabledReason !== null}
           onClick={() => void apply()}
         >
-          Apply
+          Apply &amp; save PDF…
         </Button>
       </>
     )
@@ -255,7 +322,7 @@ function ApplyDialog({ store, onOpenItem, onOpenResumeSettings }: Props): JSX.El
   return (
     <Modal
       open
-      onClose={store.close}
+      onClose={mode === 'filed' ? done : store.close}
       locked={locked}
       width={mode === 'review' || mode === 'running' || mode === 'failed' ? 'document' : 'wide'}
       title={title}
@@ -299,27 +366,27 @@ function InputBody({ store }: { store: ApplyStore }): JSX.Element {
         />
       </Field>
 
-      <Field label="Resume" hint="Tailored into a copy. Your master is never edited.">
-        {store.masters.length > 1 ? (
+      <Field label="Resume" hint="Tailored into a copy. The one you pick is never edited.">
+        {store.resumes.length > 1 ? (
           <Select
-            value={String(store.master?.id ?? '')}
-            options={store.masters.map((m) => ({
-              value: String(m.id),
-              label: m.isDefault ? `${m.label} (default)` : m.label
+            value={String(store.resume?.id ?? '')}
+            options={store.resumes.map((r) => ({
+              value: String(r.id),
+              label: r.isDefault ? `${r.label} (default)` : r.label
             }))}
             aria-label="Resume to tailor"
-            onValueChange={(v) => store.selectMaster(Number(v))}
+            onValueChange={(v) => store.selectResume(Number(v))}
           />
         ) : (
           <div className="ap-resume-one">
             <Icon name="doc" size={12} />
-            <span className="truncate">{store.master?.label ?? '—'}</span>
+            <span className="truncate">{store.resume?.label ?? '—'}</span>
           </div>
         )}
       </Field>
 
-      {store.mastersError ? (
-        <p className="ap-error selectable">{store.mastersError}</p>
+      {store.resumesError ? (
+        <p className="ap-error selectable">{store.resumesError}</p>
       ) : null}
     </div>
   )
