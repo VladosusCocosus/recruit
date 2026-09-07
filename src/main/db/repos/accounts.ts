@@ -106,17 +106,3 @@ export function saveAccount(input: AccountWriteInput & { id?: number }): Account
 export function deleteAccount(accountId: number): void {
   execute('DELETE FROM accounts WHERE id = ?', accountId)
 }
-
-/** Remembers where the last IMAP sync stopped. */
-export function setAccountCursor(
-  accountId: number,
-  uidValidity: number | null,
-  lastUid: number | null
-): void {
-  execute(
-    'UPDATE accounts SET last_uid_validity = ?, last_uid = ? WHERE id = ?',
-    uidValidity,
-    lastUid,
-    accountId
-  )
-}

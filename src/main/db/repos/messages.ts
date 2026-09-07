@@ -220,7 +220,8 @@ export function countByTriageState(state: TriageState): number {
 }
 
 /**
- * Unread = the \Seen flag is absent AND the user has not opened it here. flags_json holds a
+ * Unread = the \Seen flag is absent AND the user has not opened it here. INBOX only, so the
+ * badge counts the same rows the Inbox list shows. flags_json holds a
  * JSON array, so the escaped flag reads as "\\Seen" in the stored text — match on the bare
  * word. Must stay in step with rowToMessageSummary's isUnread, which the rail badge is
  * counting rows for.
@@ -234,15 +235,15 @@ export function countUnread(accountId?: number): number {
   return count(
     `SELECT count(*) FROM messages m
      WHERE m.read_at IS NULL AND (m.flags_json IS NULL OR m.flags_json NOT LIKE '%Seen%')
-       AND ${LIVE} ${scope}`,
+       AND m.folder = 'INBOX' AND ${LIVE} ${scope}`,
     ...params
   )
 }
 
 /**
- * Highest UID stored for a folder — the IMAP sync resumes from here. Deliberately counts
- * deleted rows: this is a position in the server's UID space, not a message the user can see,
- * and skipping a deleted UID would make every poll re-fetch it forever.
+ * Highest UID stored for a folder. The sync's own resume point is folder_cursors; this is the
+ * same position rebuilt from the messages themselves. Deliberately counts deleted rows: it is
+ * a position in the server's UID space, not a message the user can see.
  */
 export function maxUid(accountId: number, folder: string, uidValidity: number): number | null {
   const row = queryOne<{ max_uid: number | null }>(
@@ -288,16 +289,40 @@ export function replaceAttachments(messageId: number, attachments: AttachmentInp
  * account row, or a UIDVALIDITY reset), and each of those re-fetches lands here as an UPDATE on
  * the existing (account_id, folder, uid_validity, uid) row. Deleted stays deleted.
  */
+interface StoredMessageKey {
+  id: number
+  triage_state: string
+  folder: string
+}
+
+/**
+ * The same message under a second folder: a Gmail label and its All Mail copy, or a filed
+ * duplicate. Identity is the RFC Message-ID, so it lands on the row already stored rather
+ * than as a second copy of the same mail.
+ */
+function findByMessageId(
+  accountId: number,
+  messageId: string | null | undefined
+): StoredMessageKey | undefined {
+  if (!messageId) return undefined
+  return queryOne<StoredMessageKey>(
+    'SELECT id, triage_state, folder FROM messages WHERE account_id = ? AND message_id = ?',
+    accountId,
+    messageId
+  )
+}
+
 export function upsertMessage(input: MessageUpsertInput): UpsertMessageResult {
   return transact(() => {
-    const existing = queryOne<{ id: number; triage_state: string }>(
-      `SELECT id, triage_state FROM messages
-       WHERE account_id = ? AND folder = ? AND uid_validity = ? AND uid = ?`,
-      input.accountId,
-      input.folder,
-      input.uidValidity,
-      input.uid
-    )
+    const existing =
+      queryOne<StoredMessageKey>(
+        `SELECT id, triage_state, folder FROM messages
+         WHERE account_id = ? AND folder = ? AND uid_validity = ? AND uid = ?`,
+        input.accountId,
+        input.folder,
+        input.uidValidity,
+        input.uid
+      ) ?? findByMessageId(input.accountId, input.messageId)
 
     // null == "not supplied" for every one of these.
     const values = [
@@ -354,6 +379,18 @@ export function upsertMessage(input: MessageUpsertInput): UpsertMessageResult {
         nowIso(),
         existing.id
       )
+      // The Inbox list reads folder = 'INBOX', so the INBOX copy of a message owns the row
+      // wherever it was first seen. The UID key cannot already be taken: a row holding it
+      // would have matched the lookup above.
+      if (input.folder === 'INBOX' && existing.folder !== 'INBOX') {
+        execute(
+          'UPDATE messages SET folder = ?, uid = ?, uid_validity = ? WHERE id = ?',
+          input.folder,
+          input.uid,
+          input.uidValidity,
+          existing.id
+        )
+      }
       id = existing.id
       created = false
     } else {

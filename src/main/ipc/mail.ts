@@ -29,6 +29,7 @@ const PREFILTER_CHUNK = 250
 export interface MailService {
   /** Boots background sync (backfill -> IDLE -> poll) for every configured account. */
   startAll(): Promise<void>
+  /** One account, or every configured account when accountId is omitted. */
   syncNow(accountId?: number): Promise<SyncResult>
   cancel(): void
   status(): SyncStatus
@@ -44,6 +45,7 @@ function idleStatus(accountId: number | null = null): SyncStatus {
   return {
     phase: 'idle',
     accountId,
+    folder: null,
     processed: 0,
     total: 0,
     newMessages: 0,
@@ -118,6 +120,8 @@ export function persistSyncedMessage(m: SyncedMessage, ctx: PrefilterContext): M
 export function createMailService(): MailService {
   const syncs = new Map<number, MailSync>()
   let last: SyncStatus = idleStatus()
+  /** Raised by cancel(); read between accounts by the all-accounts pass. */
+  let cancelled = false
 
   let cachedContext: PrefilterContext | null = null
   let cachedAt = 0
@@ -166,7 +170,7 @@ export function createMailService(): MailService {
     })
 
     sync.on('uidState', (e) => {
-      db.setAccountCursor(e.accountId, e.uidValidity, e.lastUid)
+      db.setFolderCursor(e.accountId, e.folder, e.uidValidity, e.lastUid)
     })
 
     sync.on('resync', (e) => {
@@ -177,7 +181,7 @@ export function createMailService(): MailService {
         `[mail] UIDVALIDITY changed for account ${e.accountId} ${e.folder}: ` +
           `${e.previousUidValidity} -> ${e.uidValidity}; refetching from scratch.`
       )
-      db.setAccountCursor(e.accountId, e.uidValidity, 0)
+      db.setFolderCursor(e.accountId, e.folder, e.uidValidity, 0)
     })
 
     sync.on('error', (e) => {
@@ -201,6 +205,7 @@ export function createMailService(): MailService {
         account,
         credentials: await credentialsFor(account),
         onMessage: storeMessage,
+        cursors: db.listFolderCursors(account.id),
         backfillDays: settings.syncBackfillDays,
         pollIntervalMs: Math.max(1, settings.syncIntervalMinutes) * 60_000
       })
@@ -220,60 +225,89 @@ export function createMailService(): MailService {
     }
   }
 
+  /** One account's pass. Never throws: a failure is the `error` on the returned result. */
+  async function syncAccount(account: Account): Promise<SyncResult> {
+    const startedMs = Date.now()
+    let sync: MailSync
+    try {
+      // ensure() reads the Keychain, so "no stored password" lands here too — that is a
+      // SyncResult with an error, not a rejected IPC call.
+      sync = await ensure(account)
+      // start(), not syncOnce(): a rejected login LATCHES inside MailSync so the poll
+      // can't brute-force the provider, and start() is the only thing that re-arms it.
+      // A user clicking "Sync now" after fixing the password is exactly that moment,
+      // and it cannot loop — it takes a click. It also refreshes the poll timer.
+      await sync.start()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      last = { ...last, accountId: account.id, phase: 'error', error: message }
+      broadcast('syncStatus', last)
+      return {
+        accountId: account.id,
+        newMessages: 0,
+        newCandidates: 0,
+        durationMs: Date.now() - startedMs,
+        error: message
+      }
+    }
+
+    const status = sync.getStatus()
+    return {
+      accountId: account.id,
+      newMessages: status.newMessages,
+      newCandidates: status.newCandidates,
+      durationMs: Date.now() - startedMs,
+      error: status.error
+    }
+  }
+
   return {
     async startAll() {
       for (const account of db.listAccounts()) {
-        try {
-          const sync = await ensure(account)
-          await sync.start()
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error)
-          last = { ...idleStatus(account.id), phase: 'error', error: message }
-          broadcast('syncStatus', last)
-          console.error(`[mail] could not start sync for ${account.email}: ${message}`)
+        const result = await syncAccount(account)
+        if (result.error) {
+          console.error(`[mail] could not start sync for ${account.email}: ${result.error}`)
         }
       }
     },
 
     async syncNow(accountId?: number) {
-      const account = accountId != null ? db.getAccount(accountId) : (db.listAccounts()[0] ?? null)
-      if (!account) throw new Error('No mail account configured. Add one in Settings.')
-
-      const startedMs = Date.now()
-      let sync: MailSync
-      try {
-        // ensure() reads the Keychain, so "no stored password" lands here too — that is a
-        // SyncResult with an error, not a rejected IPC call.
-        sync = await ensure(account)
-        // start(), not syncOnce(): a rejected login LATCHES inside MailSync so the poll
-        // can't brute-force the provider, and start() is the only thing that re-arms it.
-        // A user clicking "Sync now" after fixing the password is exactly that moment,
-        // and it cannot loop — it takes a click. It also refreshes the poll timer.
-        await sync.start()
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        last = { ...last, accountId: account.id, phase: 'error', error: message }
-        broadcast('syncStatus', last)
-        return {
-          accountId: account.id,
-          newMessages: 0,
-          newCandidates: 0,
-          durationMs: Date.now() - startedMs,
-          error: message
-        }
+      if (accountId != null) {
+        const account = db.getAccount(accountId)
+        if (!account) throw new Error('No mail account configured. Add one in Settings.')
+        return syncAccount(account)
       }
 
-      const status = sync.getStatus()
+      const accounts = db.listAccounts()
+      if (accounts.length === 0) {
+        throw new Error('No mail account configured. Add one in Settings.')
+      }
+
+      const startedMs = Date.now()
+      cancelled = false
+      let newMessages = 0
+      let newCandidates = 0
+      const errors: string[] = []
+
+      for (const account of accounts) {
+        if (cancelled) break
+        const result = await syncAccount(account)
+        newMessages += result.newMessages
+        newCandidates += result.newCandidates
+        if (result.error) errors.push(`${account.email}: ${result.error}`)
+      }
+
       return {
-        accountId: account.id,
-        newMessages: status.newMessages,
-        newCandidates: status.newCandidates,
+        accountId: null,
+        newMessages,
+        newCandidates,
         durationMs: Date.now() - startedMs,
-        error: status.error
+        error: errors.length > 0 ? errors.join('; ') : null
       }
     },
 
     cancel() {
+      cancelled = true
       for (const sync of syncs.values()) sync.cancel()
     },
 

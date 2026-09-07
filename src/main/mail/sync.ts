@@ -1,9 +1,11 @@
 /**
- * IMAP sync for one account's INBOX. Read-only: this module never sets a flag, never moves
- * a message and never deletes anything. v1 mail is strictly observational.
+ * IMAP sync for one account, across every folder the server lists. Read-only: this module
+ * never sets a flag, never moves a message and never deletes anything. v1 mail is strictly
+ * observational.
  *
  * Shape of a session:
- *   connect -> backfill (last 90 days) -> IDLE for push, with a 5-minute poll fallback
+ *   connect -> per folder, backfill (last 90 days) then everything above that folder's
+ *   cursor -> IDLE on INBOX for push, with a 5-minute poll that sweeps every folder
  *
  * Credentials are a PARAMETER. This module never touches the Keychain — the secrets module
  * resolves the password and hands it in, so there is exactly one place that reads secrets.
@@ -17,10 +19,21 @@
 
 import { EventEmitter } from 'node:events'
 import { ImapFlow, type FetchMessageObject, type ImapFlowOptions, type MailboxLockObject } from 'imapflow'
-import type { Account, ConnectionTestInput, ConnectionTestResult, SyncStatus } from '@shared/types'
+import type {
+  Account,
+  ConnectionTestInput,
+  ConnectionTestResult,
+  FolderCursor,
+  SyncStatus
+} from '@shared/types'
 import { parseMessageSource, type ParsedMessage } from './parse'
 
-const DEFAULT_FOLDER = 'INBOX'
+const INBOX = 'INBOX'
+/**
+ * Special-use mailboxes that are a view over other folders rather than storage of their own.
+ * Reading one stores every message it lists a second time.
+ */
+const VIRTUAL_SPECIAL_USE = new Set(['\\Flagged', '\\Important'])
 const DEFAULT_BACKFILL_DAYS = 90
 /** Poll fallback for servers where IDLE is missing or the connection silently stalls. */
 const DEFAULT_POLL_INTERVAL_MS = 5 * 60 * 1000
@@ -63,7 +76,7 @@ export interface MessageStoreResult {
   isCandidate: boolean
 }
 
-/** Emitted whenever the server's UID state moves. Persist onto the account row. */
+/** Emitted whenever the server's UID state moves. Persist onto the folder's cursor. */
 export interface UidStateEvent {
   accountId: number
   folder: string
@@ -103,7 +116,10 @@ export interface MailSyncOptions {
    * Throwing aborts only that message; sync logs and continues.
    */
   onMessage?: (message: SyncedMessage) => Promise<MessageStoreResult> | MessageStoreResult
-  folder?: string
+  /** An explicit folder list. Omit to read every folder the server lists. */
+  folders?: string[]
+  /** Where the previous pass stopped. A folder with no cursor gets the backfill window. */
+  cursors?: FolderCursor[]
   backfillDays?: number
   pollIntervalMs?: number
   /** Pipe imapflow's protocol log somewhere. Off by default. */
@@ -147,6 +163,45 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+/** One mailbox as `client.list()` reports it, narrowed to what folder selection reads. */
+export interface MailboxInfo {
+  path: string
+  flags: Set<string>
+  specialUse?: string
+}
+
+/** IMAP mailbox attributes are case-insensitive, and servers disagree about `\Noselect`. */
+function hasFlag(box: MailboxInfo, flag: string): boolean {
+  const wanted = flag.toLowerCase()
+  for (const value of box.flags) {
+    if (value.toLowerCase() === wanted) return true
+  }
+  return false
+}
+
+/**
+ * Every folder worth reading, INBOX first and the rest in name order.
+ *
+ * A server that advertises an `\All` mailbox (Gmail) is a special case: All Mail already
+ * holds every message that is not spam or trash, and every label is a view over it, so the
+ * labels are dropped and INBOX, All Mail, Junk and Trash cover the account exactly once.
+ */
+export function selectSyncFolders(boxes: MailboxInfo[]): string[] {
+  const selectable = boxes.filter(
+    (box) => !hasFlag(box, '\\Noselect') && !hasFlag(box, '\\NonExistent')
+  )
+  const keep = selectable.some((box) => box.specialUse === '\\All')
+    ? selectable.filter((box) => ['\\All', '\\Junk', '\\Trash'].includes(box.specialUse ?? ''))
+    : selectable.filter((box) => !VIRTUAL_SPECIAL_USE.has(box.specialUse ?? ''))
+
+  const rest = keep
+    .map((box) => box.path)
+    .filter((path) => path.toUpperCase() !== INBOX)
+    .sort((a, b) => a.localeCompare(b))
+
+  return [INBOX, ...rest]
+}
+
 /* ────────────────────────────────────────────────────────────────────────────
  * MailSync
  * ──────────────────────────────────────────────────────────────────────────── */
@@ -161,7 +216,7 @@ function sleep(ms: number): Promise<void> {
 export class MailSync extends EventEmitter<MailSyncEvents> {
   private readonly account: Account
   private readonly credentials: ImapCredentials
-  private readonly folder: string
+  private readonly folderOverride: string[] | null
   private readonly backfillDays: number
   private readonly pollIntervalMs: number
   private readonly debug: boolean
@@ -186,9 +241,11 @@ export class MailSync extends EventEmitter<MailSyncEvents> {
    */
   private authFailed = false
 
-  /** Mirrors the account row; updated as we learn the server's state. */
-  private uidValidity: number | null
-  private lastUid: number
+  /** Per folder, updated as we learn the server's state. */
+  private readonly cursors = new Map<string, { uidValidity: number; lastUid: number }>()
+  /** New messages and new candidates so far in the current pass, across every folder. */
+  private passNew = 0
+  private passCandidates = 0
   private lastSyncAt: string | null = null
 
   private status: SyncStatus
@@ -197,18 +254,23 @@ export class MailSync extends EventEmitter<MailSyncEvents> {
     super()
     this.account = options.account
     this.credentials = options.credentials
-    this.folder = options.folder ?? DEFAULT_FOLDER
+    this.folderOverride = options.folders ?? null
     this.backfillDays = options.backfillDays ?? DEFAULT_BACKFILL_DAYS
     this.pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS
     this.debug = options.debug ?? false
     this.onMessage = options.onMessage
 
-    this.uidValidity = options.account.lastUidValidity ?? null
-    this.lastUid = options.account.lastUid ?? 0
+    for (const cursor of options.cursors ?? []) {
+      this.cursors.set(cursor.folder, {
+        uidValidity: cursor.uidValidity,
+        lastUid: cursor.lastUid
+      })
+    }
 
     this.status = {
       phase: 'idle',
       accountId: options.account.id,
+      folder: null,
       processed: 0,
       total: 0,
       newMessages: 0,
@@ -315,11 +377,12 @@ export class MailSync extends EventEmitter<MailSyncEvents> {
     }, delay)
   }
 
+  /** IDLE fires for the selected mailbox, which is INBOX; the poll sweeps the rest. */
   private scheduleIdleSync(): void {
     if (this.stopped || this.idleTimer) return
     this.idleTimer = setTimeout(() => {
       this.idleTimer = null
-      void this.syncOnce().catch(() => {
+      void this.syncOnce([INBOX]).catch(() => {
         /* reportError already fired */
       })
     }, IDLE_DEBOUNCE_MS)
@@ -382,26 +445,31 @@ export class MailSync extends EventEmitter<MailSyncEvents> {
 
   /* ── the sync itself ────────────────────────────────────────────────────── */
 
-  /** Run one incremental (or, first time, backfill) pass. Serialized: concurrent calls await the in-flight one. */
-  async syncOnce(): Promise<void> {
+  /**
+   * Run one incremental (or, first time, backfill) pass over `scope`, or over every folder
+   * when it is omitted. Serialized: concurrent calls await the in-flight one.
+   */
+  async syncOnce(scope?: string[]): Promise<void> {
     if (this.running) return this.running
     this.cancelRequested = false
-    this.running = this.runSync().finally(() => {
+    this.running = this.runSync(scope).finally(() => {
       this.running = null
     })
     return this.running
   }
 
-  private async runSync(): Promise<void> {
+  private async runSync(scope?: string[]): Promise<void> {
     // The 5-minute poll must not become a slow brute-force loop against a rejected login.
     if (this.authFailed || this.stopped) return
 
-    let lock: MailboxLockObject | null = null
     try {
       const client = await this.getClient()
 
+      this.passNew = 0
+      this.passCandidates = 0
       this.setStatus({
         phase: 'listing',
+        folder: null,
         processed: 0,
         total: 0,
         newMessages: 0,
@@ -409,49 +477,78 @@ export class MailSync extends EventEmitter<MailSyncEvents> {
         error: null
       })
 
-      lock = await client.getMailboxLock(this.folder)
-      const mailbox = client.mailbox
-      if (!mailbox) throw new Error(`Could not open ${this.folder}`)
-
-      // imapflow reports UIDVALIDITY as a bigint; the DB column is an INTEGER.
-      const serverUidValidity = Number(mailbox.uidValidity)
-
-      if (this.uidValidity !== null && serverUidValidity !== this.uidValidity) {
-        // Every UID we stored for this folder now refers to a different message.
-        this.emit('resync', {
-          accountId: this.account.id,
-          folder: this.folder,
-          previousUidValidity: this.uidValidity,
-          uidValidity: serverUidValidity
-        })
-        this.lastUid = 0
-      }
-      this.uidValidity = serverUidValidity
-
-      const uids = await this.selectUids(client)
-      if (uids.length === 0) {
-        this.emitUidState()
-        this.lastSyncAt = new Date().toISOString()
-        this.setStatus({ phase: 'done', total: 0, processed: 0, lastSyncAt: this.lastSyncAt })
-        return
+      const folders = scope ?? (await this.resolveFolders(client))
+      for (const folder of folders) {
+        if (this.cancelRequested || this.stopped) break
+        await this.syncFolder(client, folder)
       }
 
-      this.setStatus({ phase: 'fetching', total: uids.length, processed: 0 })
-      await this.fetchAndDeliver(client, uids, serverUidValidity)
+      // Auto-IDLE watches whichever mailbox is selected, and that is the folder read last.
+      if (!this.stopped && folders[folders.length - 1] !== INBOX) {
+        const lock = await client.getMailboxLock(INBOX)
+        lock.release()
+      }
 
-      this.emitUidState()
       this.lastSyncAt = new Date().toISOString()
-      this.setStatus({ phase: 'done', lastSyncAt: this.lastSyncAt })
+      this.setStatus({ phase: 'done', folder: null, lastSyncAt: this.lastSyncAt })
     } catch (error) {
       this.reportError(error)
       throw error
+    }
+  }
+
+  private async resolveFolders(client: ImapFlow): Promise<string[]> {
+    return this.folderOverride ?? selectSyncFolders(await client.list())
+  }
+
+  /** One folder's pass. A folder that cannot be read is reported and skipped. */
+  private async syncFolder(client: ImapFlow, folder: string): Promise<void> {
+    let lock: MailboxLockObject | null = null
+    try {
+      lock = await client.getMailboxLock(folder)
+      const mailbox = client.mailbox
+      if (!mailbox) throw new Error(`Could not open ${folder}`)
+
+      // imapflow reports UIDVALIDITY as a bigint; the DB column is an INTEGER.
+      const uidValidity = Number(mailbox.uidValidity)
+      const cursor = this.cursors.get(folder)
+      let lastUid = 0
+
+      if (cursor && cursor.uidValidity === uidValidity) {
+        lastUid = cursor.lastUid
+      } else if (cursor) {
+        // Every UID we stored for this folder now refers to a different message.
+        this.emit('resync', {
+          accountId: this.account.id,
+          folder,
+          previousUidValidity: cursor.uidValidity,
+          uidValidity
+        })
+      }
+
+      const uids = await this.selectUids(client, lastUid)
+      this.setStatus({ phase: 'fetching', folder, total: uids.length, processed: 0 })
+      if (uids.length > 0) {
+        lastUid = await this.fetchAndDeliver(client, folder, uids, uidValidity, lastUid)
+      }
+
+      this.cursors.set(folder, { uidValidity, lastUid })
+      this.emit('uidState', { accountId: this.account.id, folder, uidValidity, lastUid })
+    } catch (error) {
+      if (isAuthFailure(error) || !client.usable) throw error
+      this.emit('error', {
+        accountId: this.account.id,
+        isAuthError: false,
+        message: `Skipped ${folder}: ${errorMessage(error)}`,
+        cause: error
+      })
     } finally {
       lock?.release()
     }
   }
 
   /**
-   * Which UIDs to fetch.
+   * Which UIDs to fetch from the folder that is open.
    *  - first run for this folder: everything with an INTERNALDATE inside the backfill window
    *  - afterwards: everything above the highest UID we have seen
    *
@@ -459,11 +556,11 @@ export class MailSync extends EventEmitter<MailSyncEvents> {
    * it — a server with no new mail answers with the LAST message, which would otherwise be
    * re-delivered on every poll.
    */
-  private async selectUids(client: ImapFlow): Promise<number[]> {
-    if (this.lastUid > 0) {
-      const found = await client.search({ uid: `${this.lastUid + 1}:*` }, { uid: true })
+  private async selectUids(client: ImapFlow, lastUid: number): Promise<number[]> {
+    if (lastUid > 0) {
+      const found = await client.search({ uid: `${lastUid + 1}:*` }, { uid: true })
       const uids = Array.isArray(found) ? found : []
-      return uids.filter((uid) => uid > this.lastUid).sort((a, b) => a - b)
+      return uids.filter((uid) => uid > lastUid).sort((a, b) => a - b)
     }
 
     const cutoff = new Date(Date.now() - this.backfillDays * 24 * 60 * 60 * 1000)
@@ -472,15 +569,16 @@ export class MailSync extends EventEmitter<MailSyncEvents> {
     return uids.sort((a, b) => a - b)
   }
 
+  /** Returns the highest UID seen, which becomes the folder's cursor. */
   private async fetchAndDeliver(
     client: ImapFlow,
+    folder: string,
     uids: number[],
-    uidValidity: number
-  ): Promise<void> {
+    uidValidity: number,
+    lastUid: number
+  ): Promise<number> {
     let processed = 0
-    let newMessages = 0
-    let newCandidates = 0
-    let maxUid = this.lastUid
+    let maxUid = lastUid
 
     for (const batch of chunk(uids, FETCH_BATCH_SIZE)) {
       if (this.cancelRequested || this.stopped) break
@@ -496,15 +594,15 @@ export class MailSync extends EventEmitter<MailSyncEvents> {
 
         processed += 1
         try {
-          const delivered = await this.deliver(raw, uidValidity)
-          if (delivered?.stored) newMessages += 1
-          if (delivered?.isCandidate) newCandidates += 1
+          const delivered = await this.deliver(raw, folder, uidValidity)
+          if (delivered?.stored) this.passNew += 1
+          if (delivered?.isCandidate) this.passCandidates += 1
         } catch (error) {
           // One malformed message must not abort a 90-day backfill.
           this.emit('error', {
             accountId: this.account.id,
             isAuthError: false,
-            message: `Skipped UID ${raw.uid}: ${errorMessage(error)}`,
+            message: `Skipped UID ${raw.uid} in ${folder}: ${errorMessage(error)}`,
             cause: error
           })
         }
@@ -513,17 +611,30 @@ export class MailSync extends EventEmitter<MailSyncEvents> {
 
         // Cheap progress ticks; the renderer just moves a bar.
         if (processed % 10 === 0 || processed === uids.length) {
-          this.setStatus({ phase: 'fetching', processed, newMessages, newCandidates })
+          this.setStatus({
+            phase: 'fetching',
+            folder,
+            processed,
+            newMessages: this.passNew,
+            newCandidates: this.passCandidates
+          })
         }
       }
     }
 
-    this.lastUid = maxUid
-    this.setStatus({ phase: 'prefiltering', processed, newMessages, newCandidates })
+    this.setStatus({
+      phase: 'prefiltering',
+      folder,
+      processed,
+      newMessages: this.passNew,
+      newCandidates: this.passCandidates
+    })
+    return maxUid
   }
 
   private async deliver(
     raw: FetchMessageObject,
+    folder: string,
     uidValidity: number
   ): Promise<MessageStoreResult | null> {
     if (!raw.source) return null
@@ -533,7 +644,7 @@ export class MailSync extends EventEmitter<MailSyncEvents> {
 
     const message: SyncedMessage = {
       accountId: this.account.id,
-      folder: this.folder,
+      folder,
       uid: raw.uid,
       uidValidity,
       flags: raw.flags ? [...raw.flags] : [],
@@ -546,16 +657,6 @@ export class MailSync extends EventEmitter<MailSyncEvents> {
     this.emit('message', message)
     if (!this.onMessage) return null
     return await this.onMessage(message)
-  }
-
-  private emitUidState(): void {
-    if (this.uidValidity === null) return
-    this.emit('uidState', {
-      accountId: this.account.id,
-      folder: this.folder,
-      uidValidity: this.uidValidity,
-      lastUid: this.lastUid
-    })
   }
 }
 

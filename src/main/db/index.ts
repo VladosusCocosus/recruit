@@ -21,6 +21,7 @@ export * from './migrations'
 export * from './rows'
 
 export * from './repos/accounts'
+export * from './repos/folderCursors'
 export * from './repos/messages'
 export * from './repos/items'
 export * from './repos/answers'

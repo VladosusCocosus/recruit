@@ -113,8 +113,6 @@ export function rowToAccount(row: AccountRow): Account {
     smtpUser: row.smtp_user,
     keychainRefImap: row.keychain_ref_imap,
     keychainRefSmtp: row.keychain_ref_smtp,
-    lastUidValidity: row.last_uid_validity,
-    lastUid: row.last_uid,
     createdAt: row.created_at
   }
 }

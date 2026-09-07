@@ -140,6 +140,18 @@ export function triageTone(state: TriageState): 'neutral' | 'accent' | 'warning'
   }
 }
 
+/* ── folders ──────────────────────────────────────────────────────────────── */
+
+/**
+ * The last path segment of an IMAP folder: '[Gmail]/All Mail' -> 'All Mail'. Empty for
+ * INBOX, which every list is already assumed to be showing.
+ */
+export function folderLabel(folder: string): string {
+  if (folder.toUpperCase() === 'INBOX') return ''
+  const segments = folder.split('/')
+  return segments[segments.length - 1] || folder
+}
+
 /* ── attachments ──────────────────────────────────────────────────────────── */
 
 export function attachmentLabel(attachment: Attachment): string {

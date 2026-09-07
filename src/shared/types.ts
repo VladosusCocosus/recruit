@@ -132,9 +132,14 @@ export interface Account {
   /** Keychain account key for the IMAP password. Passwords are NEVER stored in SQLite. */
   keychainRefImap: string | null
   keychainRefSmtp: string | null
-  lastUidValidity: number | null
-  lastUid: number | null
   createdAt: string
+}
+
+/** Where the last IMAP pass stopped in one folder. */
+export interface FolderCursor {
+  folder: string
+  uidValidity: number
+  lastUid: number
 }
 
 /** What the Settings form submits. Passwords go straight to the Keychain. */
@@ -1019,6 +1024,8 @@ export type SyncPhase =
 export interface SyncStatus {
   phase: SyncPhase
   accountId: number | null
+  /** The folder being read, null between folders and outside a pass. */
+  folder: string | null
   processed: number
   total: number
   newMessages: number
@@ -1028,10 +1035,12 @@ export interface SyncStatus {
 }
 
 export interface SyncResult {
-  accountId: number
+  /** Null when the pass covered every configured account. */
+  accountId: number | null
   newMessages: number
   newCandidates: number
   durationMs: number
+  /** Each account's failure, prefixed with its address, joined with '; '. */
   error: string | null
 }
 
@@ -1213,6 +1222,7 @@ export interface RecruitApi {
   testConnection(input: ConnectionTestInput): Promise<ConnectionTestResult>
 
   // ── mail (READ-ONLY in v1: no compose, no reply, no flag writes) ──────────
+  /** One account, or every configured account when accountId is omitted. */
   syncNow(accountId?: number): Promise<SyncResult>
   cancelSync(): Promise<void>
   getSyncStatus(): Promise<SyncStatus>

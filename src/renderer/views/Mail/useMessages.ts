@@ -62,9 +62,13 @@ export function useMessages({ mode, search, accountId }: UseMessagesOptions): Us
     if (accountId != null) query.accountId = accountId
     const trimmed = search.trim()
     if (trimmed.length > 0) query.search = trimmed
-    // Inbox intentionally leaves triageState unset: v1 syncs INBOX only, and hiding
-    // dismissed mail from the Inbox would make "why is this gone?" unanswerable.
+    // Inbox intentionally leaves triageState unset: hiding dismissed mail from the Inbox
+    // would make "why is this gone?" unanswerable.
+    //
+    // Sync reads every folder, so the Inbox is the one list that says which folder it means.
+    // Candidates stays unscoped — a job mail rescued from Spam or an archive belongs there.
     if (mode === 'candidates') query.triageState = 'candidate'
+    else query.folder = 'INBOX'
     return query
   }, [mode, search, accountId])
 

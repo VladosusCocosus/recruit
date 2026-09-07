@@ -7,6 +7,7 @@ import * as m005 from './005_call_debrief'
 import * as m006 from './006_apply_flow'
 import * as m007 from './007_markdown_resumes'
 import * as m008 from './008_documents_and_answers'
+import * as m009 from './009_folder_cursors'
 
 export interface Migration {
   version: number
@@ -15,7 +16,7 @@ export interface Migration {
 }
 
 /** Ordered. Append new migrations; never renumber or edit a shipped one. */
-export const MIGRATIONS: readonly Migration[] = [m001, m002, m003, m004, m005, m006, m007, m008]
+export const MIGRATIONS: readonly Migration[] = [m001, m002, m003, m004, m005, m006, m007, m008, m009]
 
 export const LATEST_VERSION = MIGRATIONS.reduce((max, m) => Math.max(max, m.version), 0)
 

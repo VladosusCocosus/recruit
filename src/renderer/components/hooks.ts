@@ -329,6 +329,7 @@ export function useTheme(theme: ThemePreference | undefined): void {
 const IDLE_SYNC: SyncStatus = {
   phase: 'idle',
   accountId: null,
+  folder: null,
   processed: 0,
   total: 0,
   newMessages: 0,
@@ -342,12 +343,15 @@ export interface SyncState {
   busy: boolean
   syncNow: (accountId?: number) => Promise<void>
   cancel: () => Promise<void>
+  clearError: () => void
   error: string | null
 }
 
 export function useSync(): SyncState {
   const [status, setStatus] = useState<SyncStatus>(IDLE_SYNC)
   const [error, setError] = useState<string | null>(null)
+  /** True for the whole syncNow round-trip, which for an all-accounts pass spans every account. */
+  const [pending, setPending] = useState(false)
 
   useEffect(() => {
     if (!hasBridge()) return
@@ -365,10 +369,14 @@ export function useSync(): SyncState {
 
   const syncNow = useCallback(async (accountId?: number): Promise<void> => {
     setError(null)
+    setPending(true)
     try {
-      await window.recruit.syncNow(accountId)
+      const result = await window.recruit.syncNow(accountId)
+      setError(result.error)
     } catch (e) {
       setError(errorMessage(e))
+    } finally {
+      setPending(false)
     }
   }, [])
 
@@ -380,10 +388,16 @@ export function useSync(): SyncState {
     }
   }, [])
 
-  const busy =
-    status.phase !== 'idle' && status.phase !== 'done' && status.phase !== 'error'
+  /** Dismiss: also clears the mirrored status error, which the next broadcast replaces. */
+  const clearError = useCallback(() => {
+    setError(null)
+    setStatus((s) => (s.error === null ? s : { ...s, error: null }))
+  }, [])
 
-  return { status, busy, syncNow, cancel, error: error ?? status.error }
+  const busy =
+    pending || (status.phase !== 'idle' && status.phase !== 'done' && status.phase !== 'error')
+
+  return { status, busy, syncNow, cancel, clearError, error: error ?? status.error }
 }
 
 /* ── the agent run ───────────────────────────────────────────────────────── */

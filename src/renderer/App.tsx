@@ -45,6 +45,7 @@ import {
 import SettingsView, { type SectionKey } from './views/Settings'
 import OnboardingView, { SetupChecklist } from './views/Onboarding/OnboardingView'
 import InboxView from './views/Mail/InboxView'
+import { folderLabel } from './views/Mail/format'
 import CandidatesView from './views/Mail/CandidatesView'
 import BoardView from './views/Tracker/BoardView'
 import ReviewView from './views/Review/ReviewView'
@@ -142,7 +143,8 @@ function Shell(): JSX.Element {
     navigate(nav, itemId === undefined ? undefined : { item: itemId })
   })
 
-  const account = accounts.data?.[0] ?? null
+  const accountRows = accounts.data ?? []
+  const account = accountRows[0] ?? null
   const agentCliMissing = appInfo.data ? !appInfo.data.agentCliAvailable : false
   const agentCliMissingReason = appInfo.data
     ? `${AGENT_ENGINE_LABEL[appInfo.data.agentEngine]} isn't installed`
@@ -201,7 +203,12 @@ function Shell(): JSX.Element {
       <div className="app-main">
         <Toolbar>
           <AccountStatus
-            email={account?.email ?? null}
+            email={
+              accountRows.length > 1
+                ? `${accountRows.length} accounts`
+                : (account?.email ?? null)
+            }
+            title={accountRows.map((a) => a.email).join('\n')}
             sync={sync.status}
             busy={sync.busy}
             onAdd={() => navigate('settings')}
@@ -255,9 +262,7 @@ function Shell(): JSX.Element {
               onDismiss={update.dismiss}
             />
           ) : null}
-          {sync.status.phase === 'error' ? (
-            <ErrorBanner error={sync.error} onRetry={syncNow} />
-          ) : null}
+          <ErrorBanner error={sync.error} onRetry={syncNow} onDismiss={sync.clearError} />
 
           {showOnboarding ? (
             <OnboardingView setup={setup.data!} {...setupActions} />
@@ -330,10 +335,12 @@ function syncLabel(status: SyncStatus): string {
       return 'Connecting…'
     case 'listing':
       return 'Checking for mail…'
-    case 'fetching':
+    case 'fetching': {
+      const where = status.folder ? ` in ${folderLabel(status.folder) || 'Inbox'}` : ''
       return status.total > 0
-        ? `Fetching ${status.processed} of ${status.total}`
-        : 'Fetching…'
+        ? `Fetching ${status.processed} of ${status.total}${where}`
+        : `Fetching…${where}`
+    }
     case 'parsing':
       return 'Reading messages…'
     case 'prefiltering':
@@ -349,11 +356,15 @@ function syncLabel(status: SyncStatus): string {
 
 function AccountStatus({
   email,
+  title,
   sync,
   busy,
   onAdd
 }: {
+  /** The address, or a count once there is more than one account. */
   email: string | null
+  /** Hover text: every configured address, one per line. */
+  title?: string
   sync: SyncStatus
   busy: boolean
   onAdd: () => void
@@ -370,7 +381,7 @@ function AccountStatus({
   }
   return (
     <div className="toolbar-account">
-      <span className="toolbar-account-email" title={email}>
+      <span className="toolbar-account-email" title={title || email}>
         {email}
       </span>
       <span className={'toolbar-sync' + (sync.phase === 'error' ? ' is-error' : '')}>

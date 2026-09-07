@@ -193,7 +193,7 @@ function GeneralSection({ settings, onUpdate }: SectionProps): JSX.Element {
 
       <SettingsBlock
         title="Mail"
-        footnote="Changing either reconnects every account. The backfill window only applies the first time an account is synced — an account that already has mail keeps reading forward from where it stopped."
+        footnote="Changing either reconnects every account. The backfill window applies the first time each folder is read — a folder Jobbox already has mail from keeps reading forward from where it stopped."
       >
         <SettingsRow label="Check for new mail every">
           <CommittedNumber

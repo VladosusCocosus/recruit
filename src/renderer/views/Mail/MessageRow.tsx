@@ -13,7 +13,7 @@ import type { MessageSummary } from '@shared/types'
 import { Badge, Button, Chip, Dot, Icon } from '@renderer/components'
 import { PaperclipIcon } from './icons'
 import { WhyFlagged } from './WhyFlagged'
-import { formatListDate, senderLabel, subjectLabel, triageLabel } from './format'
+import { folderLabel, formatListDate, senderLabel, subjectLabel, triageLabel } from './format'
 
 export interface MessageRowProps {
   message: MessageSummary
@@ -66,7 +66,8 @@ function MessageRowImpl({
     }
   }
 
-  const hasTags = message.hasAttachments || linkedCount > 0 || dismissed
+  const folder = folderLabel(message.folder)
+  const hasTags = message.hasAttachments || linkedCount > 0 || dismissed || folder !== ''
 
   return (
     <div
@@ -99,6 +100,7 @@ function MessageRowImpl({
 
         {hasTags ? (
           <span className="list-row-tags">
+            {folder ? <Chip title={`In ${message.folder}`}>{folder}</Chip> : null}
             {message.hasAttachments ? (
               <Chip title="Has attachments">
                 <PaperclipIcon size={10} />
