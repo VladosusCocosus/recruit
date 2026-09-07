@@ -1,9 +1,10 @@
 # Jobbox — week of 31 August 2026
 
-Three additions this week. Two are about the part of a job hunt that happens away from your
-inbox: what you actually sent, and what was actually said. The third is about timing —
-Jobbox can now tell you about a call before it starts, rather than waiting for you to come
-looking.
+Five changes this week. Two are about the part of a job hunt that happens away from your
+inbox: what you actually sent, and what was actually said. One is about timing — Jobbox can
+now tell you about a call before it starts, rather than waiting for you to come looking.
+The last two are about the documents Jobbox hands you when you apply: what goes in them,
+and what they look like on the page.
 
 ## Jobbox now knows which resume you sent
 
@@ -92,6 +93,55 @@ are dropped rather than delivered in a pile when you next open it. All-day entri
 calendar are never announced, because "in fifteen minutes" means nothing for something that
 takes the whole day. And the proposals notification stays quiet when Jobbox is already the
 window in front of you — the **Review** badge is right there saying the same thing.
+
+## Your tailored resume aims at the screener first
+
+Most employers put your resume through screening software before a person opens it, and
+that software matches words literally. A skill you have but happen to word differently does
+not count as a match. Tailoring now works on that problem first.
+
+**Changes** reflects it. Where a posting says PostgreSQL and your resume says Postgres, you
+get a change proposing the posting's spelling. Where a posting names a tool by its acronym,
+you get both forms — "Kubernetes (K8s)" — because the software looks for one or the other,
+not both. These only ever reword something your resume already shows, and the tick box
+beside each one still decides whether it goes in.
+
+You may also see plain structural suggestions: a section heading the software recognises
+instead of one in your own voice, a single consistent date format, a role's location and
+dates moved onto their own line. If your resume is already tidy you will see none of these.
+
+**Gaps** now leads with the requirements that get screened automatically — a number of
+years, a degree, a named certification, work authorisation, a location. Those decide
+whether anyone reads your application at all, so they are worth seeing before the rest. As
+before, nothing in Gaps is edited into your document; it is what to prepare for the cover
+letter and the call.
+
+There is a genre of advice about beating this software that Jobbox will not follow. It does
+not hide keywords in white text, pad your resume with terms it cannot support, write
+anything addressed at the screening software, or round three years of something up to five.
+You send the document under your own name, and everything in it should be yours to defend
+in the interview.
+
+**Questions on the form** draws the same line. A question asking for a fact — five years of
+Python, a licence, your right to work somewhere — gets the fact first and never rounded up.
+Where your resume simply does not say, as with a notice period or a salary expectation, the
+draft tells you it is yours to fill in rather than picking something plausible on your
+behalf. Answers now arrive as plain text, since they go into a form's box rather than onto
+a page.
+
+## The documents look different
+
+The resume and cover letter Jobbox renders have been redesigned. They are set in a serif
+face with the section headings, your contact line and each role's dates in a smaller sans
+above them, which gives the page a clearer order than the single uniform column it used to
+be.
+
+Long resumes break better across pages, too. A job title no longer strands at the foot of a
+page with its bullets overleaf — a role's heading, its dates and the start of its bullets
+now travel together.
+
+Nothing about this changes how the text is read by screening software: the PDF is still
+ordinary selectable text, and no part of the design hides anything from it.
 
 ## Also
 
