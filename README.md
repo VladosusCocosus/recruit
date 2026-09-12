@@ -1,397 +1,214 @@
+<div align="center">
+
+<img src="site/img/icon.svg" width="76" height="76" alt="">
+
 # Jobbox
 
-A macOS email client that is really an agent-driven job-application tracker.
+### Your inbox already knows. Jobbox writes it down.
 
-Jobbox syncs your inbox, scores every message with a local prefilter, and hands the
-likely job-related ones to a coding-agent CLI — **Claude Code or Codex**, your choice in
-Settings. The agent reads them and **proposes** tracker changes — new applications, status
-moves, interview events, message links. Nothing it proposes touches the tracker until you
-accept it in the Review queue.
+Every application you send leaves a trail in your mail — the confirmation, the
+recruiter's reply, the invite, the no. Jobbox reads that trail and keeps a board in step
+with it. It drafts each change; you accept it.<br>**You never type the same company name
+twice.**
 
-It also writes the other direction. **Apply** takes a job description or a link, tailors a
-markdown resume against it and opens the application at Applied, with the tailored copy
-attached — see *Applying to a job*.
+**[Download for Mac →](https://jobbox.fline.sh)**<br>
+<sub>mac app · free · no account · nothing of yours leaves your machine</sub>
 
-Electron + React 18 + SQLite (better-sqlite3). The main process owns all state; the
-renderer talks to it over a typed IPC bridge and never touches the database.
+</div>
 
-## Running it in dev
+<br>
 
-Requires Node >= 20.19 (this tree is on 25.6) and either the `claude` or the `codex` CLI
-on your machine, signed in. Jobbox spawns it as a subprocess on your own subscription and
-never holds an API key for either.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="site/img/board-dark.webp">
+  <img alt="The Jobbox board: six columns in the order a job search moves." src="site/img/board-light.webp">
+</picture>
+
+<sub>Every company, role, address and person in these screenshots is invented.</sub>
+
+## Download
+
+**[Jobbox for Apple Silicon](https://jobbox.fline.sh/download/mac/arm64)** · `.dmg`
+
+**[Jobbox for Intel Mac](https://jobbox.fline.sh/download/mac/x64)** · `.dmg`
+
+Unsigned build — macOS blocks it on first open. After you drag it to Applications:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Jobbox.app
+```
+
+## What changes
+
+**The same board, without the data entry.**
+
+None of this is work you weren't already doing. It's work you were doing from memory, at
+half past eleven, in a spreadsheet with three tabs and one column nobody has touched
+since June.
+
+| You, by hand | Jobbox, instead |
+|---|---|
+| Read three thousand messages and notice the forty that are about your search. | Scores every message, flags the forty, and shows you **the phrase that flagged each one**. |
+| Work out which application this mail belongs to. Scroll. Find it. Or start a new row. | Matches the mail to the application, or proposes a new one when there isn't one yet. |
+| Type the company, the role, where you found it, the date you applied. | Fills in all four, out of the message that already said them. |
+| Drag the card to Screening. Try to remember what made you move it. | Proposes the move with the line that justifies it attached. |
+| Put the interview in your calendar. Again when it moves. Chase the one that went quiet. | Puts it in **Up next** with the time, the length and the link. |
+| **Decide.** | **Not its call.** |
+
+## How it works
+
+**Four steps. You're needed for two.** Setup happens once; after that the loop is sync,
+run, review — and review is the only one that changes anything.
+
+**1 · Connect a mailbox** — *you.* Five minutes, once. Pick your provider, paste an
+app-specific password, test the connection. Gmail, iCloud, Fastmail and anything else
+that speaks IMAP. [The setup guide](https://jobbox.fline.sh/setup) has the servers, the
+ports, and the one switch that causes most first-run failures.
+
+**2 · Sync** — *Jobbox.* Pulls the last 90 days of your inbox and scores every message
+against a local filter — no model, no network, just the words. Anything that looks like
+your job search becomes a *candidate*, and each one keeps the reason it was picked.
+
+**3 · Run** — *Jobbox.* The agent reads the candidates and writes out what it thinks
+changed: a new application, a status move, an interview, a message filed against the
+right company. Every one of them names the mail it came from. A run takes a minute or
+two, and you can stop it mid-flight.
+
+**4 · Review** — *you.* Accept or reject, one keystroke each. **Accept is the only thing
+in the app that writes to your tracker.** Everything before it is a draft.
+
+## It proposes. You decide.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="site/img/review-dark.webp">
+  <img alt="The review queue: one run, three proposals, each with the mail that produced it." src="site/img/review-light.webp">
+</picture>
+
+Automation you have to double-check is worse than no automation. So the rule isn't "trust
+it" — it's that everything it does arrives as a change you can read in a few seconds and
+throw out with one key.
+
+- **Every proposal shows its source.** The messages that caused it, with senders, dates
+  and the score that flagged them. If the reasoning doesn't hold up, you can see that
+  without leaving the card.
+- **Rejecting costs nothing.** There's nothing to undo, because nothing was done — the
+  proposal is marked rejected and the queue moves on.
+- **The agent can't reach your tracker.** It has no tool that writes one. Not a
+  restricted one, not a careful one — none. Every tool it has appends a proposal and
+  answers with the same sentence: *nothing has changed in the tracker yet.*
+- **It can't touch your mailbox.** No sending, no replying, no deleting, no marking
+  things read. Jobbox opens your mailbox to read it and closes it again.
+
+## What it keeps
+
+**One place where the search is actually true.** Six columns in the order a search moves.
+Open a card and you get the whole history of that application — what was sent, what came
+back, what got scheduled — on one thread, so *where did we leave it* takes a glance.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="site/img/upnext-dark.webp">
+  <img alt="Up next: everything scheduled, in time order, with a Join button on the calls that have a link." src="site/img/upnext-light.webp">
+</picture>
+
+**Up next** is everything scheduled, in time order, with a Join button on the calls that
+have a link. The one screen to open on a Monday.
+
+And the mail is still mail: Jobbox is a mail client too, so every card links back to the
+actual message, unedited, the way it arrived.
+
+## Applying, the other direction
+
+Jobbox doesn't only read the trail — **⌘N** starts one. Paste a job description or a
+link, pick a resume, and a tailor run comes back with proposed replacements against it,
+each carrying the evidence that motivated it, plus a **gap list**: what the posting asks
+for that your resume doesn't show. Gaps are required output, never quietly turned into
+additions.
+
+You take the changes you want, one at a time. The document is assembled locally out of
+the ones you accept — never from a rewritten copy the model returned. Your cover-letter
+template is adapted in the same pass, and application questions ("describe a challenge
+you faced") get drafted from the resume and the posting.
+
+Accepting renders both documents to PDF, keeps them, and files the application at
+**Applied** — so the flow ends with the file you're about to upload, not just a tracker
+row. Edit the resume later and those PDFs don't change: the markdown is the living
+document, the stored PDF is what went out.
+
+**Jobbox doesn't submit anything.** You still apply on the company's own site, with the
+PDF it made you.
+
+## What it needs
+
+**Runs on your machine, under your login.** There is no Jobbox account, no Jobbox server,
+and nothing of yours on anyone's disk but your own.
+
+- **A Mac** — Apple Silicon or Intel. The database is one file in your
+  application-support folder; delete it and Jobbox is gone.
+- **A mailbox that speaks IMAP** — an app-specific password, not your account password.
+  Jobbox keeps it in the macOS Keychain and stores only a reference in the database.
+- **Claude Code or Codex, signed in** — the agent is a CLI already on your machine,
+  spawned under your own login on your own subscription. Jobbox never holds an API key.
+  Claude Code is the default; pick either in Settings → Agent.
+
+## Worth saying plainly
+
+Reading your mail with a model means the model sees the mail it reads. That's the deal,
+and no privacy page changes it. What Jobbox controls is everything else: a triage run
+only ever sees the messages on its own list, written to the database before the run
+starts, and it gets no shell, no file access, no subagents and — on Claude Code — no web.
+When it finishes, its access is revoked.
+
+One run is a deliberate exception, and you should know about it before you use it.
+**Tailoring a resume against a job link puts your resume in a run that can reach the
+web.** That is an accepted risk, not a solved one: the prompt forbids fetching URLs the
+posting names, but a prompt is not a sandbox. Paste job descriptions you're willing to
+have a model read adversarially. The full account is in
+[the engineering notes](docs/ENGINEERING.md#the-tailor-runs-exposure), including
+[what each run kind can reach](docs/ENGINEERING.md#what-each-run-kind-can-reach) and a
+known gap that makes this worse on Codex.
+
+## Limits
+
+**v1 is deliberately narrow.** Better you read this here than find it out on a Tuesday.
+
+- **No sending.** Jobbox reads. No compose, no reply, no follow-up sent for you. Outgoing
+  mail is stored and connection-tested so it can land later; nothing sends today.
+- **One mailbox.** The app drives a single account. If your search runs across a personal
+  address and a forwarding one, pick the one the mail actually lands in.
+- **No Outlook.** Microsoft 365 and Outlook.com can't connect — Microsoft removed
+  password sign-in from IMAP and Jobbox has no OAuth client yet. The preset is still in
+  the form, with the warning on it, so you don't spend an evening wondering.
+- **Unsigned build.** No Apple Developer certificate yet, so macOS blocks the first open
+  and updates don't install themselves — the app tells you a new version exists and opens
+  the download.
+- **Rescheduled interviews** land as a second event instead of replacing the first.
+
+The [longer list](docs/ENGINEERING.md#known-gaps) is honest about the rest.
+
+## Running it from source
+
+Requires Node >= 20.19 and either the `claude` or the `codex` CLI on your machine, signed
+in.
 
 ```bash
 npm install
 npm run dev        # electron-vite dev — main + preload + renderer with HMR
 ```
 
-Other commands:
-
 ```bash
 npm run build      # -> out/main, out/preload, out/renderer
 npm run typecheck  # tsc --noEmit
 npm test           # vitest — pure functions only, by design
-npm run rebuild    # only if better-sqlite3/keytar need an Electron-ABI rebuild
+npm run dist:mac   # DMG + ZIP into release/
 ```
 
-### Finding the CLI
+## Docs
 
-The agent bridge shells out to the `claude` or `codex` binary. A GUI-launched `.app` does
-not inherit your login shell's PATH, so Jobbox searches `~/.local/bin`, `~/.claude/local`,
-`/opt/homebrew/bin`, `/usr/local/bin`, `~/.bun/bin`, `~/Library/pnpm`, `~/.yarn/bin`,
-`~/.npm-global/bin`, `~/.volta/bin`, `~/.deno/bin`, `~/go/bin` and every per-version bin
-directory under nvm, fnm, mise and asdf before giving up. Codex is usually an npm global,
-so on a version-manager setup it lives somewhere like
-`~/.nvm/versions/node/<version>/bin/codex` — that is exactly the case the last group
-covers. **Settings → Agent** has an explicit path override per engine if the search misses.
+- **[docs/ENGINEERING.md](docs/ENGINEERING.md)** — how it's built, what each agent run
+  can reach, the sandboxing, the known gaps, releasing.
+- **[site/](site/)** — the landing page and the per-provider setup guide at
+  [jobbox.fline.sh](https://jobbox.fline.sh).
+- **[server/README.md](server/README.md)** — the Go update service.
 
-**If the selected CLI isn't signed in, runs fail with a dedicated banner** telling you to
-run `claude` (or `codex`) in a terminal to log in — that is a first-class state, not a
-generic error.
+## License
 
-### What each run kind can reach
-
-Four run kinds, isolated on purpose. Triage reads untrusted email, so it must have no way
-to send anything out; enrich reaches the web, so it must have no way to see anything
-private. Tailor is the exception to that rule and the one to understand before you use it:
-it holds your resume *and* reaches the web. See *The tailor run's exposure* below. Answer is
-the most locked-down of the four — it holds private text like tailor, but has no way out at
-all.
-
-| | triage | enrich | tailor | answer |
-|---|---|---|---|---|
-| tracker MCP tools | yes, allowlisted | **none configured** | **none configured** | **none configured** |
-| email | this run's allowlist only | never | never | never |
-| web | Claude Code: no. Codex: **yes, see below** | yes — `WebSearch` + `WebFetch` | yes — `WebSearch` + `WebFetch` | Claude Code: no. Codex: **yes, see below** |
-| private data in context | this run's messages | none — a company name string | **the resume being tailored** | **the resume and the job description** |
-| shell / files / subagents | no | no | no | no |
-
-On Claude Code that is `--tools ""` (no built-ins whatsoever) plus `--strict-mcp-config`.
-On Codex it is `--ignore-user-config` (so your own `~/.codex/config.toml` MCP servers are
-never loaded into a run that reads your mail), `--ignore-rules`, `-s read-only`,
-`--ephemeral`, and `--disable` for the shell, exec, browser, computer-use, apps and
-subagent-spawning features. The tracker server is pinned by `-c mcp_servers.tracker.*`
-overrides with a per-run bearer token that travels by environment variable, so it is never
-written to `agent_runs.command_json`.
-
-**Known gap, Codex only:** `codex exec` cannot turn web search off. `tools.web_search=false`
-is accepted and removes Codex's own web-search tool, but the ChatGPT backend still exposes
-a server-side web tool and the model will use it. Verified against codex-cli 0.147.0 on
-gpt-5.6-sol, gpt-5.5 and gpt-5.4-mini; built-in model providers cannot be overridden
-either. So a Codex triage run has an egress path a Claude Code triage run does not, and
-Settings says so. Claude Code remains the default engine.
-
-State lives in `app.getPath('userData')`: `recruit.db` (SQLite, WAL) and `settings.json`.
-Set `RECRUIT_DB_PATH` to point the database somewhere else.
-
-## Adding an account
-
-First launch shows a setup checklist: **add account → sync → first scan → review.**
-
-1. **Settings → Accounts → Add an account.** Pick a provider preset or enter IMAP manually: server, port,
-   username, password, TLS. Fill in SMTP too — it is stored and connection-tested, but v1
-   never sends with it.
-2. **Test connection.** This proves the credentials before anything is saved. Passwords go
-   to the macOS Keychain; only a keychain reference is written to SQLite.
-3. **Sync.** Pulls the INBOX and runs the prefilter over it. Anything scoring >= 0.35
-   (tunable in **Settings → Triage**) becomes a *candidate*.
-4. **Run.** The `▶ Run · N` button in the toolbar spawns a triage run over the candidates.
-   The same button turns into a live status — elapsed time, current tool call, Stop.
-5. **Review.** Accept or reject each proposal. Every card shows the prefilter reason that
-   flagged the message, so you can see why the agent was looking at it.
-
-### Researching a company
-
-With **Settings → Agent → Enrichment** on, an item's Description block grows a **Research**
-button. It spawns an enrich run over the item's company name and the run writes a sourced
-brief: what the company does, what their live job postings ask for, how their careers page
-describes them, and what review sites say — each section dropped rather than padded when
-it can't be sourced, and every claim carrying a link.
-
-The brief does **not** land on the item directly. An enrich run has no tracker tools, so
-the result arrives as a proposal in the Review queue like everything else; the button says
-so once the run finishes. Accepting it replaces an agent-written description and never a
-description you wrote yourself.
-
-## Applying to a job
-
-**Apply** in the toolbar (⌘N) is the path to a new application. One box takes either a
-pasted job description or a job link; you pick a resume; a **tailor** run reads the
-posting and comes back with a list of proposed replacements against your resume, each with
-the evidence that motivated it.
-
-You review those one at a time. Every change shows what it replaces, what it becomes and
-why, and you take the ones you want — the document is assembled locally from the ones you
-accept, never from a rewritten copy the model returned. Alongside them is a **gap list**:
-what the posting asks for that your resume does not show. Gaps are required output and are
-never quietly turned into additions.
-
-Accepting records the tailored markdown as its own resume, renders both documents to PDF and
-keeps them, creates the application at **Applied**, and then asks where to save the resume —
-so the flow ends with the file you are about to upload, not just a tracker row. Cancel that
-save and the application is still filed; the modal stays put with **Save PDF…** and **Open**
-rather than dropping you with no document. Either way the flow that writes the application
-is the same one that answers "which resume did I send".
-
-The application keeps both PDFs. Its **Documents** row has **Open**, **Save PDF…** and
-**Reveal in Finder** for the resume and the cover letter, so the copy you sent is retrievable
-long after. Editing that resume in Settings later does **not** rewrite them — the markdown is
-the living document, the stored PDF is what went out.
-
-### The cover letter
-
-**Settings → Resume** holds one cover-letter template in markdown. The tailor run adapts it
-to the posting in the same pass as the resume — same run, no extra wait — keeping your voice
-and structure while swapping in the company, the role and what the posting actually asks
-for. You edit it on the review screen before filing, and it is held to the same honesty rule
-as the resume: no claimed experience, motivation or connection the resume and posting do not
-support. **No template means no cover letter**, silently; nothing is invented from nothing.
-
-### Application questions
-
-Forms ask things a resume does not answer — "what appeals to you about this role", "describe
-a challenge you faced". Paste the question, on the review screen while applying or on the
-application afterwards, and an **answer** run drafts a reply from your resume and the job
-description. Edit it, and it is saved on the application with its question.
-
-Answer runs are the most constrained in the app: no tracker, no email and **no web**. They
-need none — the job description is already stored — so on Claude Code the run gets `--tools ""`,
-the same total lockout triage has. The draft is held to the same rule as everything else
-here: it uses what the resume and the posting support, prefers a concrete specific over a
-generality, and does not invent a project, a metric, or enthusiasm for a product you have
-never used.
-
-**Resumes are markdown**, and live in **Settings → Resume** — write one there or import a
-`.md` or `.txt` file. That is the one-time cost of this feature: a resume has to exist as
-text before anything can tailor it, and a PDF is bytes nobody can read. Apply never asks you
-to create one; with none it points you at Settings and does nothing else.
-
-**Rendering is markdown → HTML → PDF inside Jobbox**, so every application you send looks the
-same. A resume sitting in the library renders on demand from **Open** or **Save PDF…**; the
-two documents an application was actually sent are rendered once at that moment and kept
-under `userData/documents`, so they stay exactly as they went out.
-
-Two limits worth stating plainly. **Jobbox does not submit anything** — mail is read-only
-and SMTP is unused, so you still apply on the company's own site with the PDF it produced.
-And a tailor run **may add a skill or a bullet** where your resume supports it, so read the
-additions before you accept them; the rule it is held to is that anything added must be
-defensible in an interview, and inventing an employer, a date, a metric or a certification
-is prohibited outright.
-
-### Which resume you applied with
-
-Applications the apply flow created already know. For the rest — anything the triage agent
-found in your mail, or a card you made by hand — **Settings → Resume** holds a default plus
-every other resume you have written. Once an application reaches **Applied**, its board card
-grows a **Resume?** chip; picking answers it with the default, another resume, or *Skip for
-now*. Skipping is an answer — the chip stops asking.
-
-A tailored resume is recorded as its own row, derived from the one it was built from, so it
-stays out of the picker while still resolving for the application that was sent with it.
-
-Resumes were files once — PDF, Word, Pages — copied into `userData/resumes` and keyed by
-content hash. Upgrading keeps each of those as a **record**: the name survives, so an
-application still says what it was sent, but there is no markdown behind it and it cannot be
-edited, tailored or rendered. The old files are left where they are; Jobbox stops reading
-them and never deletes them, so clearing out `userData/resumes` is yours to do.
-
-The triage agent has no access to any of it: resumes appear nowhere on the MCP surface, and
-which one you sent is not something it can propose. A tailor run is the one place a resume
-reaches a model — see *The tailor run's exposure*.
-
-Gmail and other 2FA providers need an app-specific password, not your account password.
-**Outlook and Microsoft 365 cannot connect at all** — Microsoft removed password sign-in from
-IMAP and SMTP, and Jobbox has no OAuth client. The preset is kept, with a warning in the form.
-
-The per-provider guide is the static site in [site/](site/), deployed to
-`https://jobbox.fline.sh`; the guide itself is `/setup`. The **Setup guide** button in
-Settings → Accounts opens it at the anchor for the configured provider (`#gmail`,
-`#icloud`, `#fastmail`, `#outlook`, or `#custom`), and a failed connection test links
-straight to `#trouble`.
-
-`RECRUIT_SETUP_URL` overrides the **full guide URL** in dev — e.g.
-`RECRUIT_SETUP_URL=http://localhost:8080/setup`, not just the origin. It must be
-`http(s)`: `openExternal` refuses every other scheme, so a `file://` path silently does
-nothing. The site is deliberately not served by the update service — a mail-setup problem
-should stay readable when that host is down.
-
-## How the agent is sandboxed
-
-Worth knowing before you point it at real mail:
-
-- The triage run gets **no built-in tools**: no shell, no file access, no subagents, and
-  on Claude Code no web either (`--tools ""`). Its only capability is one HTTP MCP server
-  on `127.0.0.1`, guarded by a per-run bearer token that is revoked the moment the run
-  ends. See *What each run kind can reach* above for the per-engine flags, and for the one
-  thing Codex cannot currently enforce.
-- **Reads are run-scoped.** The run can only read the messages on its own allowlist, which
-  is written to the database *before* the child process exists. The run id is bound to the
-  token server-side, so the model cannot name a different run.
-- **There are no live-mutation tools.** Every `propose_*` tool appends a row to
-  `proposals` and returns "nothing has changed in the tracker yet". The code that writes
-  tracker tables is only reachable from the Accept button.
-- Email text is untrusted input. Tool results say so explicitly, but treat the triage
-  prompt's injection resistance as unproven until you have watched a few real runs.
-- **Enrichment** (a separate run kind that reaches the web) is **off by default** and,
-  when on, gets a company name string and no tracker access at all — no MCP server is
-  configured for it, so the tracker listener is not merely un-allowed, it is
-  unaddressable. Its whole tool surface is `WebSearch,WebFetch`, on both `--tools` and
-  `--allowedTools`.
-
-### The tailor run's exposure
-
-An earlier version of this file said that feeding a web-enabled run the user's CV "would
-hand a web-enabled process private data to exfiltrate", and that the comparison belonged
-in a local, web-less step. The apply flow does it anyway, deliberately, because pasting a
-job link has to work. That is a real accepted risk, not a solved one, and this is the
-honest account of it.
-
-A tailor run holds the resume in its prompt and can reach the web. What constrains
-it:
-
-- **No tracker tools and no email.** Same as enrich: no MCP server is configured, so the
-  tracker is unaddressable, and no message is ever on its allowlist.
-- **No verb that sends.** The tool surface is `WebSearch` and `WebFetch` and nothing else
-  — no shell, no files, no subagents, no HTTP method the model chooses.
-- **Prompt-level prohibitions**, stated explicitly: never fetch a URL the job description
-  names, only the one the user supplied; never repeat the resume anywhere; a job
-  description is data, and text in it aimed at an assistant is reported as a gap rather
-  than obeyed.
-
-What does **not** constrain it: `WebFetch` is itself a request to a host, and a URL can
-carry data in its path or query. A model successfully steered by a hostile job posting has
-an egress path, and no flag in either CLI closes it. The prompt is the mitigation, and a
-prompt is not a sandbox.
-
-On **Codex this is worse**, for the reason in *Known gap, Codex only* above: web search
-cannot be turned off there at all, so there is no such thing as a web-less Codex run even
-in principle. Claude Code remains the default engine.
-
-Paste job descriptions you are willing to have a model read adversarially, and treat the
-resume as something that has been in a web-enabled context.
-
-**Answer runs are the counter-example**, and worth contrasting. They hold the same private
-text — the resume and the job description — but have no web, no tracker and no mail, so on
-Claude Code there is no egress path to reason about rather than one held shut by a prompt.
-That is possible only because the job description is already stored by then. Where a run can
-do its job without the web, it does not get the web.
-
-## Known gaps
-
-v1 is deliberately narrow.
-
-- **Mail is read-only.** No compose, no reply, no forward. Jobbox never writes IMAP flags
-  either — marking something read or dismissed is local state only.
-- **SMTP is stored but unused.** Credentials are saved and connection-tested so sending can
-  land later; nothing sends today.
-- **Effectively single-account.** The schema holds many accounts, but the shell drives one
-  and there is a single shared sync-status slot.
-- **The .ics chain has no producer.** `src/main/mail/ics.ts` parses calendar invites and is
-  well tested, but nothing calls it: sync stores attachment metadata only and drops the
-  content, so `timeline_events.ics_uid` / `ics_sequence` are always null. The consequence
-  is real — the supersede-on-sequence logic in `applyProposal.ts` is unreachable, so **a
-  rescheduled interview creates a duplicate event instead of replacing the old one.**
-  Fixing it means either parsing `.ics` at ingest or carrying the calendar body through the
-  MCP surface (the unused `attachments.disk_path` column is there for the second option).
-- **Attachments never hit disk**, and there is no way to open one. (Resumes are the one
-  thing Jobbox does store: they arrive from a file dialog, not from mail.)
-- **A UIDVALIDITY bump leaves stale rows** rather than resyncing the folder.
-- **Navigation is shallow** — you can't deep-link to a specific message or item.
-- **The bridge has never completed a real model turn** on this machine (the CLI was not
-  signed in), so tool invocation and proposal quality are untested end to end.
-
-## Layout
-
-```
-src/shared/types.ts   the contract: entities, prefilter types, MCP payloads, RecruitApi
-src/main/             Electron main — SQLite, IMAP sync, Keychain, MCP server, agent runner
-src/preload/          contextBridge -> window.recruit (typed, invoke-only)
-src/renderer/         React 18. Talks to main through window.recruit and nothing else.
-tests/                prefilter + .ics parser unit tests
-```
-
-## Updates
-
-Jobbox checks for new versions against a small Go service (`server/`) and, when one
-exists, shows a banner offering a download. It does **not** install updates itself.
-
-That is a consequence of signing, not an oversight. Squirrel.Mac — the mechanism
-`electron-updater` uses on macOS — refuses to apply an update to a bundle that is not
-signed with an Apple Developer certificate, and these builds are unsigned. Rather than
-ship an updater that silently never fires, the app tells you a version is available and
-opens the DMG. Add a certificate and the silent path is a config change: the feed at
-`/updates/darwin/<arch>/latest-mac.yml` is already served, already per-architecture.
-
-The repository is private, so the app cannot read GitHub releases directly without
-embedding a token. The Go service holds the token instead and re-publishes release assets
-over public URLs. See [server/README.md](server/README.md).
-
-## Releasing
-
-```bash
-git tag v0.2.0 && git push --tags
-```
-
-That triggers `.github/workflows/release.yml`, which builds each architecture separately
-— a combined build emits one `latest-mac.yml` and the last architecture wins, which would
-offer Intel users an arm64 archive — and publishes both DMGs, both ZIPs, and both
-manifests to a GitHub Release.
-
-To build locally instead:
-
-```bash
-npm run dist:mac      # DMG + ZIP into release/
-```
-
-## Download numbers
-
-The site's Download buttons used to link straight at the object store, so MinIO served
-the bytes and nothing in this repo ever learned that a copy had been taken. They now point
-at `/download/mac/arm64` and `/download/mac/x64`, which the site's own server answers with
-a `302` to the same object after recording the request. Storage still serves the bytes —
-only the redirect passes through Node, and if the counter throws, the redirect still goes
-out. A broken counter must never cost a download.
-
-Read the numbers back as JSON:
-
-```bash
-curl https://jobbox.fline.sh/api/downloads
-```
-
-Three figures are kept per architecture, per day and in total:
-
-| Field | Meaning |
-|---|---|
-| `hits` | Requests handed a redirect, after automated traffic was removed |
-| `uniques` | Those hits deduplicated per visitor per UTC day |
-| `filtered` | Requests excluded as bots, link unfurlers, prefetches or `HEAD` probes |
-
-`filtered` exists so the discard pile stays visible. Every time the link is pasted into
-Slack or iMessage the unfurler fetches it, and on a site this young a link checker can
-outnumber the humans — folding that into the headline number would invent users.
-
-`uniques` deduplicates **within** a UTC day, so the total is a sum of daily figures rather
-than a lifetime headcount: someone who comes back a week later counts twice. A true
-lifetime figure would mean keeping every visitor fingerprint forever, which is both
-unbounded and more than this needs to know.
-
-No address is stored. A visitor is a truncated SHA-256 of the client IP, the user agent
-and a random salt minted on first run and held in the state file; without the salt the
-digests do not reverse, and rotating it means deleting one line. The client IP is taken
-from the **rightmost** `X-Forwarded-For` entry — the one the platform's proxy observed —
-so a client cannot inflate `uniques` by sending a header full of invented addresses.
-
-State is a single JSON file at `/data/downloads.json`, declared as a volume on the
-`recruit-site` service in [site/fline.json](site/fline.json). Writes are debounced and go
-through a temp file and a rename, so a crash mid-write leaves the last good state, and
-`SIGTERM` flushes so a redeploy does not drop the final few clicks. **Without that volume
-the counter silently restarts from zero on every deploy** — it falls back to temp storage
-and says so at boot rather than refusing to start. Set `JOBBOX_STATS_TOKEN` to require
-`Authorization: Bearer <token>` on `/api/downloads`; left unset the numbers are public.
-
-Two things this deliberately does not count. In-app update checks and downloads go to the
-Go service and to `downloads/updates/...`, and counting them here would mix "people trying
-the app" with "installs that already exist", which is the number that grows on its own.
-The bucket also stays publicly readable, so an old direct link still works and bypasses
-the counter — the figure is a floor, not an audit.
+See [LICENSE](LICENSE).
