@@ -1,6 +1,15 @@
-import { useCallback, useEffect, useRef, useState, type DependencyList } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type DependencyList
+} from 'react'
 import type {
   Account,
+  AgentErrorKind,
+  AgentRunKind,
   AgentRunUpdate,
   AppCounts,
   AppInfo,
@@ -17,6 +26,7 @@ import type {
   UpdateStatus
 } from '@shared/types'
 import { errorMessage } from './format'
+import { runStore, type RunSnapshot } from './runStore'
 
 /** The preload bridge is the renderer's only door out. Nothing else touches node. */
 export function hasBridge(): boolean {
@@ -25,6 +35,9 @@ export function hasBridge(): boolean {
 
 const NO_BRIDGE =
   'The preload bridge is unavailable — window.recruit was never exposed. Restart the app.'
+
+/** One run at a time is enforced in main; a blocked control says so rather than failing. */
+export const BLOCKED_BY_OTHER_RUN = 'Another run is in progress.'
 
 /* ── async loading ───────────────────────────────────────────────────────── */
 
@@ -402,116 +415,118 @@ export function useSync(): SyncState {
 
 /* ── the agent run ───────────────────────────────────────────────────────── */
 
-export interface RunState {
-  /** Non-null only while the run is starting or running. Drives the RUN button. */
+/** What a screen gets back from one run of its own. */
+export type RunResult<T> =
+  | { ok: true; runId: number; value: T }
+  | { ok: false; error: string; stopped: boolean; errorKind: AgentErrorKind | null }
+
+export interface AgentRunHandle<T> {
+  /** The run in flight, whoever started it. Null when nothing is running. */
   active: AgentRunUpdate | null
-  /** The most recent update whatever its state — how the error banner survives. */
+  /** The newest update whatever its state, so an error banner outlives its run. */
   last: AgentRunUpdate | null
-  /** Ticks locally every second so seconds advance between pushes from main. */
+  /** Elapsed on `active`, ticking every second. 0 when nothing is active. */
   elapsedMs: number
-  starting: boolean
+  /** True from this handle's `start` until its run is over. */
+  busy: boolean
+  /** True once `stop` has been asked for and this handle's run has not ended yet. */
+  stopping: boolean
+  /** Non-null when a run this handle did not start holds the lock, and says why. */
+  blockedReason: string | null
+  /** Why this handle's last run never started or could not be read. */
   error: string | null
-  start: (input?: Partial<StartRunInput>) => Promise<void>
-  stop: () => Promise<void>
-  /** Clears `last` — used when the user dismisses the error banner. */
-  clearLast: () => void
+  /** Starts a run and resolves once it is over. Never rejects and always settles. */
+  start: (input?: Partial<StartRunInput>) => Promise<RunResult<T>>
+  stop: () => void
+  /** Forgets the last run. Does not stop one in flight. */
+  clear: () => void
 }
 
-const ACTIVE_STATES = new Set(['starting', 'running'])
+const STOPPED = 'The run was stopped before it returned anything.'
 
-function isActiveUpdate(u: AgentRunUpdate | null): boolean {
-  return u !== null && ACTIVE_STATES.has(u.state)
+/** The renderer-wide run state, read-only. Every view sees the same object. */
+export function useRunSnapshot(): RunSnapshot {
+  return useSyncExternalStore(runStore.subscribe, runStore.getSnapshot)
 }
 
 /**
- * The whole lifecycle behind the RUN button. On click we synthesise a 'starting'
- * update immediately rather than waiting for main's first push, so the control
- * morphs on the same frame as the click.
+ * One screen's agent run, on top of the renderer-wide `runStore`.
+ *
+ * `start` resolves with the outcome — including the value `read` pulls out of the finished
+ * run's envelope — so a screen branches on a returned result instead of watching derived
+ * fields in an effect.
  */
-export function useRun(): RunState {
-  const [update, setUpdate] = useState<AgentRunUpdate | null>(null)
-  const [starting, setStarting] = useState(false)
+export function useAgentRun(options: { kind: AgentRunKind }): AgentRunHandle<void>
+export function useAgentRun<T>(options: {
+  kind: AgentRunKind
+  read: (runId: number) => Promise<T>
+}): AgentRunHandle<T>
+export function useAgentRun<T>(options: {
+  kind: AgentRunKind
+  read?: (runId: number) => Promise<T>
+}): AgentRunHandle<T | void> {
+  const snapshot = useRunSnapshot()
+  const [stopping, setStopping] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [tick, setTick] = useState(0)
 
-  useEffect(() => {
-    if (!hasBridge()) return
-    let live = true
-    window.recruit
-      .getActiveRun()
-      .then((u) => live && u && setUpdate(u))
-      .catch(() => undefined)
-    return () => {
-      live = false
-    }
+  const owner = useRef<symbol | null>(null)
+  if (owner.current === null) owner.current = Symbol(options.kind)
+  const optionsRef = useRef(options)
+  optionsRef.current = options
+
+  const busy = snapshot.owner === owner.current
+
+  const start = useCallback(
+    async (input?: Partial<StartRunInput>): Promise<RunResult<T | void>> => {
+      setStopping(false)
+      setError(null)
+      const { kind, read } = optionsRef.current
+      const outcome = await runStore.begin(owner.current!, { ...input, kind })
+
+      if (outcome.state === 'stopped') {
+        return { ok: false, error: STOPPED, stopped: true, errorKind: null }
+      }
+      if (outcome.state === 'failed') {
+        return { ok: false, error: outcome.message, stopped: false, errorKind: outcome.errorKind }
+      }
+      if (outcome.state === 'unstarted') {
+        setError(outcome.message)
+        return { ok: false, error: outcome.message, stopped: false, errorKind: null }
+      }
+      if (!read) return { ok: true, runId: outcome.runId, value: undefined }
+      try {
+        return { ok: true, runId: outcome.runId, value: await read(outcome.runId) }
+      } catch (e) {
+        const message = errorMessage(e)
+        setError(message)
+        return { ok: false, error: message, stopped: false, errorKind: null }
+      }
+    },
+    []
+  )
+
+  const stop = useCallback(() => {
+    setStopping(true)
+    void runStore.stop().catch((e: unknown) => setError(errorMessage(e)))
   }, [])
 
-  useRecruitEvent('runUpdate', (u) => {
-    setUpdate(u)
-    if (isActiveUpdate(u)) setStarting(false)
-  })
+  const clear = useCallback(() => {
+    setError(null)
+    runStore.clear()
+  }, [])
 
-  const active = isActiveUpdate(update) ? update : null
-
-  // Local clock. Only runs while something is in flight.
-  useEffect(() => {
-    if (!active) return
-    const id = window.setInterval(() => setTick((t) => t + 1), 1000)
-    return () => window.clearInterval(id)
-  }, [active !== null, active?.runId])
-
-  let elapsedMs = active?.elapsedMs ?? 0
-  if (active) {
-    const startedAt = Date.parse(active.startedAt)
-    if (Number.isFinite(startedAt)) {
-      elapsedMs = Math.max(active.elapsedMs, Date.now() - startedAt)
-    }
+  return {
+    active: snapshot.active,
+    last: snapshot.last,
+    elapsedMs: snapshot.elapsedMs,
+    busy,
+    stopping: stopping && busy,
+    blockedReason: !busy && snapshot.active !== null ? BLOCKED_BY_OTHER_RUN : null,
+    error,
+    start,
+    stop,
+    clear
   }
-  void tick // the interval exists purely to re-render this value
-
-  const start = useCallback(async (input?: Partial<StartRunInput>): Promise<void> => {
-    setError(null)
-    setStarting(true)
-    const startedAt = new Date().toISOString()
-    setUpdate({
-      runId: -1,
-      kind: input?.kind ?? 'triage',
-      state: 'starting',
-      startedAt,
-      elapsedMs: 0,
-      currentTool: null,
-      toolCalls: 0,
-      messagesTotal: input?.messageIds?.length ?? 0,
-      messagesRead: 0,
-      proposalCount: 0,
-      errorKind: null,
-      errorText: null
-    })
-    try {
-      await window.recruit.startRun({ kind: 'triage', ...input })
-    } catch (e) {
-      setError(errorMessage(e))
-      setUpdate(null)
-      setStarting(false)
-    }
-  }, [])
-
-  const stop = useCallback(async (): Promise<void> => {
-    const runId = update?.runId
-    if (runId === undefined || runId < 0) return
-    try {
-      await window.recruit.stopRun(runId)
-    } catch (e) {
-      setError(errorMessage(e))
-    }
-  }, [update?.runId])
-
-  const clearLast = useCallback(() => {
-    setUpdate((u) => (isActiveUpdate(u) ? u : null))
-    setError(null)
-  }, [])
-
-  return { active, last: update, elapsedMs, starting, error, start, stop, clearLast }
 }
 
 /**

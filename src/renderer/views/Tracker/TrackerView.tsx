@@ -193,6 +193,7 @@ export function TrackerView({
           <Pane kind="plain" width={420}>
             <div className="tracker-detail">
               <ItemDetail
+                key={selectedItemId}
                 itemId={selectedItemId}
                 statusIndex={store.statusIndex}
                 now={now}

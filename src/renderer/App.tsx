@@ -31,11 +31,11 @@ import {
   formatRelative,
   hasBridge,
   useAccounts,
+  useAgentRun,
   useAppInfo,
   useCounts,
   useHashRoute,
   useRecruitEvent,
-  useRun,
   useSetupState,
   useSettings,
   useUpdate,
@@ -123,7 +123,7 @@ function Shell(): JSX.Element {
   const { counts, reload: refreshCounts } = useCounts()
   const setup = useSetupState()
   const sync = useSync()
-  const run = useRun()
+  const run = useAgentRun({ kind: 'triage' })
   const accounts = useAccounts()
   const appInfo = useAppInfo()
   const debriefs = useDebriefs()
@@ -150,7 +150,7 @@ function Shell(): JSX.Element {
     ? `${AGENT_ENGINE_LABEL[appInfo.data.agentEngine]} isn't installed`
     : null
 
-  const startRun = useCallback(() => void run.start({ kind: 'triage' }), [run])
+  const startRun = useCallback(() => void run.start(), [run])
   const syncNow = useCallback(() => void sync.syncNow(), [sync])
 
   const enableNotifications = useCallback(
@@ -240,7 +240,7 @@ function Shell(): JSX.Element {
             candidateCount={counts.candidates}
             elapsedMs={run.elapsedMs}
             onStart={startRun}
-            onStop={() => void run.stop()}
+            onStop={run.stop}
             disabledReason={agentCliMissing ? agentCliMissingReason : null}
           />
         </Toolbar>
@@ -252,9 +252,9 @@ function Shell(): JSX.Element {
             message={run.last?.errorText ?? null}
             onRetry={startRun}
             onOpenSettings={() => navigate('settings')}
-            onDismiss={run.clearLast}
+            onDismiss={run.clear}
           />
-          <ErrorBanner error={run.error} onDismiss={run.clearLast} />
+          <ErrorBanner error={run.error} onDismiss={run.clear} />
           {update.status && !update.dismissed ? (
             <UpdateBanner
               status={update.status}

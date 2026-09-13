@@ -6,11 +6,17 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { TriageState } from '@shared/types'
-import { Banner, Button, ClaudeNotSignedInBanner, SplitView } from '@renderer/components'
+import type { AgentErrorKind, TriageState } from '@shared/types'
+import {
+  Banner,
+  Button,
+  ClaudeNotSignedInBanner,
+  SplitView,
+  useAgentRun
+} from '@renderer/components'
 import { MessageList } from './MessageList'
 import { MessageReader } from './MessageReader'
-import { useActiveRun, useBlockRemoteImages, useDebounced } from './hooks'
+import { useBlockRemoteImages, useDebounced } from './hooks'
 import { useMessages, type MailMode } from './useMessages'
 import './mail.css'
 
@@ -60,10 +66,16 @@ export function MailView({
   const [deletedIds, setDeletedIds] = useState<number[] | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [runningMessageId, setRunningMessageId] = useState<number | null>(null)
-  const startedRunId = useRef<number | null>(null)
+  /** Why the run this view started failed. Outlives the run, so the banner stays up. */
+  const [runFailure, setRunFailure] = useState<{
+    message: string
+    errorKind: AgentErrorKind | null
+  } | null>(null)
 
   const blockRemoteImages = useBlockRemoteImages()
-  const { run, isRunning } = useActiveRun()
+  const run = useAgentRun({ kind: 'triage' })
+  const isRunning = run.active !== null
+  const startRun = run.start
   const {
     rows,
     total,
@@ -107,35 +119,27 @@ export function MailView({
     (messageId: number) => {
       if (isRunning) return
       setActionError(null)
+      setRunFailure(null)
       setRunningMessageId(messageId)
-      window.recruit
-        .startRun({ kind: 'triage', messageIds: [messageId] })
-        .then((summary) => {
-          startedRunId.current = summary.id
-        })
-        .catch((e: unknown) => {
-          setRunningMessageId(null)
-          setActionError(e instanceof Error ? e.message : String(e))
-        })
+      void startRun({ messageIds: [messageId] }).then((outcome) => {
+        setRunningMessageId(null)
+        if (outcome.ok || outcome.stopped) return
+        setRunFailure({ message: outcome.error, errorKind: outcome.errorKind })
+      })
     },
-    [isRunning]
+    [isRunning, startRun]
   )
-
-  // The run ended (or was never really ours) — release the row spinner.
-  useEffect(() => {
-    if (!isRunning) setRunningMessageId(null)
-  }, [isRunning])
 
   // A finished triage run rescores and relinks messages; pull the list back in sync.
   const prevRunState = useRef<string | null>(null)
+  const runState = run.last?.state ?? null
   useEffect(() => {
-    const state = run?.state ?? null
-    if (prevRunState.current === 'running' && state !== 'running') {
+    if (prevRunState.current === 'running' && runState !== 'running') {
       refresh()
       onCountsChanged?.()
     }
-    prevRunState.current = state
-  }, [run?.state, refresh, onCountsChanged])
+    prevRunState.current = runState
+  }, [runState, refresh, onCountsChanged])
 
   /* ── local triage (never touches IMAP flags — v1 mail is read-only) ─────── */
 
@@ -251,12 +255,10 @@ export function MailView({
 
   /* ── run failure, surfaced where the user pressed the button ────────────── */
 
-  const ourRunFailed =
-    run != null && run.runId === startedRunId.current && run.state === 'error' ? run : null
-  const notSignedIn = ourRunFailed?.errorKind === 'not_signed_in'
+  const notSignedIn = runFailure?.errorKind === 'not_signed_in'
 
   const clearRunError = useCallback(() => {
-    startedRunId.current = null
+    setRunFailure(null)
     setActionError(null)
   }, [])
 
@@ -266,9 +268,9 @@ export function MailView({
           never let it collapse into a generic failure banner. */}
       {notSignedIn ? (
         <ClaudeNotSignedInBanner onDismiss={clearRunError} />
-      ) : ourRunFailed ? (
+      ) : runFailure ? (
         <Banner tone="danger" title="The triage run failed" onDismiss={clearRunError}>
-          {ourRunFailed.errorText ?? 'No detail was reported.'}
+          {runFailure.message}
         </Banner>
       ) : null}
 

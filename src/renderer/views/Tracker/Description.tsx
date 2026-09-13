@@ -11,7 +11,14 @@
  */
 
 import { useEffect, useState } from 'react'
-import { Button, Icon, Markdown, formatRelative, useRun, useSettings } from '@renderer/components'
+import {
+  Button,
+  Icon,
+  Markdown,
+  formatRelative,
+  useAgentRun,
+  useSettings
+} from '@renderer/components'
 import type { JSX } from 'react'
 import type { ItemDetail } from '@shared/types'
 
@@ -27,12 +34,12 @@ export function Description({
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(item.descriptionMd ?? '')
   const [saving, setSaving] = useState(false)
-  /** True from our click until the enrich run reaches a terminal state. */
-  const [pending, setPending] = useState(false)
   const [filed, setFiled] = useState(false)
+  /** Why the last enrich run from this block filed nothing. */
+  const [runError, setRunError] = useState<string | null>(null)
 
   const { settings } = useSettings()
-  const run = useRun()
+  const run = useAgentRun({ kind: 'enrich' })
   const enrichmentOn = settings?.enrichmentEnabled === true
 
   // A background refresh (agent run, accepted proposal) must not clobber an open editor.
@@ -42,35 +49,21 @@ export function Description({
 
   useEffect(() => {
     setEditing(false)
-    setPending(false)
     setFiled(false)
+    setRunError(null)
   }, [item.id])
-
-  // Watch OUR run to its end. The result lands as a proposal written by main after the
-  // process exits, so there is nothing to poll for — the terminal state is the signal.
-  const runKind = run.last?.kind
-  const runState = run.last?.state
-  useEffect(() => {
-    if (!pending || runKind !== 'enrich') return
-    if (runState === 'finished') {
-      setPending(false)
-      setFiled(true)
-    } else if (runState === 'error' || runState === 'stopped') {
-      setPending(false)
-    }
-  }, [pending, runKind, runState])
 
   const byAgent = item.descriptionSource === 'agent'
   const hasText = (item.descriptionMd ?? '').trim().length > 0
-  const busy = pending || run.starting
-  // One run at a time is enforced in main; disabling here explains why rather than
-  // letting the click fail with "a triage run is already in progress".
-  const blockedByOtherRun = !busy && run.active !== null
+  const busy = run.busy
+  const blockedByOtherRun = run.blockedReason !== null
 
-  const research = (): void => {
+  const research = async (): Promise<void> => {
     setFiled(false)
-    setPending(true)
-    void run.start({ kind: 'enrich', company: item.company, itemId: item.id })
+    setRunError(null)
+    const outcome = await run.start({ company: item.company, itemId: item.id })
+    setFiled(outcome.ok)
+    setRunError(outcome.ok || outcome.stopped ? null : outcome.error)
   }
 
   const save = async (): Promise<void> => {
@@ -132,11 +125,10 @@ export function Description({
             busy={busy}
             disabled={blockedByOtherRun}
             title={
-              blockedByOtherRun
-                ? 'Another run is in progress.'
-                : `Search the web for a brief on ${item.company}. Comes back as a proposal in Review.`
+              run.blockedReason ??
+              `Search the web for a brief on ${item.company}. Comes back as a proposal in Review.`
             }
-            onClick={research}
+            onClick={() => void research()}
           >
             {busy ? 'Researching…' : hasText ? 'Re-research' : 'Research'}
           </Button>
@@ -155,10 +147,10 @@ export function Description({
         </div>
       ) : null}
 
-      {run.error && !busy ? (
+      {runError ? (
         <div className="description-note is-error">
           <Icon name="alert" size={11} />
-          <span>{run.error}</span>
+          <span>{runError}</span>
         </div>
       ) : null}
 
@@ -186,7 +178,7 @@ export function Description({
           {enrichmentOn ? (
             <>
               {' — or '}
-              <button type="button" className="linklike" onClick={research} disabled={busy}>
+              <button type="button" className="linklike" onClick={() => void research()} disabled={busy}>
                 research it
               </button>
               {'.'}

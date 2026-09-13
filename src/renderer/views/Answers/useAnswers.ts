@@ -5,13 +5,14 @@
  * `saveItemAnswer` / `deleteItemAnswer`; `{ kind: 'draft' }` holds them in this store
  * until `applyDraft` files them with the application.
  *
- * `run.start` resolves when the process is spawned, so a drafting run is watched to a
- * terminal state and read out of `getRun`. The whole envelope result is the answer: an
- * `answer` run returns prose, not JSON.
+ * `useAgentRun().start` resolves once the drafting run is over, with the envelope already
+ * read. The whole envelope result is the answer: an `answer` run returns prose, not JSON.
+ * The card and the item the draft was asked for are captured at that point, so an answer
+ * that lands after the user has moved on is still written where it belongs.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { errorMessage, useRun } from '@renderer/components'
+import { errorMessage, useAgentRun } from '@renderer/components'
 import type { ApplyQuestion, ItemAnswer, StartRunInput } from '@shared/types'
 
 /** Where the questions live, and what a drafting run is given. */
@@ -45,6 +46,8 @@ export interface AnswersStore {
   reset: () => void
 
   draft: (key: string) => void
+  /** True while a card on this store is drafting. */
+  busy: boolean
   /** Non-null when no card can be drafted, and says why. */
   draftDisabledReason: string | null
   /** Elapsed on the drafting run. 0 when nothing is drafting. */
@@ -56,12 +59,10 @@ export interface AnswersStore {
   questions: ApplyQuestion[]
 }
 
-const BLOCKED_BY_OTHER_RUN = 'Another run is in progress.'
 const ALREADY_DRAFTING = 'A draft is already running.'
 const NO_ENVELOPE = 'The run finished but its result was never recorded.'
 const EMPTY = 'The run finished without writing anything.'
 const STOPPED = 'You stopped the run before it wrote anything.'
-const FAILED = 'The run failed.'
 
 interface CardState {
   key: string
@@ -89,9 +90,6 @@ export function useAnswers(context: AnswersContext): AnswersStore {
   const [loading, setLoading] = useState(context.kind === 'item')
   const [error, setError] = useState<string | null>(null)
   const [draftingKey, setDraftingKey] = useState<string | null>(null)
-  const [stopping, setStopping] = useState(false)
-
-  const run = useRun()
 
   const ctx = useRef(context)
   ctx.current = context
@@ -109,7 +107,6 @@ export function useAnswers(context: AnswersContext): AnswersStore {
   useEffect(() => {
     writes.current.clear()
     setDraftingKey(null)
-    setStopping(false)
     setError(null)
     if (itemId === null) {
       setCards([])
@@ -142,8 +139,8 @@ export function useAnswers(context: AnswersContext): AnswersStore {
   }, [])
 
   const store = useCallback(
-    (key: string, question: string, answerMd: string): void => {
-      const id = itemIdRef.current
+    (key: string, question: string, answerMd: string, target?: number): void => {
+      const id = target ?? itemIdRef.current
       if (id === null) return
       const known = cardsRef.current.find((c) => c.key === key)?.id ?? null
       const next = (writes.current.get(key) ?? Promise.resolve(known))
@@ -205,7 +202,6 @@ export function useAnswers(context: AnswersContext): AnswersStore {
     writes.current.clear()
     setCards([])
     setDraftingKey(null)
-    setStopping(false)
     setError(null)
   }, [])
 
@@ -216,66 +212,21 @@ export function useAnswers(context: AnswersContext): AnswersStore {
     [patch]
   )
 
-  const readAnswer = useCallback(
-    async (key: string, runId: number): Promise<void> => {
-      if (runId < 0) {
-        fail(key, NO_ENVELOPE)
-        return
-      }
-      try {
-        const record = await window.recruit.getRun(runId)
-        const raw = record?.rawEnvelope?.result
-        const text = typeof raw === 'string' ? raw.trim() : ''
-        if (text === '') {
-          fail(key, typeof raw === 'string' ? EMPTY : NO_ENVELOPE)
-          return
-        }
-        const card = cardsRef.current.find((c) => c.key === key)
-        if (!card) return
-        patch(key, { answerMd: text, error: null })
-        store(key, card.question, text)
-      } catch (e) {
-        fail(key, errorMessage(e))
-      }
-    },
-    [fail, patch, store]
-  )
+  /** The prose an `answer` run returns. Throws when the envelope holds nothing to use. */
+  const readAnswer = useCallback(async (runId: number): Promise<string> => {
+    const record = await window.recruit.getRun(runId)
+    const raw = record?.rawEnvelope?.result
+    if (typeof raw !== 'string') throw new Error(NO_ENVELOPE)
+    const text = raw.trim()
+    if (text === '') throw new Error(EMPTY)
+    return text
+  }, [])
 
-  const runKind = run.last?.kind
-  const runState = run.last?.state
-  const runId = run.last?.runId
-  const runErrorText = run.last?.errorText
-  useEffect(() => {
-    if (draftingKey === null || runKind !== 'answer') return
-    if (runState === 'finished') {
-      setDraftingKey(null)
-      setStopping(false)
-      void readAnswer(draftingKey, runId ?? -1)
-    } else if (runState === 'error' || runState === 'stopped') {
-      setDraftingKey(null)
-      setStopping(false)
-      fail(draftingKey, runErrorText ?? (runState === 'stopped' ? STOPPED : FAILED))
-    }
-  }, [draftingKey, runKind, runState, runId, runErrorText, readAnswer, fail])
+  const run = useAgentRun({ kind: 'answer', read: readAnswer })
+  const start = run.start
 
-  // A run that never started pushes no update at all; `useRun` reports it as an error.
-  const startError = run.error
-  useEffect(() => {
-    if (draftingKey === null || !startError) return
-    setDraftingKey(null)
-    setStopping(false)
-    fail(draftingKey, startError)
-  }, [draftingKey, startError, fail])
-
-  const busy = draftingKey !== null || run.starting
-  // One run at a time is enforced in main.
-  const blockedByOtherRun = !busy && run.active !== null
-
-  const draftDisabledReason = busy
-    ? ALREADY_DRAFTING
-    : blockedByOtherRun
-      ? BLOCKED_BY_OTHER_RUN
-      : null
+  const busy = draftingKey !== null
+  const draftDisabledReason = busy ? ALREADY_DRAFTING : run.blockedReason
 
   const draft = useCallback(
     (key: string): void => {
@@ -284,25 +235,28 @@ export function useAnswers(context: AnswersContext): AnswersStore {
       const current = ctx.current
       const input: Partial<StartRunInput> =
         current.kind === 'item'
-          ? { kind: 'answer', question: card.question, itemId: current.itemId }
+          ? { question: card.question, itemId: current.itemId }
           : {
-              kind: 'answer',
               question: card.question,
               jdMd: current.jdMd,
               resumeId: current.resumeId ?? undefined
             }
+      const target = itemIdRef.current ?? undefined
       patch(key, { error: null })
-      setStopping(false)
       setDraftingKey(key)
-      void run.start(input)
+      void start(input).then((outcome) => {
+        setDraftingKey((drafting) => (drafting === key ? null : drafting))
+        if (!outcome.ok) {
+          fail(key, outcome.stopped ? STOPPED : outcome.error)
+          return
+        }
+        const question = cardsRef.current.find((c) => c.key === key)?.question ?? card.question
+        patch(key, { answerMd: outcome.value, error: null })
+        store(key, question, outcome.value, target)
+      })
     },
-    [patch, run]
+    [fail, patch, start, store]
   )
-
-  const stop = useCallback((): void => {
-    setStopping(true)
-    void run.stop()
-  }, [run])
 
   const view = useMemo<AnswerCard[]>(
     () =>
@@ -335,10 +289,11 @@ export function useAnswers(context: AnswersContext): AnswersStore {
     remove,
     reset,
     draft,
+    busy,
     draftDisabledReason,
-    elapsedMs: draftingKey === null ? 0 : run.elapsedMs,
-    stopping,
-    stop,
+    elapsedMs: busy ? run.elapsedMs : 0,
+    stopping: run.stopping,
+    stop: run.stop,
     questions
   }
 }

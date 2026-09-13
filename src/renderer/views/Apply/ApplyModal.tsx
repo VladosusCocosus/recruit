@@ -71,7 +71,8 @@ function modeOf(store: ApplyStore): Mode {
 
 function ApplyDialog({ store, onOpenItem, onOpenResumeSettings }: Props): JSX.Element {
   const mode = modeOf(store)
-  const locked = mode === 'running' || store.committing || store.savingPdf
+  const locked =
+    mode === 'running' || store.committing || store.savingPdf || store.answers.busy
 
   const done = (): void => {
     const itemId = store.filed?.itemId ?? null
@@ -280,7 +281,12 @@ function ApplyDialog({ store, onOpenItem, onOpenResumeSettings }: Props): JSX.El
   } else if (mode === 'review') {
     footer = (
       <>
-        <Button size="sm" variant="subtle" disabled={store.committing} onClick={store.close}>
+        <Button
+          size="sm"
+          variant="subtle"
+          disabled={store.committing || store.answers.busy}
+          onClick={store.close}
+        >
           Cancel
         </Button>
         <span className="ap-spacer" />

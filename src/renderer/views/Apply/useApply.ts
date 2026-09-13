@@ -3,11 +3,11 @@
  * started, and the review the run comes back as. Mounted once by the shell and handed
  * to <ApplyModal>.
  *
- * `startRun` resolves when the process is spawned; the result envelope is written after
- * it exits. The run is therefore watched to a terminal state and read from `getRun`.
+ * `useAgentRun().start` resolves once the tailor run is over, with the result envelope
+ * already parsed, so this store branches on a returned outcome rather than on a watcher.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { errorMessage, useResumes, useRun } from '@renderer/components'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { errorMessage, useAgentRun, useResumes } from '@renderer/components'
 import { parseTailorResult } from '@shared/tailor'
 import { applyTailorChanges } from '@shared/resumePatch'
 import { isEditableResume } from '@shared/types'
@@ -43,8 +43,6 @@ export interface FiledApplication {
   resumeId: number | null
   company: string
 }
-
-const BLOCKED_BY_OTHER_RUN = 'Another run is in progress.'
 
 /**
  * True when the whole input is one http(s) URL. Anything with whitespace in it is a job
@@ -133,7 +131,6 @@ const UNREADABLE =
   "The run finished but didn't return a tailored resume this screen can read. Running it again usually fixes it."
 const NO_ENVELOPE = 'The run finished but its result was never recorded.'
 const STOPPED = 'You stopped the run before it returned anything.'
-const FAILED = 'The run failed.'
 
 export function useApply(): ApplyStore {
   const [open, setOpen] = useState(false)
@@ -142,9 +139,6 @@ export function useApply(): ApplyStore {
   const [jobInput, setJobInput] = useState('')
   const [resumeId, setResumeId] = useState<number | null>(null)
 
-  /** True from our click until the tailor run reaches a terminal state. */
-  const [pending, setPending] = useState(false)
-  const [stopping, setStopping] = useState(false)
   const [runError, setRunError] = useState<string | null>(null)
   const [result, setResult] = useState<TailorResult | null>(null)
   const [fields, setFields] = useState<ApplyFields>(EMPTY_FIELDS)
@@ -156,7 +150,22 @@ export function useApply(): ApplyStore {
   const [savingPdf, setSavingPdf] = useState(false)
 
   const resumesState = useResumes()
-  const run = useRun()
+
+  /** The tailored resume a finished run returned. Throws when there is nothing to read. */
+  const readTailored = useCallback(async (runId: number): Promise<TailorResult> => {
+    const record = await window.recruit.getRun(runId)
+    const raw = record?.rawEnvelope?.result
+    if (typeof raw !== 'string') throw new Error(NO_ENVELOPE)
+    const parsed = parseTailorResult(raw)
+    if (!parsed) throw new Error(UNREADABLE)
+    return parsed
+  }, [])
+
+  const run = useAgentRun({ kind: 'tailor', read: readTailored })
+  const start = run.start
+
+  /** Bumped whenever the screen is reset, so a late outcome cannot revive it. */
+  const generation = useRef(0)
 
   const resumes = useMemo(
     () => (resumesState.data ?? []).filter(isEditableResume),
@@ -184,12 +193,11 @@ export function useApply(): ApplyStore {
   const openApply = useCallback(() => setOpen(true), [])
 
   const close = useCallback(() => {
+    generation.current += 1
     setOpen(false)
     setScreen('input')
     setPhase('running')
     setJobInput('')
-    setPending(false)
-    setStopping(false)
     setRunError(null)
     setResult(null)
     setFields(EMPTY_FIELDS)
@@ -213,66 +221,6 @@ export function useApply(): ApplyStore {
 
   /* ── the run ─────────────────────────────────────────────────────────────── */
 
-  const readResult = useCallback(async (runId: number): Promise<void> => {
-    if (runId < 0) {
-      setPhase('failed')
-      setRunError(NO_ENVELOPE)
-      return
-    }
-    try {
-      const record = await window.recruit.getRun(runId)
-      const raw = record?.rawEnvelope?.result
-      const parsed = typeof raw === 'string' ? parseTailorResult(raw) : null
-      if (!parsed) {
-        setPhase('failed')
-        setRunError(typeof raw === 'string' ? UNREADABLE : NO_ENVELOPE)
-        return
-      }
-      setResult(parsed)
-      setFields({
-        company: parsed.company ?? '',
-        role: parsed.role ?? '',
-        location: parsed.location ?? '',
-        workMode: parsed.workMode ?? ''
-      })
-      setCoverLetterMd(parsed.coverLetterMd ?? '')
-      setRejected(new Set())
-      setPhase('ready')
-    } catch (e) {
-      setPhase('failed')
-      setRunError(errorMessage(e))
-    }
-  }, [])
-
-  // Resolves this screen when a run of OUR kind reaches a terminal state.
-  const runKind = run.last?.kind
-  const runState = run.last?.state
-  const runId = run.last?.runId
-  const runErrorText = run.last?.errorText
-  useEffect(() => {
-    if (!pending || runKind !== 'tailor') return
-    if (runState === 'finished') {
-      setPending(false)
-      setStopping(false)
-      void readResult(runId ?? -1)
-    } else if (runState === 'error' || runState === 'stopped') {
-      setPending(false)
-      setStopping(false)
-      setPhase('failed')
-      setRunError(runErrorText ?? (runState === 'stopped' ? STOPPED : FAILED))
-    }
-  }, [pending, runKind, runState, runId, runErrorText, readResult])
-
-  // A run that never started pushes no update at all; `useRun` reports it as an error.
-  const startError = run.error
-  useEffect(() => {
-    if (!pending || !startError) return
-    setPending(false)
-    setStopping(false)
-    setPhase('failed')
-    setRunError(startError)
-  }, [pending, startError])
-
   const startRun = useCallback(
     (input: string, selected: Resume): void => {
       setResult(null)
@@ -281,26 +229,37 @@ export function useApply(): ApplyStore {
       setRejected(new Set())
       setCommitError(null)
       setRunError(null)
-      setStopping(false)
       setScreen('review')
       setPhase('running')
-      setPending(true)
-      void run.start({ kind: 'tailor', jobInput: input, resumeId: selected.id })
+      const mine = (generation.current += 1)
+      void start({ jobInput: input, resumeId: selected.id }).then((outcome) => {
+        if (mine !== generation.current) return
+        if (!outcome.ok) {
+          setPhase('failed')
+          setRunError(outcome.stopped ? STOPPED : outcome.error)
+          return
+        }
+        setResult(outcome.value)
+        setFields({
+          company: outcome.value.company ?? '',
+          role: outcome.value.role ?? '',
+          location: outcome.value.location ?? '',
+          workMode: outcome.value.workMode ?? ''
+        })
+        setCoverLetterMd(outcome.value.coverLetterMd ?? '')
+        setRejected(new Set())
+        setPhase('ready')
+      })
     },
-    [run]
+    [start]
   )
-
-  const busy = pending || run.starting
-  const blockedByOtherRun = !busy && run.active !== null
 
   const tailorDisabledReason =
     resume === null
       ? 'Add a resume first.'
       : jobInput.trim() === ''
         ? 'Paste a job description, or a link to one.'
-        : blockedByOtherRun
-          ? BLOCKED_BY_OTHER_RUN
-          : null
+        : run.blockedReason
 
   const tailor = useCallback(() => {
     if (tailorDisabledReason !== null || resume === null) return
@@ -308,21 +267,17 @@ export function useApply(): ApplyStore {
   }, [tailorDisabledReason, resume, jobInput, startRun])
 
   const retry = useCallback(() => {
-    if (resume === null || blockedByOtherRun) return
+    if (resume === null || run.blockedReason !== null) return
     startRun(jobInput.trim(), resume)
-  }, [resume, blockedByOtherRun, jobInput, startRun])
+  }, [resume, run.blockedReason, jobInput, startRun])
 
   const backToInput = useCallback(() => {
+    generation.current += 1
     setScreen('input')
     setPhase('running')
     setRunError(null)
     setResult(null)
   }, [])
-
-  const stop = useCallback(() => {
-    setStopping(true)
-    void run.stop()
-  }, [run])
 
   /* ── the review ──────────────────────────────────────────────────────────── */
 
@@ -454,8 +409,8 @@ export function useApply(): ApplyStore {
 
     elapsedMs: run.elapsedMs,
     currentTool: run.active?.currentTool ?? null,
-    stopping,
-    stop,
+    stopping: run.stopping,
+    stop: run.stop,
     runError,
     retry,
     backToInput,
