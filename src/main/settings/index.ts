@@ -94,7 +94,8 @@ export function normalizeSettings(raw: unknown): MainSettings {
     notifyInterviews: bool(r['notifyInterviews'], d.notifyInterviews),
     notifyProposals: bool(r['notifyProposals'], d.notifyProposals),
     notifyDebriefs: bool(r['notifyDebriefs'], d.notifyDebriefs),
-    notifyLeadMinutes: num(r['notifyLeadMinutes'], d.notifyLeadMinutes, 1, 1440)
+    notifyLeadMinutes: num(r['notifyLeadMinutes'], d.notifyLeadMinutes, 1, 1440),
+    mcpServerEnabled: bool(r['mcpServerEnabled'], d.mcpServerEnabled)
   }
 }
 

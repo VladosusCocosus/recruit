@@ -23,6 +23,7 @@ import * as updates from '@main/update'
 import { testConnection } from '@main/settings/verify'
 import type { StartedRun } from '@main/agent'
 import type { Notifier } from '@main/notifications'
+import * as mcpClients from '@main/mcp/clientConfig'
 import { deleteAccountWithSecrets, saveAccountWithSecrets } from './accounts'
 import { broadcast, handle } from './bridge'
 import type { AppServices } from './services'
@@ -213,6 +214,12 @@ export function registerIpcHandlers(services: AppServices): void {
     if (!path) throw new Error('The database has no path on disk yet')
     shell.showItemInFolder(path)
   })
+
+  /* ── MCP ────────────────────────────────────────────────────────────────── */
+
+  handle('getMcpStatus', () => mcpClients.status())
+  handle('installMcpClient', (id) => mcpClients.install(id))
+  handle('removeMcpClient', (id) => mcpClients.remove(id))
 
   /* ── accounts ───────────────────────────────────────────────────────────── */
 

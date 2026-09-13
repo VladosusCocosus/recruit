@@ -6,6 +6,9 @@ import {
   AGENT_MODELS,
   type AgentEngine,
   type AppSettings,
+  type McpClient,
+  type McpClientId,
+  type McpStatus,
   type ThemePreference
 } from '@shared/types'
 import {
@@ -61,6 +64,7 @@ const SECTIONS = [
   { key: 'notifications', label: 'Notifications', icon: 'clock' },
   { key: 'resume', label: 'Resume', icon: 'doc' },
   { key: 'agent', label: 'Agent', icon: 'sparkle' },
+  { key: 'assistants', label: 'Assistants', icon: 'terminal' },
   { key: 'privacy', label: 'Privacy', icon: 'image' },
   { key: 'about', label: 'About', icon: 'info' }
 ] as const satisfies ReadonlyArray<{ key: string; label: string; icon: IconName }>
@@ -157,6 +161,8 @@ export default function SettingsView({
                 <ResumeSection />
               ) : section === 'agent' ? (
                 <AgentSection settings={settings} onUpdate={onUpdateSettings} />
+              ) : section === 'assistants' ? (
+                <AssistantsSection settings={settings} onUpdate={onUpdateSettings} />
               ) : section === 'privacy' ? (
                 <PrivacySection settings={settings} onUpdate={onUpdateSettings} />
               ) : (
@@ -448,6 +454,163 @@ function AgentSection({ settings, onUpdate }: SectionProps): JSX.Element {
           above.
         </Banner>
       ) : null}
+    </>
+  )
+}
+
+/* ── assistants ──────────────────────────────────────────────────────────── */
+
+/** One row per MCP client Jobbox knows how to reach. */
+function ClientRow({
+  client,
+  enabled,
+  busy,
+  onInstall,
+  onRemove,
+  onCopyCommand
+}: {
+  client: McpClient
+  enabled: boolean
+  busy: boolean
+  onInstall: (id: McpClientId) => void
+  onRemove: (id: McpClientId) => void
+  onCopyCommand: (command: string) => void
+}): JSX.Element {
+  const description = client.error
+    ? client.error
+    : client.command
+      ? 'Adds itself — copy the command and run it in a terminal.'
+      : client.detected
+        ? client.configPath
+        : 'Not installed on this Mac.'
+
+  return (
+    <SettingsRow label={client.label} description={description}>
+      {client.command ? (
+        <Button size="sm" disabled={!enabled} onClick={() => onCopyCommand(client.command as string)}>
+          Copy Command
+        </Button>
+      ) : client.installed ? (
+        <Button size="sm" busy={busy} disabled={!enabled} onClick={() => onRemove(client.id)}>
+          Remove
+        </Button>
+      ) : (
+        <Button
+          size="sm"
+          variant="primary"
+          busy={busy}
+          disabled={!enabled || !client.detected || Boolean(client.error)}
+          onClick={() => onInstall(client.id)}
+        >
+          Add
+        </Button>
+      )}
+    </SettingsRow>
+  )
+}
+
+function AssistantsSection({ settings, onUpdate }: SectionProps): JSX.Element {
+  const [status, setStatus] = useState<McpStatus | null>(null)
+  const [busy, setBusy] = useState<McpClientId | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+
+  const refresh = useCallback(() => {
+    window.recruit
+      .getMcpStatus()
+      .then(setStatus)
+      .catch((e: unknown) => setError(errorMessage(e)))
+  }, [])
+
+  useEffect(() => refresh(), [refresh])
+
+  const act = useCallback(
+    (id: McpClientId, run: (id: McpClientId) => Promise<McpStatus>) => {
+      setBusy(id)
+      setError(null)
+      run(id)
+        .then(setStatus)
+        .catch((e: unknown) => setError(errorMessage(e)))
+        .finally(() => setBusy(null))
+    },
+    []
+  )
+
+  const copy = useCallback((text: string) => {
+    void navigator.clipboard.writeText(text).then(() => {
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1500)
+    })
+  }, [])
+
+  const enabled = settings.mcpServerEnabled
+
+  return (
+    <>
+      <SettingsBlock
+        title="AI assistants"
+        footnote="Jobbox ships a read-only MCP server. An assistant you connect can read your applications, their timeline and the text of your synced email — and whatever it reads goes to that assistant's AI provider. It cannot change or delete anything. Turning this off revokes access immediately, even for a client that is already configured."
+      >
+        <SettingsRow
+          label="Allow AI assistants to read Jobbox"
+          description="Applications, events, and the contents of your email."
+        >
+          <Toggle
+            checked={enabled}
+            onCheckedChange={(v) => void onUpdate({ mcpServerEnabled: v })}
+            label="Allow AI assistants to read Jobbox"
+          />
+        </SettingsRow>
+      </SettingsBlock>
+
+      {status && !status.ready ? (
+        <Banner tone="warning" icon="terminal" title="The server is missing from this build">
+          Jobbox could not find its MCP server on disk, so adding it to a client would not
+          work. Reinstall Jobbox.
+        </Banner>
+      ) : null}
+
+      {error ? (
+        <Banner tone="danger" icon="terminal" title="That didn't work">
+          {error}
+        </Banner>
+      ) : null}
+
+      <SettingsBlock
+        title="Clients"
+        footnote="Adding a client edits its configuration file, keeping a .jobbox.bak copy beside it. Restart the client afterwards — most read their MCP servers only at launch."
+      >
+        {status ? (
+          status.clients.map((client) => (
+            <ClientRow
+              key={client.id}
+              client={client}
+              enabled={enabled}
+              busy={busy === client.id}
+              onInstall={(id) => act(id, (x) => window.recruit.installMcpClient(x))}
+              onRemove={(id) => act(id, (x) => window.recruit.removeMcpClient(x))}
+              onCopyCommand={copy}
+            />
+          ))
+        ) : (
+          <SettingsRow label="Looking for installed clients…" />
+        )}
+      </SettingsBlock>
+
+      <SettingsBlock
+        title="Any other client"
+        footnote="Paste this into an MCP client Jobbox doesn't know about. It names the server inside this app bundle and the database it reads."
+      >
+        <SettingsRow label="Configuration" description="JSON for the client's mcpServers block.">
+          <Button
+            size="sm"
+            disabled={!status}
+            onClick={() => status && copy(status.snippet)}
+          >
+            {copied ? 'Copied' : 'Copy'}
+          </Button>
+        </SettingsRow>
+      </SettingsBlock>
     </>
   )
 }

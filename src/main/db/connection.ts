@@ -17,11 +17,16 @@ export interface OpenDatabaseOptions {
   path?: string
   /** Re-open even if a handle already exists (closes the old one first). */
   reopen?: boolean
+  /** False skips runMigrations, leaving the schema exactly as it is on disk. */
+  migrate?: boolean
+  /** Sets PRAGMA query_only, so the handle rejects every INSERT, UPDATE, DELETE and DDL. */
+  queryOnly?: boolean
   verbose?: (message?: unknown, ...rest: unknown[]) => void
 }
 
 let handle: DatabaseHandle | null = null
 let dbPath: string | null = null
+let queryOnly = false
 const statements = new Map<string, AnyStatement>()
 
 /** userData/recruit.db. Resolved lazily so this module is importable outside Electron. */
@@ -33,7 +38,13 @@ export function defaultDbPath(): string {
   return join(app.getPath('userData'), 'recruit.db')
 }
 
-/** Opens (or returns) the connection, enables WAL, and runs pending migrations. */
+/**
+ * Opens (or returns) the connection, enables WAL, and runs pending migrations.
+ *
+ * `queryOnly` opens the file read-write and then blocks writes inside SQLite. A
+ * `readonly` handle cannot create the -shm sidecar a WAL database needs, so it fails with
+ * SQLITE_CANTOPEN whenever no writer already holds the database open.
+ */
 export function openDatabase(options: OpenDatabaseOptions = {}): DatabaseHandle {
   if (handle && !options.reopen) return handle
   if (handle) closeDatabase()
@@ -48,10 +59,12 @@ export function openDatabase(options: OpenDatabaseOptions = {}): DatabaseHandle 
   db.pragma('busy_timeout = 5000')
   db.pragma('temp_store = MEMORY')
 
-  runMigrations(db)
+  if (options.migrate !== false) runMigrations(db)
+  if (options.queryOnly) db.pragma('query_only = ON')
 
   handle = db
   dbPath = path
+  queryOnly = options.queryOnly === true
   return db
 }
 
@@ -68,19 +81,20 @@ export function getDbPath(): string | null {
   return dbPath
 }
 
-/** Flush the WAL. Call from app `before-quit`. */
+/** Flush the WAL. Call from app `before-quit`. No-op on a query-only handle. */
 export function checkpoint(): void {
-  if (handle?.open) handle.pragma('wal_checkpoint(TRUNCATE)')
+  if (handle?.open && !queryOnly) handle.pragma('wal_checkpoint(TRUNCATE)')
 }
 
 export function closeDatabase(): void {
   statements.clear()
   if (handle?.open) {
-    handle.pragma('wal_checkpoint(TRUNCATE)')
+    if (!queryOnly) handle.pragma('wal_checkpoint(TRUNCATE)')
     handle.close()
   }
   handle = null
   dbPath = null
+  queryOnly = false
 }
 
 /* ── query helpers ──────────────────────────────────────────────────────────

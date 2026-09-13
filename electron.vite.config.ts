@@ -18,7 +18,11 @@ export default defineConfig({
     resolve: { alias },
     build: {
       outDir: 'out/main',
-      rollupOptions: { input: { index: r('src/main/index.ts') } }
+      // Two entries: the app, and the stdio MCP server a user's AI client spawns from
+      // inside this bundle (out/main/mcp.js).
+      rollupOptions: {
+        input: { index: r('src/main/index.ts'), mcp: r('src/main/mcp/standalone.ts') }
+      }
     }
   },
   preload: {

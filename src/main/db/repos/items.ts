@@ -259,6 +259,18 @@ export function listItemDomains(): string[] {
   ).map((r) => r.d)
 }
 
+/** Live item count per status key, including statuses nothing sits in. */
+export function countItemsByStatus(): Record<string, number> {
+  const rows = queryAll<{ key: string; n: number }>(
+    `SELECT s.key AS key, count(i.id) AS n
+     FROM statuses s
+     LEFT JOIN items i ON i.status_id = s.id AND i.archived_at IS NULL
+     GROUP BY s.key
+     ORDER BY s.sort_order`
+  )
+  return Object.fromEntries(rows.map((r) => [r.key, r.n]))
+}
+
 export function countItems(includeArchived = false): number {
   return includeArchived
     ? count('SELECT count(*) FROM items')

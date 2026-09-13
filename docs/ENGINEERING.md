@@ -280,6 +280,47 @@ Claude Code there is no egress path to reason about rather than one held shut by
 That is possible only because the job description is already stored by then. Where a run can
 do its job without the web, it does not get the web.
 
+## Connecting your own AI assistant
+
+Jobbox ships a second MCP server, separate from the one the agent runs against. This one
+is for the user: point Claude Desktop, Claude Code or Cursor at it and ask about your own
+job search. Settings → Assistants writes the entry into the client's config (merging into
+what is already there, with a `.jobbox.bak` copy beside it) or hands you the JSON.
+
+It is a stdio server, spawned by the client rather than by Jobbox:
+
+```
+command  /Applications/Jobbox.app/Contents/MacOS/Jobbox
+args     …/app.asar/out/main/mcp.js
+env      ELECTRON_RUN_AS_NODE=1, JOBBOX_DB_PATH=…, JOBBOX_SETTINGS_PATH=…
+```
+
+`ELECTRON_RUN_AS_NODE=1` runs the app binary as plain Node on Electron's ABI, so the
+better-sqlite3 build shipped in the bundle loads with no separate native module and no
+`npm install`. Requires resolve through the asar in that mode, so the entry ships inside
+it like everything else. Both paths are written by the app from `getDbPath()` and
+`settingsPath()` — nothing guesses where userData is.
+
+Six read tools: `list_applications`, `get_application`, `search_messages`, `get_message`,
+`get_upcoming`, `get_stats`. The projections are the same `itemDigest` / `messageDigest`
+the agent bridge uses (`src/shared/digests.ts`), so the two servers cannot drift.
+
+Two things are enforced rather than described:
+
+- **It cannot write.** There is no write tool, and the handle underneath is opened with
+  `PRAGMA query_only = ON`. (Not `readonly: true` — a read-only handle cannot create the
+  `-shm` sidecar a WAL database needs, so it fails whenever no writer already holds the
+  file, which is exactly the case when Jobbox is closed.) Migrations are skipped: the
+  server reports a schema mismatch instead of upgrading a database it does not own.
+- **The switch is real.** `mcpServerEnabled` (default off) is read from settings.json on
+  every tool call, so turning it off in Jobbox revokes a client that is already
+  configured, without restarting anything.
+
+What it cannot defend against is where the data goes next: message bodies are attacker-
+controlled text, and every tool result that carries them says so, but once a reply leaves
+this process it belongs to whichever provider the user connected. The boundary that holds
+is that nothing on this surface can change the tracker.
+
 ## Known gaps
 
 v1 is deliberately narrow.
@@ -308,7 +349,8 @@ v1 is deliberately narrow.
 
 ```
 src/shared/types.ts   the contract: entities, prefilter types, MCP payloads, RecruitApi
-src/main/             Electron main — SQLite, IMAP sync, Keychain, MCP server, agent runner
+src/main/             Electron main — SQLite, IMAP sync, Keychain, MCP servers, agent runner
+src/main/mcp/         the user-facing MCP server: stdio, read-only, spawned by their client
 src/preload/          contextBridge -> window.recruit (typed, invoke-only)
 src/renderer/         React 18. Talks to main through window.recruit and nothing else.
 tests/                prefilter + .ics parser unit tests

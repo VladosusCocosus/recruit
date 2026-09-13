@@ -1085,6 +1085,11 @@ export interface AppSettings {
   notifyDebriefs: boolean
   /** How long before a timed event its reminder fires. */
   notifyLeadMinutes: number
+  /**
+   * Whether the shipped MCP server may answer a user's own AI client. Read by that server
+   * on every tool call, so turning it off revokes access without restarting the client.
+   */
+  mcpServerEnabled: boolean
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -1106,7 +1111,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   notifyInterviews: false,
   notifyProposals: false,
   notifyDebriefs: false,
-  notifyLeadMinutes: 15
+  notifyLeadMinutes: 15,
+  mcpServerEnabled: false
 }
 
 export interface AppInfo {
@@ -1128,6 +1134,35 @@ export interface AppInfo {
 }
 
 /** Badge counts for the left rail + RUN button pill. */
+/* ────────────────────────────────────────────────────────────────────────────
+ * MCP: the read-only server a user points their own AI client at
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+export type McpClientId = 'claude-desktop' | 'claude-code' | 'cursor'
+
+export interface McpClient {
+  id: McpClientId
+  label: string
+  /** The config file Jobbox writes, or null when the client owns its own file. */
+  configPath: string | null
+  /** The client is installed on this Mac. */
+  detected: boolean
+  /** Its config already names the Jobbox server. */
+  installed: boolean
+  /** The command to run instead, for a client Jobbox does not write for. */
+  command: string | null
+  /** Why Jobbox cannot edit this client's config, when it cannot. */
+  error: string | null
+}
+
+export interface McpStatus {
+  clients: McpClient[]
+  /** The JSON block for any client not in the list. */
+  snippet: string
+  /** Whether this build actually ships the server entry. */
+  ready: boolean
+}
+
 export interface AppCounts {
   candidates: number
   pendingProposals: number
@@ -1336,6 +1371,14 @@ export interface RecruitApi {
    */
   revealDatabase(): Promise<void>
 
+  // ── MCP ───────────────────────────────────────────────────────────────────
+  /** Which AI clients are installed, and which already name the Jobbox server. */
+  getMcpStatus(): Promise<McpStatus>
+  /** Writes the Jobbox entry into one client's config. */
+  installMcpClient(id: McpClientId): Promise<McpStatus>
+  /** Removes it again. */
+  removeMcpClient(id: McpClientId): Promise<McpStatus>
+
   // ── updates ───────────────────────────────────────────────────────────────
   getUpdateStatus(): Promise<UpdateStatus>
   checkForUpdate(): Promise<UpdateStatus>
@@ -1432,6 +1475,9 @@ export const IPC_METHODS = [
   'getRun',
   'listRuns',
   'revealDatabase',
+  'getMcpStatus',
+  'installMcpClient',
+  'removeMcpClient',
   'getUpdateStatus',
   'checkForUpdate',
   'openDownload'
