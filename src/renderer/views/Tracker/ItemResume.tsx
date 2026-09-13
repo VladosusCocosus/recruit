@@ -32,7 +32,7 @@ export function ItemResume({
   if (!isAppliedOrLater(item.statusKey, statuses)) return null
 
   const answer = resumeAnswer(item)
-  const resume = item.resumeId != null ? (picker.byId.get(item.resumeId) ?? null) : null
+  const resume = item.resume
   const renderable = resume !== null && isEditableResume(resume)
   const name = resume === null ? '' : renderable ? resume.label : (resume.filename ?? resume.label)
 

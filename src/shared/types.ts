@@ -384,6 +384,11 @@ export interface ItemSummary extends Item {
   eventCount: number
   nextEvent: TimelineEvent | null
   /**
+   * The row `resumeId` names, including a tailored variant or an archived resume, neither
+   * of which `listResumes` returns. Null when nothing is attached.
+   */
+  resume: Resume | null
+  /**
    * Date of the most recent linked message — when this thread last moved, as opposed
    * to `lastActivityAt`, which also counts row edits. Null when no mail is linked.
    */

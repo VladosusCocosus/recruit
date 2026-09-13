@@ -26,6 +26,7 @@ import {
   type ProposalKind,
   type ProposalPayloadMap,
   type ProposalState,
+  type Resume,
   type Status,
   type StatusKind,
   type TimelineEvent,
@@ -330,13 +331,15 @@ export function rowToItem(row: ItemRow): Item {
 
 export function rowToItemSummary(
   row: ItemSummaryRow,
-  nextEvent: TimelineEvent | null = null
+  nextEvent: TimelineEvent | null = null,
+  resume: Resume | null = null
 ): ItemSummary {
   return {
     ...rowToItem(row),
     messageCount: row.message_count ?? 0,
     eventCount: row.event_count ?? 0,
     nextEvent,
+    resume,
     lastMessageAt: row.last_message_at ?? null,
     lastContactAt: row.last_contact_at ?? null,
     lastActivityAt: row.last_activity_at ?? row.updated_at

@@ -84,6 +84,25 @@ export function getResume(resumeId: number): Resume | null {
   return row ? rowToResume(row) : null
 }
 
+/**
+ * The resume each of these items was sent with, keyed by item id. Resolves any row,
+ * including a tailored variant and an archived one.
+ */
+export function resumesForItems(itemIds: number[]): Map<number, Resume> {
+  const out = new Map<number, Resume>()
+  if (itemIds.length === 0) return out
+
+  const holes = itemIds.map(() => '?').join(', ')
+  const rows = queryAll<ResumeRow & { item_id: number }>(
+    `SELECT ${COLUMNS}, i.id AS item_id
+       FROM items i JOIN resumes r ON r.id = i.resume_id
+      WHERE i.id IN (${holes})`,
+    ...itemIds
+  )
+  for (const row of rows) out.set(row.item_id, rowToResume(row))
+  return out
+}
+
 export function getDefaultResume(): Resume | null {
   const row = queryOne<ResumeRow>(
     `SELECT ${COLUMNS} FROM resumes r WHERE r.is_default = 1 AND r.archived_at IS NULL`

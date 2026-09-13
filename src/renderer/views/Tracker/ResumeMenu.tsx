@@ -57,7 +57,7 @@ function resumeMenuItems(
 ): MenuNodeList {
   const answer = resumeAnswer(item)
   const attached = item.resumeId
-  const attachedResume = resumes.find((r) => r.id === attached) ?? null
+  const attachedResume = item.resume
   const renderable = attachedResume !== null && isEditableResume(attachedResume)
 
   const choices: MenuNodeList = resumes.map((resume) => ({

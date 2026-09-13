@@ -11,7 +11,7 @@
 
 import { useState, type JSX, type ReactNode } from 'react'
 import { isEditableResume, type ApplicationDocumentKind, type ItemSummary } from '@shared/types'
-import { Button, Icon, errorMessage, useResumes } from '@renderer/components'
+import { Button, Icon, errorMessage } from '@renderer/components'
 
 const NO_STORED_COPY =
   'The PDF this application was sent was not kept — these render a fresh copy from the markdown.'
@@ -30,15 +30,10 @@ interface DocumentRow {
 }
 
 export function ItemDocuments({ item }: { item: ItemSummary }): JSX.Element | null {
-  const resumes = useResumes()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const resume =
-    item.resumeId === null
-      ? null
-      : ((resumes.data ?? []).find((r) => r.id === item.resumeId) ?? null)
-
+  const resume = item.resume
   const rows: DocumentRow[] = []
 
   if (resume) {

@@ -24,6 +24,7 @@ import {
   type StatusRow
 } from '../rows'
 import { listItemAnswers } from './answers'
+import { resumesForItems } from './resumes'
 import { addEvent, listTimeline, nextEventsFor } from './timeline'
 
 /** Compact row the agent sees from `list_items` / `search_items`. No bodies, no timeline. */
@@ -145,8 +146,12 @@ export function listItems(query: ItemQuery = {}): ItemSummary[] {
     ...where.params,
     query.limit ?? 500
   )
-  const next = nextEventsFor(rows.map((r) => r.id))
-  return rows.map((row) => rowToItemSummary(row, next.get(row.id) ?? null))
+  const ids = rows.map((r) => r.id)
+  const next = nextEventsFor(ids)
+  const resumes = resumesForItems(ids)
+  return rows.map((row) =>
+    rowToItemSummary(row, next.get(row.id) ?? null, resumes.get(row.id) ?? null)
+  )
 }
 
 /** Plain item row. ProposalCard.item and the applier use this. */
@@ -158,7 +163,11 @@ export function getItem(itemId: number): Item | null {
 export function getItemSummary(itemId: number): ItemSummary | null {
   const row = queryOne<ItemSummaryRow>(`SELECT ${SUMMARY_COLUMNS} ${FROM} WHERE i.id = ?`, itemId)
   if (!row) return null
-  return rowToItemSummary(row, nextEventsFor([itemId]).get(itemId) ?? null)
+  return rowToItemSummary(
+    row,
+    nextEventsFor([itemId]).get(itemId) ?? null,
+    resumesForItems([itemId]).get(itemId) ?? null
+  )
 }
 
 /** The Item detail view: summary + full timeline + linked messages + form answers. */

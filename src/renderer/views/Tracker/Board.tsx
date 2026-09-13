@@ -250,7 +250,7 @@ export function Board({
                   selected={item.id === selectedItemId}
                   menuOpen={menu?.item.id === item.id}
                   dragging={item.id === dragItemId}
-                  resume={item.resumeId != null ? (resumesById?.get(item.resumeId) ?? null) : null}
+                  resume={item.resume}
                   needsResume={shouldAskForResume(item, statusIndex.statuses)}
                   onOpen={onOpenItem}
                   onRequestMenu={setMenu}
