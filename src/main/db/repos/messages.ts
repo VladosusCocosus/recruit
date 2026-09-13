@@ -297,18 +297,23 @@ interface StoredMessageKey {
 
 /**
  * The same message under a second folder: a Gmail label and its All Mail copy, or a filed
- * duplicate. Identity is the RFC Message-ID, so it lands on the row already stored rather
- * than as a second copy of the same mail.
+ * duplicate. Identity is the RFC Message-ID plus the `Date` header, which travels with the
+ * message — a bulk sender or a spammer reusing one Message-ID across different mail does
+ * not also reuse its date. `IS` rather than `=` so a message with no date still matches
+ * another with no date.
  */
 function findByMessageId(
   accountId: number,
-  messageId: string | null | undefined
+  messageId: string | null | undefined,
+  dateUtc: string | null | undefined
 ): StoredMessageKey | undefined {
   if (!messageId) return undefined
   return queryOne<StoredMessageKey>(
-    'SELECT id, triage_state, folder FROM messages WHERE account_id = ? AND message_id = ?',
+    `SELECT id, triage_state, folder FROM messages
+     WHERE account_id = ? AND message_id = ? AND date_utc IS ?`,
     accountId,
-    messageId
+    messageId,
+    dateUtc ?? null
   )
 }
 
@@ -322,7 +327,7 @@ export function upsertMessage(input: MessageUpsertInput): UpsertMessageResult {
         input.folder,
         input.uidValidity,
         input.uid
-      ) ?? findByMessageId(input.accountId, input.messageId)
+      ) ?? findByMessageId(input.accountId, input.messageId, input.dateUtc)
 
     // null == "not supplied" for every one of these.
     const values = [
