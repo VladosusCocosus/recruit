@@ -433,30 +433,28 @@ export function registerIpcHandlers(services: AppServices): void {
       ? resumes.storeDocumentPdf(coverLetterPdf, `${company} — Cover letter`)
       : null
 
-    const resume = db.createResume({
-      label,
-      contentMd: input.resumeMd,
-      derivedFromId: source.id
-    })
-    db.setResumePdf(resume.id, resumePdfPath)
-
-    const created = db.createItem({
-      company,
-      role: input.role,
-      location: input.location,
-      workMode: input.workMode,
-      jobUrl: input.jobUrl,
-      jdMd: input.jdMd,
-      jdSource: input.jdSource,
-      source: 'apply',
-      statusKey: 'applied'
-    })
-    db.setItemResume(created.id, resume.id)
-    const item = db.setItemCoverLetter(created.id, coverLetterMd, coverLetterPdfPath)
-
-    for (const entry of input.questions) {
-      if (!entry.question.trim()) continue
-      db.saveItemAnswer({ itemId: item.id, question: entry.question, answerMd: entry.answerMd })
+    let item: Item
+    try {
+      item = db.fileApplication({
+        company,
+        role: input.role,
+        location: input.location,
+        workMode: input.workMode,
+        jobUrl: input.jobUrl,
+        jdMd: input.jdMd,
+        jdSource: input.jdSource,
+        resumeLabel: label,
+        resumeMd: input.resumeMd,
+        derivedFromId: source.id,
+        resumePdfPath,
+        coverLetterMd,
+        coverLetterPdfPath,
+        questions: input.questions
+      })
+    } catch (error) {
+      resumes.discardStoredPdf(resumePdfPath)
+      if (coverLetterPdfPath) resumes.discardStoredPdf(coverLetterPdfPath)
+      throw error
     }
 
     notifyItems([item.id])

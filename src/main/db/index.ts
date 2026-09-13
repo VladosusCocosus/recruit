@@ -33,3 +33,4 @@ export * from './repos/kv'
 export * from './repos/app'
 
 export * from './applyProposal'
+export * from './fileApplication'

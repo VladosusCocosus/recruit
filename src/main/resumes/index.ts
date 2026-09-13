@@ -162,6 +162,11 @@ function documentsDir(): string {
  * filename is `name` plus a random suffix, so two applications to the same company get
  * two files.
  */
+/** Removes a PDF written by `storeDocumentPdf` that no row ended up pointing at. */
+export function discardStoredPdf(path: string): void {
+  rmSync(path, { force: true })
+}
+
 export function storeDocumentPdf(pdf: Buffer, name: string): string {
   const dir = documentsDir()
   const stem = `${filenameFor(name)} ${randomBytes(6).toString('hex')}`
