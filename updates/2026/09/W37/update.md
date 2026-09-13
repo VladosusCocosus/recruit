@@ -1,8 +1,10 @@
 # Jobbox — week of 7 September 2026
 
-Two changes this week, and they are the same change seen from two angles: Jobbox was
-looking in one place for your mail, and now it looks everywhere. One folder became every
-folder, and one account became every account.
+The week opened with Jobbox looking everywhere for your mail rather than in your inbox
+alone. It closes with Jobbox able to answer questions from somewhere else: you can connect
+your own AI assistant and ask it about your job search. In between is a run of repairs to
+what the app remembers about the resumes you send, and to how it recovers when a mailbox
+does something unusual.
 
 ## Jobbox reads every folder, not just your inbox
 
@@ -48,7 +50,81 @@ than naming the first one and quietly meaning all of them. Hover it to see which
 those are. When one account fails and another succeeds, the failure is now reported with
 the address it belongs to instead of being wiped out by the account that synced after it.
 
+## Ask your own AI assistant about your job search
+
+**Settings → Assistants** connects Jobbox to an assistant you already use — Claude Desktop,
+Claude Code or Cursor — so you can ask it the questions the app does not have a screen for.
+Which applications have gone quiet for three weeks. What the recruiter at Northwind actually
+asked you to send. Which of this month's rejections came after an interview rather than
+before one.
+
+Turn on **Allow AI assistants to read Jobbox**, then press **Add** next to the client you
+use and restart it; most clients read their configuration only when they start. For
+anything not in the list there is a **Copy** button with the configuration to paste in.
+Jobbox keeps a backup of any file it edits, and leaves a file it cannot make sense of
+alone.
+
+Two things are worth being clear about, because they are the whole shape of the feature.
+
+**It can only read.** The assistant sees your applications, their stages and timelines, and
+the text of the email Jobbox has synced. There is no way for it to change a stage, edit an
+application, send anything, or delete a message — not a rule it is asked to follow, but a
+door that is not there. Jobbox's own agent keeps working the way it always has: it proposes,
+and you accept.
+
+**What it reads goes to that assistant's provider.** This is the part to decide with your
+eyes open. Asking a question about an email means the text of that email is sent to whoever
+runs the assistant you connected, under their terms, exactly as if you had pasted it in
+yourself. That is why the switch starts off. Turning it off again cuts access immediately,
+including for a client you have already set up — you do not need to restart anything.
+
+It works whether or not Jobbox is open, so you can ask from your editor without hunting for
+the window.
+
+## Jobbox knows which resume an application was sent with
+
+Applications filed through **Apply** attach a tailored copy of the resume they were sent
+with, and the rest of the app could not see that copy. The **Documents** section on an
+application showed nothing where the PDF should be, the board went on asking **Resume?**
+about an application that had one, and the original's usage count never moved.
+
+The resume an application points at now resolves wherever it came from — tailored,
+original, or one you have since archived. The label you see is the document's name today;
+the PDF stored with the application stays the record of what was actually sent.
+
+Two related repairs. If your resume library came through an earlier update with no default
+marked — which happened to libraries built from uploaded files — Jobbox picks the newest
+editable one as the default again. And filing an application is now all-or-nothing: if
+something fails partway, you no longer end up with a stray tailored resume and no
+application pointing at it, and pressing **Apply** again does not leave another one behind.
+
+## Mail that used to go missing
+
+Several separate ways a message could vanish, all fixed this week.
+
+Two genuinely different emails that happened to carry the same internal identifier — routine
+from bulk senders and some application-tracking systems — were stored as one, the later
+quietly overwriting the earlier. They are now kept apart unless their dates agree too.
+
+If you run your own mail server, or use anything other than Gmail that marks a folder as
+holding everything, Jobbox was reading four folders and skipping the rest — which brought
+back, for exactly those accounts, the problem the folder walk was written to solve. The
+shortcut now applies only to Gmail, where it is true.
+
+An account could also strand itself. A folder named something like "Passwords" or "Auth
+notices" could make a perfectly ordinary error read as a rejected login, after which Jobbox
+stopped reconnecting and told you to fix a password that was never wrong. Starting the app
+before the network was up could leave an account with nothing sweeping its folders for the
+rest of the session. And a first pass over a very large archive that was interrupted — you
+quit, or the machine slept — started again from the beginning each time; it now resumes
+where it stopped.
+
 ## Also
 
-Your database updates itself on first launch — nothing to do, and your existing mail and
-applications are untouched.
+- Before an update that cannot be undone, Jobbox copies your database first, and stops
+  rather than proceeding if it cannot. An older Jobbox opened against a database a newer
+  one has written now says so plainly instead of starting up and quietly resyncing from a
+  stale position.
+- Screens that start an agent run — the apply flow, the answer cards, the description
+  block, and **Run** on a single message — no longer get stuck showing a run that never
+  finishes when the run is refused before it begins.
