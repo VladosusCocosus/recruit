@@ -130,15 +130,24 @@ export interface MailSyncOptions {
  * helpers
  * ──────────────────────────────────────────────────────────────────────────── */
 
-const AUTH_ERROR_PATTERN =
-  /auth|credential|password|login|invalid user|AUTHENTICATIONFAILED|Application-specific password/i
+/** RFC 3501/5530 response-text codes for a rejected login, and Gmail's app-password wording. */
+const AUTH_RESPONSE_PATTERN =
+  /\b(AUTHENTICATIONFAILED|AUTHORIZATIONFAILED|PRIVACYREQUIRED|EXPIRED)\b|application-specific password|invalid credentials|login (?:failed|denied|disabled)/i
 
-function isAuthFailure(error: unknown): boolean {
+/**
+ * True when the server rejected the credentials, read from imapflow's `authenticationFailed`
+ * flag, its `code`, or the server's `responseText`. Never reads `message`.
+ */
+export function isAuthFailure(error: unknown): boolean {
   if (!error) return false
-  const err = error as { authenticationFailed?: boolean; responseText?: string; message?: string; code?: string }
+  const err = error as {
+    authenticationFailed?: boolean
+    responseText?: string
+    code?: string
+  }
   if (err.authenticationFailed === true) return true
   if (err.code === 'AUTHENTICATIONFAILED') return true
-  return AUTH_ERROR_PATTERN.test(`${err.responseText ?? ''} ${err.message ?? ''}`)
+  return typeof err.responseText === 'string' && AUTH_RESPONSE_PATTERN.test(err.responseText)
 }
 
 function errorMessage(error: unknown): string {
@@ -395,7 +404,6 @@ export class MailSync extends EventEmitter<MailSyncEvents> {
     this.stopped = false
     // Re-arm after a credential fix; start() is the only way back from an auth failure.
     this.authFailed = false
-    await this.syncOnce()
 
     if (this.pollTimer) clearInterval(this.pollTimer)
     this.pollTimer = setInterval(() => {
@@ -405,6 +413,8 @@ export class MailSync extends EventEmitter<MailSyncEvents> {
     }, this.pollIntervalMs)
     // Don't hold the process open for a poll.
     this.pollTimer.unref?.()
+
+    await this.syncOnce()
   }
 
   /** Ask the in-flight sync to stop after the current message. */
@@ -579,6 +589,7 @@ export class MailSync extends EventEmitter<MailSyncEvents> {
   ): Promise<number> {
     let processed = 0
     let maxUid = lastUid
+    let persisted = lastUid
 
     for (const batch of chunk(uids, FETCH_BATCH_SIZE)) {
       if (this.cancelRequested || this.stopped) break
@@ -589,8 +600,12 @@ export class MailSync extends EventEmitter<MailSyncEvents> {
         { uid: true }
       )
 
+      let interrupted = false
       for await (const raw of iterator) {
-        if (this.cancelRequested || this.stopped) break
+        if (this.cancelRequested || this.stopped) {
+          interrupted = true
+          break
+        }
 
         processed += 1
         try {
@@ -620,6 +635,19 @@ export class MailSync extends EventEmitter<MailSyncEvents> {
           })
         }
       }
+
+      // selectUids returns UIDs ascending and chunk() preserves that order.
+      if (!interrupted && maxUid > persisted) {
+        persisted = maxUid
+        this.cursors.set(folder, { uidValidity, lastUid: maxUid })
+        this.emit('uidState', {
+          accountId: this.account.id,
+          folder,
+          uidValidity,
+          lastUid: maxUid
+        })
+      }
+      if (interrupted) break
     }
 
     this.setStatus({
