@@ -189,19 +189,42 @@ function hasFlag(box: MailboxInfo, flag: string): boolean {
 }
 
 /**
+ * True when the server lists Gmail's `X-GM-EXT-1` capability, so its `\All` mailbox is
+ * All Mail. Other servers use `\All` for mailboxes that hold an arbitrary subset.
+ */
+export function advertisesGmailExtensions(
+  capabilities: Map<string, unknown> | null | undefined
+): boolean {
+  if (!capabilities) return false
+  for (const name of capabilities.keys()) {
+    if (name.toLowerCase() === 'x-gm-ext-1') return true
+  }
+  return false
+}
+
+export interface FolderSelectionOptions {
+  /** Set from `advertisesGmailExtensions(client.capabilities)`. */
+  gmail?: boolean
+}
+
+/**
  * Every folder worth reading, INBOX first and the rest in name order.
  *
- * A server that advertises an `\All` mailbox (Gmail) is a special case: All Mail already
- * holds every message that is not spam or trash, and every label is a view over it, so the
- * labels are dropped and INBOX, All Mail, Junk and Trash cover the account exactly once.
+ * On Gmail, All Mail already holds every message that is not spam or trash and every label
+ * is a view over it, so the labels are dropped and INBOX, All Mail, Junk and Trash cover
+ * the account exactly once. Elsewhere `\All` is treated as an ordinary folder.
  */
-export function selectSyncFolders(boxes: MailboxInfo[]): string[] {
+export function selectSyncFolders(
+  boxes: MailboxInfo[],
+  options: FolderSelectionOptions = {}
+): string[] {
   const selectable = boxes.filter(
     (box) => !hasFlag(box, '\\Noselect') && !hasFlag(box, '\\NonExistent')
   )
-  const keep = selectable.some((box) => box.specialUse === '\\All')
-    ? selectable.filter((box) => ['\\All', '\\Junk', '\\Trash'].includes(box.specialUse ?? ''))
-    : selectable.filter((box) => !VIRTUAL_SPECIAL_USE.has(box.specialUse ?? ''))
+  const keep =
+    options.gmail === true && selectable.some((box) => box.specialUse === '\\All')
+      ? selectable.filter((box) => ['\\All', '\\Junk', '\\Trash'].includes(box.specialUse ?? ''))
+      : selectable.filter((box) => !VIRTUAL_SPECIAL_USE.has(box.specialUse ?? ''))
 
   const rest = keep
     .map((box) => box.path)
@@ -508,7 +531,9 @@ export class MailSync extends EventEmitter<MailSyncEvents> {
   }
 
   private async resolveFolders(client: ImapFlow): Promise<string[]> {
-    return this.folderOverride ?? selectSyncFolders(await client.list())
+    if (this.folderOverride) return this.folderOverride
+    const boxes = await client.list()
+    return selectSyncFolders(boxes, { gmail: advertisesGmailExtensions(client.capabilities) })
   }
 
   /** One folder's pass. A folder that cannot be read is reported and skipped. */
