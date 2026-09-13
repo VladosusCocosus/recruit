@@ -17,6 +17,8 @@ import type Database from 'better-sqlite3'
 
 export const version = 7
 export const name = '007_markdown_resumes'
+/** Rebuilds `resumes` without the file columns, and drops `resume_masters`. */
+export const destructive = true
 
 interface MasterRow {
   id: number
