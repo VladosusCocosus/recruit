@@ -102,13 +102,15 @@ jobs:
           AWS_DEFAULT_REGION: us-east-1
           AWS_EC2_METADATA_DISABLED: 'true'
           ENDPOINT: https://s3.db.dev.fline.sh:9000
-          BUCKET: downloads
+          BUCKET: jobbox-s3
         run: |
           set -euo pipefail
           s3() { aws --endpoint-url "$ENDPOINT" "$@"; }
 
-          # Idempotent: created on the first release, re-asserted on every one after.
-          s3 s3api head-bucket --bucket "$BUCKET" 2>/dev/null || s3 s3 mb "s3://$BUCKET"
+          # The bucket is provisioned by the platform; this credential can write
+          # objects but not create buckets or set bucket policy, so both are
+          # attempted and tolerated as no-ops.
+          s3 s3api head-bucket --bucket "$BUCKET" 2>/dev/null || s3 s3 mb "s3://$BUCKET" || true
           s3 s3api put-bucket-policy --bucket "$BUCKET" --policy "{
             \"Version\": \"2012-10-17\",
             \"Statement\": [{
@@ -117,7 +119,7 @@ jobs:
               \"Action\": \"s3:GetObject\",
               \"Resource\": \"arn:aws:s3:::$BUCKET/*\"
             }]
-          }"
+          }" || echo "::warning::put-bucket-policy denied; assuming $BUCKET is already public-read"
 
           arm_dmg=$(ls artifacts/*arm64.dmg)
           x64_dmg=$(ls artifacts/*.dmg | grep -v arm64)

@@ -51,5 +51,5 @@ publish:
   # Update feed in the fline object store, written by .github/workflows/release.yml.
   # Per-architecture on purpose: a shared feed offers Intel users an arm64 archive,
   # because electron-builder emits one manifest and the last arch to build wins.
-  url: https://s3.db.dev.fline.sh:9000/downloads/updates/darwin/${arch}
+  url: https://s3.db.dev.fline.sh:9000/jobbox-s3/updates/darwin/${arch}
   channel: latest

@@ -30,7 +30,7 @@ const PORT = Number(process.env.PORT) || 8080;
 // /latest, so this base never changes between releases.
 const DOWNLOADS_BASE = (
   process.env.DOWNLOADS_BASE_URL ||
-  'https://s3.db.dev.fline.sh:9000/downloads/latest'
+  'https://s3.db.dev.fline.sh:9000/jobbox-s3/latest'
 ).replace(/\/+$/, '');
 
 // The counted download links. Keys are the names that appear in the stats, so
