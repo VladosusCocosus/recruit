@@ -58,8 +58,10 @@ Which applications have gone quiet for three weeks. What the recruiter at Northw
 asked you to send. Which of this month's rejections came after an interview rather than
 before one.
 
-Turn on **Allow AI assistants to read Jobbox**, then press **Add** next to the client you
-use and restart it; most clients read their configuration only when they start. For
+Turn on **Allow AI assistants to read Jobbox**, quit the client you use, then press **Add**
+next to it and start it again. Quitting first is the part that matters: Claude Desktop keeps
+its own copy of its configuration and writes it back out when it exits, so an entry added
+while it was running is discarded and nothing appears to have happened. For
 anything not in the list there is a **Copy** button with the configuration to paste in.
 Jobbox keeps a backup of any file it edits, and leaves a file it cannot make sense of
 alone.

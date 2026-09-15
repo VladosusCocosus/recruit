@@ -578,7 +578,7 @@ function AssistantsSection({ settings, onUpdate }: SectionProps): JSX.Element {
 
       <SettingsBlock
         title="Clients"
-        footnote="Adding a client edits its configuration file, keeping a .jobbox.bak copy beside it. Restart the client afterwards — most read their MCP servers only at launch."
+        footnote="Quit the client before you press Add, then start it again. Restarting afterwards is not enough: Claude Desktop keeps its own copy of its configuration and writes it back out when it exits, discarding anything added while it was running. Jobbox keeps a .jobbox.bak copy of every file it edits."
       >
         {status ? (
           status.clients.map((client) => (
