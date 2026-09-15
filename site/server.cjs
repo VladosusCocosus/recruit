@@ -25,27 +25,29 @@ const { Counter } = require('./counter.cjs');
 const docRoot = __dirname;
 const PORT = Number(process.env.PORT) || 8080;
 
-// Where the release artefacts actually live. The publish step in
-// .github/workflows/release.yml copies each build to a stable alias under
-// /latest, so this base never changes between releases.
-const DOWNLOADS_BASE = (
-  process.env.DOWNLOADS_BASE_URL ||
-  'https://s3.db.dev.fline.sh:9000/mjkpz2ixbzc5rxji/latest'
-).replace(/\/+$/, '');
+// The release artefacts live in a private bucket on the fline object store,
+// written by .github/workflows/release.yml under a stable /latest alias. The
+// bucket serves nothing anonymously, so a download is a 302 to a short-lived
+// presigned URL minted here — see presignGetUrl.
+const S3_ENDPOINT = (process.env.S3_ENDPOINT || 'https://s3.db.dev.fline.sh:9000').replace(/\/+$/, '');
+const S3_BUCKET = process.env.S3_BUCKET || 'mjkpz2ixbzc5rxji';
+const S3_REGION = process.env.S3_REGION || 'us-east-1';
+const S3_ACCESS_KEY_ID = process.env.S3_ACCESS_KEY_ID || '';
+const S3_SECRET_ACCESS_KEY = process.env.S3_SECRET_ACCESS_KEY || '';
+const S3_KEY_PREFIX = 'latest';
+// A signed link only needs to outlive the browser following the 302, not the
+// whole transfer: S3 checks the signature when the download begins.
+const DOWNLOAD_URL_TTL = Number(process.env.DOWNLOAD_URL_TTL || 900);
 
 // The counted download links. Keys are the names that appear in the stats, so
 // they are stable and readable rather than derived from the file name.
 //
-// These still say Recruit, which is the old product name, because that is what
-// is in the bucket. The release workflow was taught to publish the alias under
-// both Jobbox-* and Recruit-*, but that lands the first time a release is cut
-// after it, and until then Jobbox-arm64.dmg is a 404. Point these at Jobbox-*
-// once a release has shipped with both names — the redirect is resolved here
-// with no check against storage, so a wrong name is a broken download button
-// rather than a fallback.
+// The stable download aliases the release workflow writes under /latest. The
+// redirect is resolved here with no check against storage, so a name absent
+// from the bucket is a broken download button rather than a fallback.
 const TARGETS = {
-  'mac-arm64': 'Recruit-arm64.dmg',
-  'mac-x64': 'Recruit-x64.dmg',
+  'mac-arm64': 'Jobbox-arm64.dmg',
+  'mac-x64': 'Jobbox-x64.dmg',
 };
 const DEFAULT_TARGET = 'mac-arm64';
 
@@ -110,6 +112,52 @@ function targetFor(urlPath) {
   return null;
 }
 
+// Presigned S3 GET URL, AWS Signature Version 4 in query form. The site holds
+// read credentials because the bucket serves nothing anonymously; the signed
+// link lets the bytes come straight from the object store rather than through
+// this process.
+function s3UriEncode(str, encodeSlash) {
+  let out = '';
+  for (const b of Buffer.from(str, 'utf8')) {
+    const c = String.fromCharCode(b);
+    if ((b >= 0x41 && b <= 0x5a) || (b >= 0x61 && b <= 0x7a) || (b >= 0x30 && b <= 0x39) ||
+        c === '-' || c === '_' || c === '.' || c === '~') out += c;
+    else if (c === '/' && !encodeSlash) out += '/';
+    else out += '%' + b.toString(16).toUpperCase().padStart(2, '0');
+  }
+  return out;
+}
+
+function presignGetUrl(key, expiresSeconds) {
+  const crypto = require('crypto');
+  const hmac = (k, d) => crypto.createHmac('sha256', k).update(d).digest();
+  const amzDate = new Date().toISOString().replace(/[:-]|\.\d{3}/g, '');
+  const dateStamp = amzDate.slice(0, 8);
+  const host = new URL(S3_ENDPOINT).host;
+  const canonicalUri = '/' + s3UriEncode(S3_BUCKET, true) + '/' + s3UriEncode(key, false);
+  const scope = `${dateStamp}/${S3_REGION}/s3/aws4_request`;
+  const params = {
+    'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
+    'X-Amz-Credential': `${S3_ACCESS_KEY_ID}/${scope}`,
+    'X-Amz-Date': amzDate,
+    'X-Amz-Expires': String(expiresSeconds),
+    'X-Amz-SignedHeaders': 'host',
+  };
+  const query = Object.keys(params).sort()
+    .map((k) => `${s3UriEncode(k, true)}=${s3UriEncode(params[k], true)}`)
+    .join('&');
+  const canonicalRequest = ['GET', canonicalUri, query, `host:${host}\n`, 'host', 'UNSIGNED-PAYLOAD'].join('\n');
+  const stringToSign = [
+    'AWS4-HMAC-SHA256',
+    amzDate,
+    scope,
+    crypto.createHash('sha256').update(canonicalRequest).digest('hex'),
+  ].join('\n');
+  const signingKey = hmac(hmac(hmac(hmac('AWS4' + S3_SECRET_ACCESS_KEY, dateStamp), S3_REGION), 's3'), 'aws4_request');
+  const signature = crypto.createHmac('sha256', signingKey).update(stringToSign).digest('hex');
+  return `${S3_ENDPOINT}/${s3UriEncode(S3_BUCKET, true)}/${s3UriEncode(key, false)}?${query}&X-Amz-Signature=${signature}`;
+}
+
 function sendJSON(res, status, body) {
   const payload = JSON.stringify(body, null, 2);
   res.writeHead(status, {
@@ -166,6 +214,10 @@ const server = http.createServer((req, res) => {
 
   const target = targetFor(urlPath);
   if (target) {
+    if (!S3_ACCESS_KEY_ID || !S3_SECRET_ACCESS_KEY) {
+      console.error('download: S3 credentials are not configured');
+      return sendJSON(res, 503, { error: 'download temporarily unavailable' });
+    }
     // Counting must never be able to cost a download, so it is attempted first
     // and its failure is logged rather than propagated.
     try {
@@ -173,11 +225,12 @@ const server = http.createServer((req, res) => {
     } catch (err) {
       console.warn(`counter: failed to record ${target}: ${err.message}`);
     }
+    const location = presignGetUrl(`${S3_KEY_PREFIX}/${TARGETS[target]}`, DOWNLOAD_URL_TTL);
     // no-store matters more than it looks. A cached 302 means the next click
-    // never reaches this process, and the counter would flatline while
-    // downloads carried on.
+    // never reaches this process, and the counter would flatline while downloads
+    // carried on; the signed URL is short-lived, so a cached one is also expired.
     res.writeHead(302, {
-      location: `${DOWNLOADS_BASE}/${TARGETS[target]}`,
+      location,
       'cache-control': 'no-store',
       'referrer-policy': 'no-referrer',
     });
@@ -213,6 +266,9 @@ for (const signal of ['SIGTERM', 'SIGINT']) {
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`serving ${docRoot} on port ${PORT}`);
-  console.log(`downloads redirect to ${DOWNLOADS_BASE}`);
+  console.log(`downloads presigned from ${S3_ENDPOINT}/${S3_BUCKET}/${S3_KEY_PREFIX}`);
+  if (!S3_ACCESS_KEY_ID || !S3_SECRET_ACCESS_KEY) {
+    console.warn('downloads: S3 credentials are not set; /download will return 503');
+  }
   console.log(`stats at /api/downloads (${STATS_TOKEN ? 'token required' : 'public'})`);
 });
