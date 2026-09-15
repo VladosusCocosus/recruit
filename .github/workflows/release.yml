@@ -102,7 +102,7 @@ jobs:
           AWS_DEFAULT_REGION: us-east-1
           AWS_EC2_METADATA_DISABLED: 'true'
           ENDPOINT: https://s3.db.dev.fline.sh:9000
-          BUCKET: jobbox-s3
+          BUCKET: mjkpz2ixbzc5rxji
         run: |
           set -euo pipefail
           s3() { aws --endpoint-url "$ENDPOINT" "$@"; }
