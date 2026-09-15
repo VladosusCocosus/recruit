@@ -391,7 +391,7 @@ npm run dist:mac      # DMG + ZIP into release/
 
 ## Download numbers
 
-The site's Download buttons used to link straight at the object store, so MinIO served
+The site's Download buttons used to link straight at the object store, so it served
 the bytes and nothing in this repo ever learned that a copy had been taken. They now point
 at `/download/mac/arm64` and `/download/mac/x64`, which the site's own server answers with
 a `302` to the same object after recording the request. Storage still serves the bytes —
